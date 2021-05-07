@@ -339,18 +339,25 @@ version = "0.1.5"
 description = "A framework for building Singer taps"
 category = "main"
 optional = false
-python-versions = ">=3.6,<3.9"
+python-versions = "<3.9,>=3.6"
+develop = false
 
 [package.dependencies]
 backoff = "1.8.0"
-click = ">=7.1.2,<8.0.0"
-cryptography = ">=3.4.6,<4.0.0"
+click = "^7.1.2"
+cryptography = "^3.4.6"
 importlib-metadata = {version = "*", markers = "python_version < \"3.8\""}
-memoization = ">=0.3.2,<0.4.0"
-pendulum = ">=1.2.0,<2.0.0"
+memoization = "^0.3.2"
+pendulum = "^1.2.0"
 pipelinewise-singer-python = "1.2.0"
 PyJWT = "1.7.1"
-requests = ">=2.25.1,<3.0.0"
+requests = "^2.25.1"
+
+[package.source]
+type = "git"
+url = "https://gitlab.com/meltano/singer-sdk.git"
+reference = "125-excessive-logging-after-latest-update"
+resolved_reference = "0e4fc31c1a6a5cec8fa1aa4e03099fe05ed21947"
 
 [[package]]
 name = "six"
@@ -415,7 +422,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = "<3.9,>=3.6"
-content-hash = "8e62fe821d8987d830f2dec89c5af1c9161815d73451ad762754ab32474440ae"
+content-hash = "e08e4d219728c860ba261a309b8419d12eb4b277b452fb462b45a60041cae9ee"
 
 [metadata.files]
 atomicwrites = [
@@ -604,10 +611,7 @@ simplejson = [
     {file = "simplejson-3.11.1.win32-py3.4.exe", hash = "sha256:97cc43ef4cb18a2725f6e26d22b96f8ca50872a195bde32707dcb284f89c1d4d"},
     {file = "simplejson-3.11.1.win32-py3.5.exe", hash = "sha256:c76d55d78dc8b06c96fd08c6cc5e2b0b650799627d3f9ca4ad23f40db72d5f6d"},
 ]
-singer-sdk = [
-    {file = "singer-sdk-0.1.5.tar.gz", hash = "sha256:ac8182b5703906631a8646595ee39bf8cb9b615b8de80ef0f1119b979d2dd241"},
-    {file = "singer_sdk-0.1.5-py3-none-any.whl", hash = "sha256:d680398836207d6aa03ce8a20491c1b3356f6fe7a3f5cbace2376c76113fbe9b"},
-]
+singer-sdk = []
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
