@@ -1,21 +1,16 @@
 version: 1
 send_anonymous_usage_stats: true
-project_id: tap-github
+project_id: 96584f7b-a36c-46e0-b41a-7f9074293137
 plugins:
   extractors:
   - name: tap-github
     namespace: tap_github
-    # TODO: To test using Meltano, replace with absolute path
-    #       to the tap-github.sh script:
-    executable: ./tap-github.sh
+    pip_url: blah
+    executable: /Users/ajsteers/Source/tap-github/tap-github.sh
     capabilities:
     - state
     - catalog
     - discover
-    config:
-      searches:
-        - name: tap_something
-          query: tap-+language:Python
     settings:
     - name: searches
       kind: array
@@ -23,7 +18,13 @@ plugins:
       kind: password
     - name: start_date
       value: '2010-01-01T00:00:00Z'
+    config:
+      searches: [{name: "tap_something", query: "tap-+language:Python"}]
+    select:
+    - '*.*'
   loaders:
   - name: target-jsonl
     variant: andyh1203
     pip_url: target-jsonl
+    config:
+      destination_path: .output
