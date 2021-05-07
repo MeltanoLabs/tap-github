@@ -1,0 +1,8 @@
+{
+    "searches": [
+        {
+            "name": "test_search",
+            "query": "tap-+language:Python"
+        }
+    ]
+}
