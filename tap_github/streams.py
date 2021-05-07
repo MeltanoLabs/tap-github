@@ -1,7 +1,6 @@
 """Stream type classes for tap-github."""
 
-from pathlib import Path
-from typing import Any, Dict, Optional, Union, List, Iterable
+from typing import Any, Dict, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -10,6 +9,8 @@ from tap_github.client import GitHubStream
 
 class RepositoryStream(GitHubStream):
     """Define custom stream."""
+
+    MAX_PER_PAGE = 100  # API maximum
 
     def __init__(
         self,

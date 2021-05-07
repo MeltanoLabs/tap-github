@@ -2,7 +2,7 @@
 
 import requests
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, List, Iterable
+from typing import Any, Dict, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
 
@@ -11,7 +11,7 @@ class GitHubStream(RESTStream):
     """GitHub stream class."""
 
     url_base = "https://api.github.com"
-    MAX_PER_PAGE = 10000
+    MAX_PER_PAGE = 100
 
     @property
     def http_headers(self) -> dict:
@@ -27,11 +27,14 @@ class GitHubStream(RESTStream):
         self, response: requests.Response, previous_token: Optional[Any] = None
     ) -> Optional[Any]:
         """Return a token for identifying next page or None if no more pages."""
+        if previous_token and (cast(int, previous_token) * self.MAX_PER_PAGE >= 1000):
+            return None
+
+        if response.json().get("items"):
+            # Paginate as long as the response has items
+            return (previous_token or 1) + 1
+
         return None
-        # next_page_token = response.headers.get("X-Next-Page", None)
-        # if next_page_token:
-        #     self.logger.info(f"Next page token retrieved: {next_page_token}")
-        # return next_page_token
 
     def get_url_params(
         self, partition: Optional[dict], next_page_token: Optional[Any] = None
