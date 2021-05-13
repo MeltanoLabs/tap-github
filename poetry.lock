@@ -335,12 +335,12 @@ python-versions = "*"
 
 [[package]]
 name = "singer-sdk"
-version = "0.1.3"
+version = "0.1.5"
 description = "A framework for building Singer taps"
 category = "main"
 optional = false
 python-versions = "<3.9,>=3.6"
-develop = false
+develop = true
 
 [package.dependencies]
 backoff = "1.8.0"
@@ -354,10 +354,8 @@ PyJWT = "1.7.1"
 requests = "^2.25.1"
 
 [package.source]
-type = "git"
-url = "https://gitlab.com/meltano/singer-sdk.git"
-reference = "97-hierarchical-streams"
-resolved_reference = "917edacbdff28c1759c819cdd29bde7fc337a78e"
+type = "directory"
+url = "../singer-sdk"
 
 [[package]]
 name = "six"
@@ -422,7 +420,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = "<3.9,>=3.6"
-content-hash = "6cef2c489acaf6e5e0de4fbe255eb139b74d3c5b4e989551e57fc25f14ce5009"
+content-hash = "9f8a7c301ebb2817a583c7a2079b6291b844d196618336447f0e429d1ac088fd"
 
 [metadata.files]
 atomicwrites = [

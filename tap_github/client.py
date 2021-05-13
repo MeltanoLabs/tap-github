@@ -40,7 +40,13 @@ class GitHubStream(RESTStream):
         ):
             return None
 
-        if response.json().get("items"):
+        resp_json = response.json()
+        if isinstance(resp_json, list):
+            results = resp_json
+        else:
+            results = resp_json.get("items")
+
+        if results:
             # Paginate as long as the response has items
             return (previous_token or 1) + 1
 
@@ -61,5 +67,9 @@ class GitHubStream(RESTStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
         resp_json = response.json()
-        for row in resp_json.get("items"):
+        if isinstance(resp_json, list):
+            results = resp_json
+        else:
+            results = resp_json.get("items")
+        for row in results:
             yield row

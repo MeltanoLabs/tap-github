@@ -35,6 +35,19 @@ class RepositoryStream(GitHubStream):
         params["q"] = self.query
         return params
 
+    def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
+        """Return a child context object from the record and optional provided context.
+
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+
+        return {
+            "org": record["owner"]["login"],
+            "repo": record["name"],
+        }
+
     path = "/search/repositories"
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
@@ -85,12 +98,12 @@ class IssuesStream(GitHubStream):
     parent_stream_type = RepositoryStream
     name = "Issues"
     schema = th.PropertiesList(
-        th.Property("id", th.StringType),
+        th.Property("id", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
     ).to_dict()
 
-    path = "/{org}/{repo}/issues"
+    path = "/repos/{org}/{repo}/issues"
 
     # def get_path(self, partition: dict) -> str:
     #     """TODO: This needs to be called instead of `path`."""
