@@ -78,9 +78,8 @@ class RepositoryStream(GitHubStream):
         th.Property("size", th.IntegerType),
         th.Property("stargazers_count", th.IntegerType),
         th.Property("fork", th.BooleanType),
-        # These `_count` metrics appear to be duplicates, or else
-        # documentation bugs in results example:
-        # https://docs.github.com/en/rest/reference/search
+        # These `_count` metrics appear to be duplicates but have valid data
+        # and are documented: https://docs.github.com/en/rest/reference/search
         th.Property("forks", th.IntegerType),
         th.Property("forks_count", th.IntegerType),
         th.Property("watchers", th.IntegerType),
@@ -106,7 +105,3 @@ class IssuesStream(GitHubStream):
     def get_state_context(self, context: dict = None) -> Optional[Dict]:
         """Override state handling to only store one bookmark (vs one per partition)."""
         return None
-
-    # def get_path(self, partition: dict) -> str:
-    #     """TODO: This needs to be called instead of `path`."""
-    #     return f"/{partition['org']}/{partition['repo']}/issues"
