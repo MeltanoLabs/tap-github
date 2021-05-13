@@ -10,7 +10,8 @@ from singer_sdk.streams import RESTStream
 class GitHubStream(RESTStream):
     """GitHub stream class."""
 
-    MAX_PER_PAGE = 100
+    MAX_PER_PAGE = 1000
+    MAX_RESULTS_LIMIT = None
 
     url_base = "https://api.github.com"
     primary_keys = ["id"]
@@ -30,7 +31,13 @@ class GitHubStream(RESTStream):
         self, response: requests.Response, previous_token: Optional[Any] = None
     ) -> Optional[Any]:
         """Return a token for identifying next page or None if no more pages."""
-        if previous_token and (cast(int, previous_token) * self.MAX_PER_PAGE >= 1000):
+        if (
+            previous_token
+            and self.MAX_RESULTS_LIMIT
+            and (
+                cast(int, previous_token) * self.MAX_PER_PAGE >= self.MAX_RESULTS_LIMIT
+            )
+        ):
             return None
 
         if response.json().get("items"):
@@ -43,7 +50,7 @@ class GitHubStream(RESTStream):
         self, partition: Optional[dict], next_page_token: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params: dict = {"per_page": self.MAX_PER_PAGE, "query": self.query}
+        params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
             params["page"] = next_page_token
         # if self.replication_key:

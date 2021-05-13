@@ -8,9 +8,11 @@ from tap_github.client import GitHubStream
 
 
 class RepositoryStream(GitHubStream):
-    """Define custom stream."""
+    """Defines 'Repository' stream."""
 
-    MAX_PER_PAGE = 100  # API maximum
+    # Search API max: 100 per page, 1,000 total
+    MAX_PER_PAGE = 100
+    MAX_RESULTS_LIMIT = 1000
 
     def __init__(
         self,
@@ -23,9 +25,17 @@ class RepositoryStream(GitHubStream):
         super().__init__(tap=tap, name=name, schema=schema, path=path)
         self.query = query
 
+    def get_url_params(
+        self, partition: Optional[dict], next_page_token: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = super().get_url_params(
+            partition=partition, next_page_token=next_page_token
+        )
+        params["q"] = self.query
+        return params
+
     path = "/search/repositories"
-    primary_keys = ["id"]
-    replication_key = None
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("name", th.StringType),
@@ -68,12 +78,20 @@ class RepositoryStream(GitHubStream):
         th.Property("open_issues_count", th.IntegerType),
     ).to_dict()
 
-    def get_url_params(
-        self, partition: Optional[dict], next_page_token: Optional[Any] = None
-    ) -> Dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(
-            partition=partition, next_page_token=next_page_token
-        )
-        params["q"] = self.query
-        return params
+
+class IssuesStream(GitHubStream):
+    """Defines 'Issues' stream."""
+
+    parent_stream_type = RepositoryStream
+    name = "Issues"
+    schema = th.PropertiesList(
+        th.Property("id", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+    ).to_dict()
+
+    path = "/{org}/{repo}/issues"
+
+    # def get_path(self, partition: dict) -> str:
+    #     """TODO: This needs to be called instead of `path`."""
+    #     return f"/{partition['org']}/{partition['repo']}/issues"
