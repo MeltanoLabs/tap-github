@@ -10,8 +10,11 @@ from singer_sdk.streams import RESTStream
 class GitHubStream(RESTStream):
     """GitHub stream class."""
 
-    url_base = "https://api.github.com"
     MAX_PER_PAGE = 100
+
+    url_base = "https://api.github.com"
+    primary_keys = ["id"]
+    replication_key = None
 
     @property
     def http_headers(self) -> dict:
