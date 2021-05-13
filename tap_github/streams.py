@@ -29,9 +29,7 @@ class RepositoryStream(GitHubStream):
         self, partition: Optional[dict], next_page_token: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(
-            partition=partition, next_page_token=next_page_token
-        )
+        params = super().get_url_params(partition, next_page_token)
         params["q"] = self.query
         return params
 
@@ -95,15 +93,19 @@ class RepositoryStream(GitHubStream):
 class IssuesStream(GitHubStream):
     """Defines 'Issues' stream."""
 
-    parent_stream_type = RepositoryStream
     name = "Issues"
+    path = "/repos/{org}/{repo}/issues"
+    parent_stream_type = RepositoryStream
+
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
     ).to_dict()
 
-    path = "/repos/{org}/{repo}/issues"
+    def get_state_context(self, context: dict = None) -> Optional[Dict]:
+        """Override state handling to only store one bookmark (vs one per partition)."""
+        return None
 
     # def get_path(self, partition: dict) -> str:
     #     """TODO: This needs to be called instead of `path`."""

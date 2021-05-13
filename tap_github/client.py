@@ -11,7 +11,7 @@ class GitHubStream(RESTStream):
     """GitHub stream class."""
 
     MAX_PER_PAGE = 1000
-    MAX_RESULTS_LIMIT = None
+    MAX_RESULTS_LIMIT: Optional[int] = None
 
     url_base = "https://api.github.com"
     primary_keys = ["id"]
