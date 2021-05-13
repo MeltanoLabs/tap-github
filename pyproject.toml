@@ -6,13 +6,16 @@ authors = ["AJ Steers (Meltano)"]
 license = "Apache 2.0"
 
 [tool.poetry.dependencies]
-python = "<3.9,>=3.6"
+python = "<3.9,>=3.6.2"
 requests = "^2.25.1"
 singer-sdk = {path = "../singer-sdk", develop = true}
 # singer-sdk = {git = "https://gitlab.com/meltano/singer-sdk.git", rev = "97-hierarchical-streams"}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"
+mypy = "^0.812"
+flake8 = "^3.9.2"
+black = {version = "^21.5b1", allow-prereleases = true}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
