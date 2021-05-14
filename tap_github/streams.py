@@ -94,14 +94,76 @@ class IssuesStream(GitHubStream):
 
     name = "Issues"
     path = "/repos/{org}/{repo}/issues"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
     parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
+        th.Property("issue_number", th.IntegerType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("closed_at", th.DateTimeType),
+        th.Property("state", th.StringType),
+        th.Property("title", th.StringType),
+        th.Property("comments", th.IntegerType),
+        th.Property("author_association", th.StringType),
+        th.Property("body", th.StringType),
     ).to_dict()
 
-    def get_state_context(self, context: dict = None) -> Optional[Dict]:
-        """Override state handling to only store one bookmark (vs one per partition)."""
-        return None
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use beta endpoint which includes reactions as described here:
+        https://developer.github.com/changes/2016-05-12-reactions-api-preview/
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
+        return headers
+
+    def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
+        """Return a child context object from the record and optional provided context.
+
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        if context is None:
+            raise ValueError("Issue stream should not have blank context.")
+
+        context["issue_number"] = record["number"]
+        return context
+
+
+class IssueCommentsStream(GitHubStream):
+    """Defines 'Issues' stream."""
+
+    name = "IssueComments"
+    path = "/repos/{org}/{repo}/issues/{issue_number}/comments"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = IssuesStream
+    ignore_parent_replication_key = False
+
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("issue_number", th.IntegerType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("author_association", th.StringType),
+        th.Property("body", th.StringType),
+    ).to_dict()
+
+    # def get_state_context(self, context: dict) -> Optional[Dict]:
+    #     """Override state handling.
+
+    #     Will store one state bookmark per repo instead of one per issue.
+    #     """
+    #     context.pop("issue_number")
+    #     return context

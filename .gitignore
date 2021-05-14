@@ -5,7 +5,7 @@
 .output
 
 # Secrets and internal config files
-.secrets/*
+**/.secrets/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
