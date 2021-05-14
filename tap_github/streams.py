@@ -1,6 +1,6 @@
 """Stream type classes for tap-github."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -136,6 +136,7 @@ class IssuesStream(GitHubStream):
             raise ValueError("Issue stream should not have blank context.")
 
         context["issue_number"] = record["number"]
+        context["comments"] = record["comments"]
         return context
 
 
@@ -159,6 +160,17 @@ class IssueCommentsStream(GitHubStream):
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
     ).to_dict()
+
+    def get_records(self, partition: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+
+        Each row emitted should be a dictionary of property names to their values.
+        """
+        if partition and partition.get("comments", None) == 0:
+            self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
+            return []
+
+        return super().get_records(partition)
 
     # def get_state_context(self, context: dict) -> Optional[Dict]:
     #     """Override state handling.
