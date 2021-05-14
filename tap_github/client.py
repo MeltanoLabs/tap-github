@@ -1,7 +1,6 @@
 """REST client handling, including GitHubStream base class."""
 
 import requests
-from pathlib import Path
 from typing import Any, Dict, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
@@ -15,7 +14,7 @@ class GitHubStream(RESTStream):
 
     url_base = "https://api.github.com"
     primary_keys = ["id"]
-    replication_key = None
+    replication_key: Optional[str] = None
 
     @property
     def http_headers(self) -> dict:
@@ -24,7 +23,7 @@ class GitHubStream(RESTStream):
         if "user_agent" in self.config:
             headers["User-Agent"] = self.config.get("user_agent")
         if "auth_token" in self.config:
-            headers["auth_token"] = self.config["auth_token"]
+            headers["Authorization"] = f"token {self.config['auth_token']}"
         return headers
 
     def get_next_page_token(
