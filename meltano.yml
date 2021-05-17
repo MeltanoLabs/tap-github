@@ -19,7 +19,7 @@ plugins:
     - name: start_date
       value: '2010-01-01T00:00:00Z'
     config:
-      searches: [{name: "tap_something", query: "tap-+language:Python"}]
+      searches: [{name: "target-athena", query: "target-athena+fork:only"}]
     select:
     - '*.*'
   loaders:
@@ -28,3 +28,4 @@ plugins:
     pip_url: target-jsonl
     config:
       destination_path: .output
+      do_timestamp_file: false

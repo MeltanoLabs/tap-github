@@ -2,7 +2,7 @@
     "searches": [
         {
             "name": "test_search",
-            "query": "tap-+language:Python"
+            "query": "target-athena+fork:only"
         }
     ]
 }

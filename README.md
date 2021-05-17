@@ -94,6 +94,16 @@ meltano invoke tap-github --version
 meltano elt tap-github target-jsonl
 ```
 
+One-liner to recreate output directory, run elt, and write out state file:
+
+```bash
+# Update this when you want a fresh state file:
+TESTJOB=testjob1
+
+# Run everything in one line
+mkdir -p .output && meltano elt tap-github target-jsonl --job_id $TESTJOB && meltano elt tap-github target-jsonl --job_id $TESTJOB --dump=state > .output/state.json
+```
+
 ### Singer SDK Dev Guide
 
 See the [dev guide](../../docs/dev_guide.md) for more instructions on how to use the Singer SDK to 
