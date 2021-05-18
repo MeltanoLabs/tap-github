@@ -16,6 +16,9 @@ pytest = "^6.1.2"
 mypy = "^0.812"
 flake8 = "^3.9.2"
 black = {version = "^21.5b1", allow-prereleases = true}
+requests-mock = "^1.9.2"
+fixture = "^1.5.11"
+python-dotenv = "^0.17.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
