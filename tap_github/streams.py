@@ -101,6 +101,31 @@ class IssuesStream(GitHubStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
 
+    def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
+        """Return a child context object from the record and optional provided context.
+
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        if context is None:
+            raise ValueError("Issue stream should not have blank context.")
+
+        context["issue_number"] = record["number"]
+        context["comments"] = record["comments"]  # If zero, comments can be skipped
+        return context
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use beta endpoint which includes reactions as described here:
+        https://developer.github.com/changes/2016-05-12-reactions-api-preview/
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
+        return headers
+
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("repo", th.StringType),
@@ -116,31 +141,6 @@ class IssuesStream(GitHubStream):
         th.Property("body", th.StringType),
     ).to_dict()
 
-    @property
-    def http_headers(self) -> dict:
-        """Return the http headers needed.
-
-        Overridden to use beta endpoint which includes reactions as described here:
-        https://developer.github.com/changes/2016-05-12-reactions-api-preview/
-        """
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
-        return headers
-
-    def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
-        """Return a child context object from the record and optional provided context.
-
-        By default, will return context if provided and otherwise the record dict.
-        Developers may override this behavior to send specific information to child
-        streams for context.
-        """
-        if context is None:
-            raise ValueError("Issue stream should not have blank context.")
-
-        context["issue_number"] = record["number"]
-        context["comments"] = record["comments"]
-        return context
-
 
 class IssueCommentsStream(GitHubStream):
     """Defines 'Issues' stream."""
@@ -153,16 +153,16 @@ class IssueCommentsStream(GitHubStream):
     partition_keys = ["repo", "org"]
     ignore_parent_replication_key = False
 
-    schema = th.PropertiesList(
-        th.Property("id", th.IntegerType),
-        th.Property("repo", th.StringType),
-        th.Property("org", th.StringType),
-        th.Property("issue_number", th.IntegerType),
-        th.Property("updated_at", th.DateTimeType),
-        th.Property("created_at", th.DateTimeType),
-        th.Property("author_association", th.StringType),
-        th.Property("body", th.StringType),
-    ).to_dict()
+    def get_records(self, partition: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+
+        Each row emitted should be a dictionary of property names to their values.
+        """
+        if partition and partition.get("comments", None) == 0:
+            self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
+            return []
+
+        return super().get_records(partition)
 
     def get_url_params(
         self, partition: Optional[dict], next_page_token: Optional[Any] = None
@@ -175,13 +175,13 @@ class IssueCommentsStream(GitHubStream):
                 params["since"] = since
         return params
 
-    def get_records(self, partition: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
-        """Return a generator of row-type dictionary objects.
-
-        Each row emitted should be a dictionary of property names to their values.
-        """
-        if partition and partition.get("comments", None) == 0:
-            self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
-            return []
-
-        return super().get_records(partition)
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("issue_number", th.IntegerType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("author_association", th.StringType),
+        th.Property("body", th.StringType),
+    ).to_dict()
