@@ -20,7 +20,6 @@ class GitHubStream(RESTStream):
 
     primary_keys = ["id"]
     replication_key: Optional[str] = None
-    state_partitioning_keys = ["repo", "org"]
 
     @property
     def http_headers(self) -> dict:

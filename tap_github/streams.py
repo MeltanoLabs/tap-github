@@ -99,6 +99,7 @@ class IssuesStream(GitHubStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
 
     def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
         """Return a child context object from the record and optional provided context.
