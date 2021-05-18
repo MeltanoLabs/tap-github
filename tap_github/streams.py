@@ -49,6 +49,8 @@ class RepositoryStream(GitHubStream):
     path = "/search/repositories"
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
         th.Property("name", th.StringType),
         th.Property("full_name", th.StringType),
         th.Property("description", th.StringType),
@@ -148,6 +150,7 @@ class IssueCommentsStream(GitHubStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = IssuesStream
+    partition_keys = ["repo", "org"]
     ignore_parent_replication_key = False
 
     schema = th.PropertiesList(
@@ -161,6 +164,17 @@ class IssueCommentsStream(GitHubStream):
         th.Property("body", th.StringType),
     ).to_dict()
 
+    def get_url_params(
+        self, partition: Optional[dict], next_page_token: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = super().get_url_params(partition, next_page_token)
+        if self.replication_key:
+            since = self.get_starting_timestamp(partition)
+            if since:
+                params["since"] = since
+        return params
+
     def get_records(self, partition: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
@@ -171,11 +185,3 @@ class IssueCommentsStream(GitHubStream):
             return []
 
         return super().get_records(partition)
-
-    # def get_state_context(self, context: dict) -> Optional[Dict]:
-    #     """Override state handling.
-
-    #     Will store one state bookmark per repo instead of one per issue.
-    #     """
-    #     context.pop("issue_number")
-    #     return context

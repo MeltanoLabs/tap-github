@@ -11,10 +11,16 @@ class GitHubStream(RESTStream):
 
     MAX_PER_PAGE = 1000
     MAX_RESULTS_LIMIT: Optional[int] = None
+    DEFAULT_API_BASE_URL = "https://api.github.com"
+    LOG_REQUEST_METRIC_URLS = True
 
-    url_base = "https://api.github.com"
+    @property
+    def url_base(self) -> str:
+        return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
+
     primary_keys = ["id"]
     replication_key: Optional[str] = None
+    partition_keys = ["repo", "org"]
 
     @property
     def http_headers(self) -> dict:
@@ -58,9 +64,12 @@ class GitHubStream(RESTStream):
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
             params["page"] = next_page_token
-        # if self.replication_key:
-        #     params["sort"] = "asc"
-        #     params["order_by"] = self.replication_key
+        if self.replication_key:
+            params["sort"] = "updated"
+            params["direction"] = "asc"
+            since = self.get_starting_timestamp(partition)
+            if since:
+                params["since"] = since
         return params
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
