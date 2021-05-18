@@ -20,7 +20,7 @@ class GitHubStream(RESTStream):
 
     primary_keys = ["id"]
     replication_key: Optional[str] = None
-    partition_keys = ["repo", "org"]
+    state_partitioning_keys = ["repo", "org"]
 
     @property
     def http_headers(self) -> dict:
@@ -58,7 +58,7 @@ class GitHubStream(RESTStream):
         return None
 
     def get_url_params(
-        self, partition: Optional[dict], next_page_token: Optional[Any] = None
+        self, context: Optional[dict], next_page_token: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
@@ -67,7 +67,7 @@ class GitHubStream(RESTStream):
         if self.replication_key:
             params["sort"] = "updated"
             params["direction"] = "asc"
-            since = self.get_starting_timestamp(partition)
+            since = self.get_starting_timestamp(context)
             if since:
                 params["since"] = since
         return params

@@ -26,10 +26,10 @@ class RepositoryStream(GitHubStream):
         self.query = query
 
     def get_url_params(
-        self, partition: Optional[dict], next_page_token: Optional[Any] = None
+        self, context: Optional[dict], next_page_token: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(partition, next_page_token)
+        params = super().get_url_params(context, next_page_token)
         params["q"] = self.query
         return params
 
@@ -40,7 +40,6 @@ class RepositoryStream(GitHubStream):
         Developers may override this behavior to send specific information to child
         streams for context.
         """
-
         return {
             "org": record["owner"]["login"],
             "repo": record["name"],
@@ -150,27 +149,27 @@ class IssueCommentsStream(GitHubStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = IssuesStream
-    partition_keys = ["repo", "org"]
+    state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
 
-    def get_records(self, partition: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
         """
-        if partition and partition.get("comments", None) == 0:
+        if context and context.get("comments", None) == 0:
             self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
             return []
 
-        return super().get_records(partition)
+        return super().get_records(context)
 
     def get_url_params(
-        self, partition: Optional[dict], next_page_token: Optional[Any] = None
+        self, context: Optional[dict], next_page_token: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(partition, next_page_token)
+        params = super().get_url_params(context, next_page_token)
         if self.replication_key:
-            since = self.get_starting_timestamp(partition)
+            since = self.get_starting_timestamp(context)
             if since:
                 params["since"] = since
         return params
