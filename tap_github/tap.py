@@ -5,9 +5,7 @@ from typing import List
 from singer_sdk import Tap, Stream
 from singer_sdk import typing as th  # JSON schema typing helpers
 
-from tap_github.streams import (
-    RepositoryStream,
-)
+from tap_github.streams import RepositoryStream, IssuesStream, IssueCommentsStream
 
 
 class TapGitHub(Tap):
@@ -33,12 +31,14 @@ class TapGitHub(Tap):
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams."""
-        return [
+        streams = [
             RepositoryStream(
                 tap=self, name=search_def["name"], query=search_def["query"]
             )
             for search_def in self.config.get("searches")
         ]
+        streams += [IssuesStream(tap=self), IssueCommentsStream(tap=self)]
+        return streams
 
 
 # CLI Execution:
