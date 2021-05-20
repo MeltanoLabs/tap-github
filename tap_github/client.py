@@ -32,7 +32,7 @@ class GitHubStream(RESTStream):
         return headers
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any] = None
+        self, response: requests.Response, previous_token: Optional[Any]
     ) -> Optional[Any]:
         """Return a token for identifying next page or None if no more pages."""
         if (
@@ -57,7 +57,7 @@ class GitHubStream(RESTStream):
         return None
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any] = None
+        self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
