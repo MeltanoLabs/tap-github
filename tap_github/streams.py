@@ -135,7 +135,7 @@ class IssuesStream(GitHubStream):
         th.Property("issue_number", th.IntegerType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
-        th.Property("closed_at", th.DateTimeType),
+        # th.Property("closed_at", th.DateTimeType),  # Nulls causing parse error
         th.Property("state", th.StringType),
         th.Property("title", th.StringType),
         th.Property("comments", th.IntegerType),
