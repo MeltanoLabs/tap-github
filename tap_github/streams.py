@@ -1,6 +1,6 @@
 """Stream type classes for tap-github."""
 
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -14,24 +14,24 @@ class RepositoryStream(GitHubStream):
     MAX_PER_PAGE = 100
     MAX_RESULTS_LIMIT = 1000
 
-    def __init__(
-        self,
-        tap,
-        name: Optional[str] = None,
-        schema=None,
-        path: Optional[str] = None,
-        query: str = None,
-    ):
-        super().__init__(tap=tap, name=name, schema=schema, path=path)
-        self.query = query
+    name = "repositories"
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
-        params["q"] = self.query
+        params["q"] = context["search_query"]
         return params
+
+    @property
+    def partitions(self) -> Optional[List[Dict]]:
+        """Return a list of partitions."""
+        return [
+            {"search_name": s["name"], "search_query": s["query"]}
+            for s in self.config["searches"]
+        ]
 
     def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
         """Return a child context object from the record and optional provided context.
@@ -47,6 +47,8 @@ class RepositoryStream(GitHubStream):
 
     path = "/search/repositories"
     schema = th.PropertiesList(
+        th.Property("search_name", th.StringType),
+        th.Property("search_query", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
@@ -93,7 +95,7 @@ class RepositoryStream(GitHubStream):
 class IssuesStream(GitHubStream):
     """Defines 'Issues' stream."""
 
-    name = "Issues"
+    name = "issues"
     path = "/repos/{org}/{repo}/issues"
     primary_keys = ["id"]
     replication_key = "updated_at"
@@ -145,7 +147,7 @@ class IssuesStream(GitHubStream):
 class IssueCommentsStream(GitHubStream):
     """Defines 'Issues' stream."""
 
-    name = "IssueComments"
+    name = "issue_comments"
     path = "/repos/{org}/{repo}/issues/{issue_number}/comments"
     primary_keys = ["id"]
     replication_key = "updated_at"

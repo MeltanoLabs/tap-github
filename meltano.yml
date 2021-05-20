@@ -19,7 +19,8 @@ plugins:
     - name: start_date
       value: '2010-01-01T00:00:00Z'
     config:
-      searches: [{name: "target-athena", query: "target-athena+fork:only"}]
+      searches:
+      - {name: "target-athena", query: "target-athena+fork:only"}
     select:
     - '*.*'
   loaders:

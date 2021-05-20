@@ -20,8 +20,8 @@ class TapGitHub(Tap):
             "searches",
             th.ArrayType(
                 th.ObjectType(
-                    th.Property("name", th.StringType),
-                    th.Property("query", th.StringType),
+                    th.Property("name", th.StringType, required=True),
+                    th.Property("query", th.StringType, required=True),
                 )
             ),
             required=True,
@@ -31,14 +31,11 @@ class TapGitHub(Tap):
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams."""
-        streams = [
-            RepositoryStream(
-                tap=self, name=search_def["name"], query=search_def["query"]
-            )
-            for search_def in self.config.get("searches")
+        return [
+            RepositoryStream(tap=self),
+            IssuesStream(tap=self),
+            IssueCommentsStream(tap=self),
         ]
-        streams += [IssuesStream(tap=self), IssueCommentsStream(tap=self)]
-        return streams
 
 
 # CLI Execution:
