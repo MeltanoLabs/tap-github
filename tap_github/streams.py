@@ -33,7 +33,7 @@ class RepositoryStream(GitHubStream):
             for s in self.config["searches"]
         ]
 
-    def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
@@ -103,7 +103,7 @@ class IssuesStream(GitHubStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
-    def get_child_context(self, record: dict, context: dict = None) -> Optional[Dict]:
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
