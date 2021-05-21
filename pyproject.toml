@@ -8,7 +8,9 @@ license = "Apache 2.0"
 [tool.poetry.dependencies]
 python = "<3.9,>=3.6.2"
 requests = "^2.25.1"
-singer-sdk = {path = "../singer-sdk", develop = true}
+singer-sdk = "^0.2.0"
+# For local SDK dev:
+# singer-sdk = {path = "../singer-sdk", develop = true}
 # singer-sdk = {git = "https://gitlab.com/meltano/singer-sdk.git", rev = "97-hierarchical-streams"}
 
 [tool.poetry.dev-dependencies]
