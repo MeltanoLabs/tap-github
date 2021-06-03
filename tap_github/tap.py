@@ -28,6 +28,8 @@ class TapGitHub(Tap):
             required=True,
         ),
         th.Property("start_date", th.DateTimeType),
+        th.Property("stream_maps", th.ObjectType()),
+        th.Property("stream_map_config", th.ObjectType()),
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
