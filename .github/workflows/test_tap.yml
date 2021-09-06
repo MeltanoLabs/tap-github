@@ -29,7 +29,7 @@ jobs:
         poetry run black --check .
     - name: Check typing annotations with mypy
       run: |
-        poetry run mypy .
+        poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
       run: |
         poetry run pytest
