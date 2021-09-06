@@ -77,6 +77,10 @@ class GitHubStream(RESTStream):
         if isinstance(resp_json, list):
             results = resp_json
         else:
-            results = resp_json.get("items")
+            # RepositoryStream returns a single repo object
+            # when run on a defined project name, in which case
+            # "items" does not exist
+            results = resp_json.get("items", resp_json)
+
         for row in results:
             yield row

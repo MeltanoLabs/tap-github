@@ -22,16 +22,27 @@ class RepositoryStream(GitHubStream):
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
-        params["q"] = context["search_query"]
+        if "search_query" in context:
+            # we're in search mode
+            params["q"] = context["search_query"]
+        else:
+            # we are in repository list mode
+            params["q"] = f"repo:{context['org']}/{context['repo']}"
+
         return params
 
     @property
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
-        return [
-            {"search_name": s["name"], "search_query": s["query"]}
-            for s in self.config["searches"]
-        ]
+        if "searches" in self.config:
+            return [
+                {"search_name": s["name"], "search_query": s["query"]}
+                for s in self.config["searches"]
+            ]
+        if "repositories" in self.config:
+            split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
+            return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
+        return None
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
