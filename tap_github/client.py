@@ -26,7 +26,7 @@ class GitHubStream(RESTStream):
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
         if "user_agent" in self.config:
-            headers["User-Agent"] = self.config.get("user_agent")  # type: ignore
+            headers["User-Agent"] = cast(str, self.config.get("user_agent"))
         if "auth_token" in self.config:
             headers["Authorization"] = f"token {self.config['auth_token']}"
         return headers
