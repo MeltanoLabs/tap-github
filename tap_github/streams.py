@@ -119,7 +119,28 @@ class RepositoryStream(GitHubStream):
         th.Property("watchers", th.IntegerType),
         th.Property("watchers_count", th.IntegerType),
         th.Property("open_issues", th.IntegerType),
+        th.Property("network_count", th.IntegerType),
+        th.Property("subscribers_count", th.IntegerType),
         th.Property("open_issues_count", th.IntegerType),
+        th.Property("allow_squash_merge", th.BooleanType),
+        th.Property("allow_merge_commit", th.BooleanType),
+        th.Property("allow_rebase_merge", th.BooleanType),
+        th.Property("allow_auto_merge", th.BooleanType),
+        th.Property("delete_branch_on_merge", th.BooleanType),
+        th.Property(
+            "organization",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.StringType),
+            ),
+        ),
     ).to_dict()
 
 
