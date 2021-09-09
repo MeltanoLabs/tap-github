@@ -15,9 +15,10 @@ singer-sdk = "^0.3.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"
-mypy = "^0.812"
+mypy = "^0.910"
 flake8 = "^3.9.2"
 black = {version = "^21.5b1", allow-prereleases = true}
+types-requests = "^2.25.6"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
