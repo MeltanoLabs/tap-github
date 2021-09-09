@@ -32,6 +32,15 @@ class RepositoryStream(GitHubStream):
         return params
 
     @property
+    def path(self) -> str:  # type: ignore
+        """Return the API endpoint path."""
+        if "searches" in self.config:
+            return "/search/repositories"
+        else:
+            # the `repo` and `org` args will be parsed from the partition's `context`
+            return "/repos/{org}/{repo}"
+
+    @property
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
         if "searches" in self.config:
@@ -56,7 +65,6 @@ class RepositoryStream(GitHubStream):
             "repo": record["name"],
         }
 
-    path = "/search/repositories"
     schema = th.PropertiesList(
         th.Property("search_name", th.StringType),
         th.Property("search_query", th.StringType),
