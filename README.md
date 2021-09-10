@@ -14,6 +14,23 @@ pipx install git+https://github.com/MeltanoLabs/tap-github.git
 
 ### Accepted Config Options
 
+This tap accepts the following configuration options:
+
+- Required: One and only one of the following:
+    1. `repositories`: an array of strings containing the github repos to be included
+    2. `searches`: an array of search descriptor objects with the following properties:
+        - `name`: a human readable name for the search query
+        - `query`: a github search string (generallt the same as would come after `?q=` in the URL)
+- Highly recommended:
+  - `auth_token` - 
+- Optional:
+  - `user_agent`
+  - `start_date`
+  - `metrics_log_level`
+  - `stream_maps`
+  - `stream_maps_config`
+
+
 A full list of supported settings and capabilities for this
 tap is available by running:
 
@@ -23,7 +40,7 @@ tap-github --about
 
 ### Source Authentication and Authorization
 
-A small number of data may be pulled without an auth token. However, using an Github auth token gives more reasonable and realistic rate limits.
+A small number of records may be pulled without an auth token. However, a Github auth token should generally be considered "required" since it gives more realistic rate limits. (See GitHub API docs for more info.)
 
 ## Usage
 
