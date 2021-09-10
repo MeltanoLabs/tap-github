@@ -26,9 +26,6 @@ class RepositoryStream(GitHubStream):
         if "search_query" in context:
             # we're in search mode
             params["q"] = context["search_query"]
-        else:
-            # we are in repository list mode
-            params["q"] = f"repo:{context['org']}/{context['repo']}"
 
         return params
 
