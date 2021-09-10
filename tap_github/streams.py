@@ -39,6 +39,13 @@ class RepositoryStream(GitHubStream):
             return "/repos/{org}/{repo}"
 
     @property
+    def records_jsonpath(self) -> str:  # type: ignore
+        if "searches" in self.config:
+            return "$.items[*]"
+        else:
+            return "$[*]"
+
+    @property
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
         if "searches" in self.config:
