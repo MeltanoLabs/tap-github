@@ -25,7 +25,6 @@ class TapGitHub(Tap):
                     th.Property("query", th.StringType, required=True),
                 )
             ),
-            # required=True,
         ),
         th.Property("repositories", th.ArrayType(th.StringType)),
         th.Property("start_date", th.DateTimeType),
