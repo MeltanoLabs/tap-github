@@ -244,13 +244,17 @@ class IssuesStream(GitHubStream):
 
 
 class IssueCommentsStream(GitHubStream):
-    """Defines 'Issues' stream."""
+    """
+    Defines 'Issues' stream.
+    Issue comments are fetched from the repository level (as opposed to per issue)
+    to optimize for API quota usage.
+    """
 
     name = "issue_comments"
-    path = "/repos/{org}/{repo}/issues/{issue_number}/comments"
+    path = "/repos/{org}/{repo}/issues/comments"
     primary_keys = ["id"]
     replication_key = "updated_at"
-    parent_stream_type = IssuesStream
+    parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
 
@@ -278,11 +282,25 @@ class IssueCommentsStream(GitHubStream):
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("issue_number", th.IntegerType),
+        th.Property("issue_url", th.IntegerType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
     ).to_dict()
