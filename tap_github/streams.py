@@ -1,5 +1,6 @@
 """Stream type classes for tap-github."""
 
+import requests
 from typing import Any, Dict, Iterable, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
@@ -52,6 +53,15 @@ class RepositoryStream(GitHubStream):
             split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
         return None
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """
+        Parse the response which differs for this stream depending on which mode it is run in.
+        """
+        if "searches" in self.config:
+            return super(GitHubStream, self).parse_response(response)
+        else:
+            return [response.json()]
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
