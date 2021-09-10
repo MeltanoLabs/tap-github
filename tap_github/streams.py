@@ -280,9 +280,14 @@ class IssueCommentsStream(GitHubStream):
                 params["since"] = since
         return params
 
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        row['issue_number'] = int(row["issue_url"].split('/')[-1])
+        return row
+
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
+        th.Property("issue_number", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
         th.Property("issue_url", th.IntegerType),
