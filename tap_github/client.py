@@ -78,5 +78,6 @@ class GitHubStream(RESTStream):
             results = resp_json
         else:
             results = resp_json.get("items")
+
         for row in results:
             yield row
