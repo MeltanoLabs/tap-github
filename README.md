@@ -6,17 +6,13 @@ Build with the [Singer SDK](https://gitlab.com/meltano/singer-sdk).
 
 ## Installation
 
-- [ ] `Developer TODO:` Update the below as needed to correctly describe the install procedure. For instance, if you do not have a PyPi repo, or if you want users to directly install from your git repo, you can modify this step as appropriate.
-
 ```bash
-pipx install tap-github
+pipx install git+https://github.com/MeltanoLabs/tap-github.git
 ```
 
 ## Configuration
 
 ### Accepted Config Options
-
-- [ ] `Developer TODO:` Provide a list of config options accepted by the tap.
 
 A full list of supported settings and capabilities for this
 tap is available by running:
@@ -27,7 +23,7 @@ tap-github --about
 
 ### Source Authentication and Authorization
 
-- [ ] `Developer TODO:` If your tap requires special access on the source system, or any special authentication requirements, provide those here.
+A small number of data may be pulled without an auth token. However, using an Github auth token gives more reasonable and realistic rate limits.
 
 ## Usage
 
@@ -41,9 +37,7 @@ tap-github --help
 tap-github --config CONFIG --discover > ./catalog.json
 ```
 
-## Developer Resources
-
-- [ ] `Developer TODO:` As a first step, scan the entire project for the text "`TODO:`" and complete any recommended steps, deleting the "TODO" references once completed.
+## Contributing
 
 ### Initialize your Development Environment
 
