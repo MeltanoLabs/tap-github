@@ -196,28 +196,131 @@ class IssuesStream(GitHubStream):
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("issue_number", th.IntegerType),
+        th.Property("number", th.IntegerType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
-        # th.Property("closed_at", th.DateTimeType),  # Nulls causing parse error
+        th.Property("closed_at", th.DateTimeType),
         th.Property("state", th.StringType),
         th.Property("title", th.StringType),
         th.Property("comments", th.IntegerType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "labels",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("url", th.StringType),
+                    th.Property("name", th.StringType),
+                    th.Property("description", th.StringType),
+                    th.Property("color", th.StringType),
+                    th.Property("default", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "assignee",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "assignees",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("login", th.StringType),
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("avatar_url", th.StringType),
+                    th.Property("gravatar_id", th.StringType),
+                    th.Property("html_url", th.StringType),
+                    th.Property("type", th.StringType),
+                    th.Property("site_admin", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "milestone",
+            th.ObjectType(
+                th.Property("html_url", th.StringType),
+                th.Property("node_id", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("number", th.IntegerType),
+                th.Property("state", th.StringType),
+                th.Property("title", th.StringType),
+                th.Property("description", th.StringType),
+                th.Property(
+                    "creator",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("avatar_url", th.StringType),
+                        th.Property("gravatar_id", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("type", th.StringType),
+                        th.Property("site_admin", th.BooleanType),
+                    ),
+                ),
+                th.Property("open_issues", th.IntegerType),
+                th.Property("closed_issues", th.IntegerType),
+                th.Property("created_at", th.DateTimeType),
+                th.Property("updated_at", th.DateTimeType),
+                th.Property("closed_at", th.DateTimeType),
+                th.Property("due_on", th.DateTimeType),
+            ),
+        ),
+        th.Property("locked", th.BooleanType),
+        th.Property(
+            "pull_request",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("html_url", th.StringType),
+                    th.Property("url", th.StringType),
+                ),
+            ),
+        ),
     ).to_dict()
 
 
 class IssueCommentsStream(GitHubStream):
-    """Defines 'Issues' stream."""
+    """
+    Defines 'Issues' stream.
+    Issue comments are fetched from the repository level (as opposed to per issue)
+    to optimize for API quota usage.
+    """
 
     name = "issue_comments"
-    path = "/repos/{org}/{repo}/issues/{issue_number}/comments"
+    path = "/repos/{org}/{repo}/issues/comments"
     primary_keys = ["id"]
     replication_key = "updated_at"
-    parent_stream_type = IssuesStream
+    parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
 
@@ -243,13 +346,32 @@ class IssueCommentsStream(GitHubStream):
                 params["since"] = since
         return params
 
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        row["issue_number"] = int(row["issue_url"].split("/")[-1])
+        return row
+
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("issue_number", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("issue_number", th.IntegerType),
+        th.Property("issue_url", th.IntegerType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
     ).to_dict()
