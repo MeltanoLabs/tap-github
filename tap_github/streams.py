@@ -99,7 +99,7 @@ class RepositoryStream(GitHubStream):
                 th.Property("type", th.StringType),
                 th.Property("avatar_url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("site_admin", th.StringType),
+                th.Property("site_admin", th.BooleanType),
             ),
         ),
         th.Property(
@@ -152,7 +152,7 @@ class RepositoryStream(GitHubStream):
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
                 th.Property("type", th.StringType),
-                th.Property("site_admin", th.StringType),
+                th.Property("site_admin", th.BooleanType),
             ),
         ),
     ).to_dict()
@@ -299,11 +299,11 @@ class IssuesStream(GitHubStream):
         th.Property("locked", th.BooleanType),
         th.Property(
             "pull_request",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("html_url", th.StringType),
-                    th.Property("url", th.StringType),
-                ),
+            th.ObjectType(
+                th.Property("html_url", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("diff_url", th.StringType),
+                th.Property("patch_url", th.StringType),
             ),
         ),
     ).to_dict()
@@ -356,7 +356,7 @@ class IssueCommentsStream(GitHubStream):
         th.Property("issue_number", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("issue_url", th.IntegerType),
+        th.Property("issue_url", th.StringType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
