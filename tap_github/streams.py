@@ -413,7 +413,7 @@ class CommitsStream(GitHubStream):
         return row
 
     schema = th.PropertiesList(
-        th.Property("node_id", th.IntegerType),
+        th.Property("node_id", th.StringType),
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType),
         th.Property("html_url", th.StringType),
