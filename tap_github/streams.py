@@ -18,7 +18,7 @@ class RepositoryStream(GitHubStream):
     name = "repositories"
 
     def get_url_params(
-            self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -118,11 +118,14 @@ class ReadmeStream(GitHubStream):
         th.Property("git_url", th.StringType),
         th.Property("html_url", th.StringType),
         th.Property("download_url", th.StringType),
-        th.Property("_links", th.PropertiesList(
-            th.Property("git", th.StringType),
-            th.Property("self", th.StringType),
-            th.Property("html", th.StringType),
-        )),
+        th.Property(
+            "_links",
+            th.PropertiesList(
+                th.Property("git", th.StringType),
+                th.Property("self", th.StringType),
+                th.Property("html", th.StringType),
+            ),
+        ),
     ).to_dict()
 
 
@@ -201,7 +204,7 @@ class IssueCommentsStream(GitHubStream):
         return super().get_records(context)
 
     def get_url_params(
-            self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params = super().get_url_params(context, next_page_token)
