@@ -484,4 +484,3 @@ class CommitsStream(GitHubStream):
             ),
         ),
     ).to_dict()
-
