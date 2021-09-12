@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, Iterable, List, Optional
 
+import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
@@ -17,7 +18,7 @@ class RepositoryStream(GitHubStream):
     name = "repositories"
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+            self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -89,6 +90,39 @@ class RepositoryStream(GitHubStream):
         th.Property("watchers_count", th.IntegerType),
         th.Property("open_issues", th.IntegerType),
         th.Property("open_issues_count", th.IntegerType),
+    ).to_dict()
+
+
+class ReadmeStream(GitHubStream):
+    name = "readme"
+    path = "/repos/{org}/{repo}/readme"
+    primary_keys = ["url"]
+    # TODO what would this be? replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        json = response.json()
+        yield json
+
+    schema = th.PropertiesList(
+        th.Property("type", th.StringType),
+        th.Property("encoding", th.StringType),
+        th.Property("size", th.IntegerType),
+        th.Property("name", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("content", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("git_url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("download_url", th.StringType),
+        th.Property("_links", th.PropertiesList(
+            th.Property("git", th.StringType),
+            th.Property("self", th.StringType),
+            th.Property("html", th.StringType),
+        )),
     ).to_dict()
 
 
@@ -167,7 +201,7 @@ class IssueCommentsStream(GitHubStream):
         return super().get_records(context)
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+            self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params = super().get_url_params(context, next_page_token)
