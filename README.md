@@ -6,17 +6,30 @@ Build with the [Singer SDK](https://gitlab.com/meltano/singer-sdk).
 
 ## Installation
 
-- [ ] `Developer TODO:` Update the below as needed to correctly describe the install procedure. For instance, if you do not have a PyPi repo, or if you want users to directly install from your git repo, you can modify this step as appropriate.
-
 ```bash
-pipx install tap-github
+pipx install git+https://github.com/MeltanoLabs/tap-github.git
 ```
 
 ## Configuration
 
 ### Accepted Config Options
 
-- [ ] `Developer TODO:` Provide a list of config options accepted by the tap.
+This tap accepts the following configuration options:
+
+- Required: One and only one of the following:
+    1. `repositories`: an array of strings containing the github repos to be included
+    2. `searches`: an array of search descriptor objects with the following properties:
+        - `name`: a human readable name for the search query
+        - `query`: a github search string (generallt the same as would come after `?q=` in the URL)
+- Highly recommended:
+  - `auth_token` - 
+- Optional:
+  - `user_agent`
+  - `start_date`
+  - `metrics_log_level`
+  - `stream_maps`
+  - `stream_maps_config`
+
 
 A full list of supported settings and capabilities for this
 tap is available by running:
@@ -27,7 +40,7 @@ tap-github --about
 
 ### Source Authentication and Authorization
 
-- [ ] `Developer TODO:` If your tap requires special access on the source system, or any special authentication requirements, provide those here.
+A small number of records may be pulled without an auth token. However, a Github auth token should generally be considered "required" since it gives more realistic rate limits. (See GitHub API docs for more info.)
 
 ## Usage
 
@@ -41,9 +54,7 @@ tap-github --help
 tap-github --config CONFIG --discover > ./catalog.json
 ```
 
-## Developer Resources
-
-- [ ] `Developer TODO:` As a first step, scan the entire project for the text "`TODO:`" and complete any recommended steps, deleting the "TODO" references once completed.
+## Contributing
 
 ### Initialize your Development Environment
 
