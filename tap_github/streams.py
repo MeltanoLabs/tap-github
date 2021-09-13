@@ -186,7 +186,7 @@ class ReadmeStream(GitHubStream):
         th.Property("download_url", th.StringType),
         th.Property(
             "_links",
-            th.PropertiesList(
+            th.ObjectType(
                 th.Property("git", th.StringType),
                 th.Property("self", th.StringType),
                 th.Property("html", th.StringType),
