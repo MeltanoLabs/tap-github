@@ -2,8 +2,6 @@
 
 import requests
 from typing import Any, Dict, Iterable, List, Optional
-
-import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
@@ -169,8 +167,7 @@ class ReadmeStream(GitHubStream):
     state_partitioning_keys = ["repo", "org"]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        json = response.json()
-        yield json
+        return [response.json()]
 
     schema = th.PropertiesList(
         th.Property("type", th.StringType),
