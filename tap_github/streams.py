@@ -161,7 +161,6 @@ class ReadmeStream(GitHubStream):
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["url"]
-    # TODO what would this be? replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
