@@ -20,7 +20,7 @@ This tap accepts the following configuration options:
     1. `repositories`: an array of strings containing the github repos to be included
     2. `searches`: an array of search descriptor objects with the following properties:
         - `name`: a human readable name for the search query
-        - `query`: a github search string (generallt the same as would come after `?q=` in the URL)
+        - `query`: a github search string (generally the same as would come after `?q=` in the URL)
 - Highly recommended:
   - `auth_token` - 
 - Optional:
