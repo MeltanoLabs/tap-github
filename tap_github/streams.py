@@ -160,7 +160,7 @@ class RepositoryStream(GitHubStream):
 class ReadmeStream(GitHubStream):
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
-    primary_keys = ["url"]
+    primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
@@ -169,6 +169,10 @@ class ReadmeStream(GitHubStream):
         return [response.json()]
 
     schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # README Keys
         th.Property("type", th.StringType),
         th.Property("encoding", th.StringType),
         th.Property("size", th.IntegerType),
