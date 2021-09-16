@@ -394,19 +394,20 @@ class IssueEventsStream(GitHubStream):
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["issue_number"] = int(row["issue"]["number"])
-        # TODO - Should we get repo and org as well? We would need to get it by parsing a url.
+        row["issue_url"] = row["issue"]["url"]
         return row
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
-        th.Property("issue_number", th.IntegerType),
-        th.Property("event", th.StringType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
+        th.Property("issue_number", th.IntegerType),
         th.Property("issue_url", th.StringType),
+        th.Property("event", th.StringType),
+        th.Property("commit_id", th.StringType),
+        th.Property("commit_url", th.StringType),
         th.Property("created_at", th.DateTimeType),
-        th.Property("performed_via_github_app", th.BooleanType),
         th.Property(
             "actor",
             th.ObjectType(
