@@ -187,8 +187,8 @@ class EventsStream(GitHubStream):
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         # TODO - We should think about the best approach to handle this. An alternative would be to do
         # a 'dumb' tap that just keeps the same schemas as GitHub without renaming these objects to "target_".
-        row["target_repo"] = row.pop("repo")
-        row["target_org"] = row.pop("org")
+        row["target_repo"] = row.pop("repo", None)
+        row["target_org"] = row.pop("org", None)
         return row
 
     schema = th.PropertiesList(
