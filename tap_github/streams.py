@@ -2,7 +2,6 @@
 
 import requests
 from typing import Any, Dict, Iterable, List, Optional
-
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
@@ -99,7 +98,7 @@ class RepositoryStream(GitHubStream):
                 th.Property("type", th.StringType),
                 th.Property("avatar_url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("site_admin", th.StringType),
+                th.Property("site_admin", th.BooleanType),
             ),
         ),
         th.Property(
@@ -152,7 +151,45 @@ class RepositoryStream(GitHubStream):
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
                 th.Property("type", th.StringType),
-                th.Property("site_admin", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+    ).to_dict()
+
+
+class ReadmeStream(GitHubStream):
+    name = "readme"
+    path = "/repos/{org}/{repo}/readme"
+    primary_keys = ["repo", "org"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        return [response.json()]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # README Keys
+        th.Property("type", th.StringType),
+        th.Property("encoding", th.StringType),
+        th.Property("size", th.IntegerType),
+        th.Property("name", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("content", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("git_url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("download_url", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("git", th.StringType),
+                th.Property("self", th.StringType),
+                th.Property("html", th.StringType),
             ),
         ),
     ).to_dict()
@@ -299,11 +336,11 @@ class IssuesStream(GitHubStream):
         th.Property("locked", th.BooleanType),
         th.Property(
             "pull_request",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("html_url", th.StringType),
-                    th.Property("url", th.StringType),
-                ),
+            th.ObjectType(
+                th.Property("html_url", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("diff_url", th.StringType),
+                th.Property("patch_url", th.StringType),
             ),
         ),
     ).to_dict()
@@ -345,7 +382,7 @@ class IssueCommentsStream(GitHubStream):
         th.Property("issue_number", th.IntegerType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("issue_url", th.IntegerType),
+        th.Property("issue_url", th.StringType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
