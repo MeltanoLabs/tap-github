@@ -335,17 +335,6 @@ class IssueCommentsStream(GitHubStream):
 
         return super().get_records(context)
 
-    def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(context, next_page_token)
-        if self.replication_key:
-            since = self.get_starting_timestamp(context)
-            if since:
-                params["since"] = since
-        return params
-
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
         return row
@@ -391,17 +380,6 @@ class CommitsStream(GitHubStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
-
-    def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(context, next_page_token)
-        if self.replication_key:
-            since = self.get_starting_timestamp(context)
-            if since:
-                params["since"] = since
-        return params
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         """
