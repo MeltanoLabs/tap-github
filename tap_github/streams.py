@@ -57,15 +57,6 @@ class RepositoryStream(GitHubStream):
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
         return None
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """
-        Parse the response which differs for this stream depending on which mode it is run in.
-        """
-        if "searches" in self.config:
-            return super(GitHubStream, self).parse_response(response)
-        else:
-            return [response.json()]
-
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
 
@@ -165,9 +156,6 @@ class ReadmeStream(GitHubStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        return [response.json()]
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -204,9 +192,7 @@ class CommunityProfileStream(GitHubStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        return [response.json()]
+    tolerated_http_errors = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
