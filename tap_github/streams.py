@@ -271,6 +271,23 @@ class IssuesStream(GitHubStream):
             ),
         ),
         th.Property(
+            "reactions",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType),
+                    th.Property("total_count", th.IntegerType),
+                    th.Property("+1", th.IntegerType),
+                    th.Property("-1", th.IntegerType),
+                    th.Property("laugh", th.IntegerType),
+                    th.Property("hooray", th.IntegerType),
+                    th.Property("confused", th.IntegerType),
+                    th.Property("heart", th.IntegerType),
+                    th.Property("rocket", th.IntegerType),
+                    th.Property("eyes", th.IntegerType),
+                ),
+            ),
+        ),
+        th.Property(
             "assignee",
             th.ObjectType(
                 th.Property("login", th.StringType),
@@ -431,20 +448,6 @@ class PullRequestsStream(GitHubStream):
         params["state"] = "all"
         return params
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        """Return a child context object from the record and optional provided context.
-
-        By default, will return context if provided and otherwise the record dict.
-        Developers may override this behavior to send specific information to child
-        streams for context.
-        """
-        if context is None:
-            raise ValueError("Issue stream should not have blank context.")
-
-        context["issue_number"] = record["number"]
-        context["comments"] = record["comments"]  # If zero, comments can be skipped
-        return context
-
     @property
     def http_headers(self) -> dict:
         """Return the http headers needed.
@@ -509,6 +512,23 @@ class PullRequestsStream(GitHubStream):
                     th.Property("description", th.StringType),
                     th.Property("color", th.StringType),
                     th.Property("default", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "reactions",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType),
+                    th.Property("total_count", th.IntegerType),
+                    th.Property("+1", th.IntegerType),
+                    th.Property("-1", th.IntegerType),
+                    th.Property("laugh", th.IntegerType),
+                    th.Property("hooray", th.IntegerType),
+                    th.Property("confused", th.IntegerType),
+                    th.Property("heart", th.IntegerType),
+                    th.Property("rocket", th.IntegerType),
+                    th.Property("eyes", th.IntegerType),
                 ),
             ),
         ),
