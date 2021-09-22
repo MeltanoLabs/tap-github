@@ -212,24 +212,9 @@ class IssuesStream(GitHubStream):
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
-        # Fetch all issues, regardless of state (OPEN, CLOSED, MERGED) but not prs.
+        # Fetch all issues and PRs, regardless of state (OPEN, CLOSED, MERGED).
         params["state"] = "all"
-        params["pulls"] = "false"
         return params
-
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        """Return a child context object from the record and optional provided context.
-
-        By default, will return context if provided and otherwise the record dict.
-        Developers may override this behavior to send specific information to child
-        streams for context.
-        """
-        if context is None:
-            raise ValueError("Issue stream should not have blank context.")
-
-        context["issue_number"] = record["number"]
-        context["comments"] = record["comments"]  # If zero, comments can be skipped
-        return context
 
     @property
     def http_headers(self) -> dict:
