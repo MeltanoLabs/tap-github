@@ -460,7 +460,6 @@ class CommitsStream(GitHubStream):
                         th.Property("sha", th.StringType),
                     ),
                 ),
-                th.Property("comment_count", th.IntegerType),
                 th.Property(
                     "verification",
                     th.ObjectType(
