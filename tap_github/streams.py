@@ -196,7 +196,7 @@ class ReadmeStream(GitHubStream):
 
 
 class IssuesStream(GitHubStream):
-    """Defines 'Issues' stream."""
+    """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
     name = "issues"
     path = "/repos/{org}/{repo}/issues"
@@ -213,6 +213,15 @@ class IssuesStream(GitHubStream):
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
         # Fetch all issues and PRs, regardless of state (OPEN, CLOSED, MERGED).
+        # To exclude PRs from the issues stream, you can use the Stream Maps in the config.
+        # {
+        #     // ..
+        #     "stream_maps": {
+        #         "issues": {
+        #             "__filter__": "record['type'] = 'issue'"
+        #         }
+        #     }
+        # {
         params["state"] = "all"
         return params
 
@@ -226,6 +235,10 @@ class IssuesStream(GitHubStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        row["type"] = 'pull_request' if row["pull_request"] else 'issue'
+        return row
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
