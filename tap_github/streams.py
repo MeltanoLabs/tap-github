@@ -256,6 +256,7 @@ class IssuesStream(GitHubStream):
         th.Property("comments", th.IntegerType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
+        th.Property("type", th.StringType),
         th.Property(
             "user",
             th.ObjectType(
