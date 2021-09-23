@@ -1,6 +1,5 @@
 """Stream type classes for tap-github."""
 
-import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -56,15 +55,6 @@ class RepositoryStream(GitHubStream):
             split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
         return None
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """
-        Parse the response which differs for this stream depending on which mode it is run in.
-        """
-        if "searches" in self.config:
-            return super(GitHubStream, self).parse_response(response)
-        else:
-            return [response.json()]
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
@@ -165,9 +155,6 @@ class ReadmeStream(GitHubStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        return [response.json()]
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -190,6 +177,90 @@ class ReadmeStream(GitHubStream):
                 th.Property("git", th.StringType),
                 th.Property("self", th.StringType),
                 th.Property("html", th.StringType),
+            ),
+        ),
+    ).to_dict()
+
+
+class CommunityProfileStream(GitHubStream):
+    """Defines 'CommunityProfile' stream."""
+
+    name = "community_profile"
+    path = "/repos/{org}/{repo}/community/profile"
+    primary_keys = ["repo", "org"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [404]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Community Profile
+        th.Property("health_percentage", th.IntegerType),
+        th.Property("description", th.StringType),
+        th.Property("documentation", th.StringType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("content_reports_enabled", th.BooleanType),
+        th.Property(
+            "files",
+            th.ObjectType(
+                th.Property(
+                    "code_of_conduct",
+                    th.ObjectType(
+                        th.Property("key", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "code_of_conduct_file",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "contributing",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "issue_template",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "pull_request_template",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "license",
+                    th.ObjectType(
+                        th.Property("key", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("spdx_id", th.StringType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "readme",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
             ),
         ),
     ).to_dict()
@@ -456,6 +527,356 @@ class IssueEventsStream(GitHubStream):
                 th.Property("html_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+    ).to_dict()
+
+
+class CommitsStream(GitHubStream):
+    """
+    Defines the 'Commits' stream.
+    The stream is fetched per repository to maximize optimize for API quota
+    usage.
+    """
+
+    name = "commits"
+    path = "/repos/{org}/{repo}/commits"
+    primary_keys = ["node_id"]
+    replication_key = "commit_timestamp"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    ignore_parent_replication_key = True
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        """
+        Add a timestamp top-level field to be used as state replication key.
+        It's not clear from github's API docs which time (author or committer)
+        is used to compare to the `since` argument that the endpoint supports.
+        """
+        row["commit_timestamp"] = row["commit"]["committer"]["date"]
+        return row
+
+    schema = th.PropertiesList(
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("commit_timestamp", th.DateTimeType),
+        th.Property(
+            "commit",
+            th.ObjectType(
+                th.Property(
+                    "author",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.DateTimeType),
+                    ),
+                ),
+                th.Property(
+                    "committer",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.DateTimeType),
+                    ),
+                ),
+                th.Property("message", th.StringType),
+                th.Property(
+                    "tree",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("sha", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "verification",
+                    th.ObjectType(
+                        th.Property("verified", th.BooleanType),
+                        th.Property("reason", th.StringType),
+                        th.Property("signature", th.StringType),
+                        th.Property("payload", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+        th.Property(
+            "author",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "committer",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+    ).to_dict()
+
+
+class PullRequestsStream(GitHubStream):
+    """Defines 'PullRequests' stream."""
+
+    name = "pull_requests"
+    path = "/repos/{org}/{repo}/pulls"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
+        params = super().get_url_params(context, next_page_token)
+        # Fetch all pull requests regardless of state (OPEN, CLOSED, MERGED).
+        params["state"] = "all"
+        return params
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+        Overridden to use beta endpoint which includes reactions as described here:
+        https://developer.github.com/changes/2016-05-12-reactions-api-preview/
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
+        return headers
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # PR keys
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("diff_url", th.StringType),
+        th.Property("patch_url", th.StringType),
+        th.Property("number", th.IntegerType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("closed_at", th.DateTimeType),
+        th.Property("merged_at", th.DateTimeType),
+        th.Property("state", th.StringType),
+        th.Property("title", th.StringType),
+        th.Property("locked", th.BooleanType),
+        th.Property("comments", th.IntegerType),
+        th.Property("author_association", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("merge_commit_sha", th.StringType),
+        th.Property("draft", th.BooleanType),
+        th.Property("commits_url", th.StringType),
+        th.Property("review_comments_url", th.StringType),
+        th.Property("review_comment_url", th.StringType),
+        th.Property("comments_url", th.StringType),
+        th.Property("statuses_url", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "labels",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("url", th.StringType),
+                    th.Property("name", th.StringType),
+                    th.Property("description", th.StringType),
+                    th.Property("color", th.StringType),
+                    th.Property("default", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "reactions",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType),
+                    th.Property("total_count", th.IntegerType),
+                    th.Property("+1", th.IntegerType),
+                    th.Property("-1", th.IntegerType),
+                    th.Property("laugh", th.IntegerType),
+                    th.Property("hooray", th.IntegerType),
+                    th.Property("confused", th.IntegerType),
+                    th.Property("heart", th.IntegerType),
+                    th.Property("rocket", th.IntegerType),
+                    th.Property("eyes", th.IntegerType),
+                ),
+            ),
+        ),
+        th.Property(
+            "assignee",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "assignees",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("login", th.StringType),
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("avatar_url", th.StringType),
+                    th.Property("gravatar_id", th.StringType),
+                    th.Property("html_url", th.StringType),
+                    th.Property("type", th.StringType),
+                    th.Property("site_admin", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "requested_reviewers",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("login", th.StringType),
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("avatar_url", th.StringType),
+                    th.Property("gravatar_id", th.StringType),
+                    th.Property("html_url", th.StringType),
+                    th.Property("type", th.StringType),
+                    th.Property("site_admin", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "milestone",
+            th.ObjectType(
+                th.Property("html_url", th.StringType),
+                th.Property("node_id", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("number", th.IntegerType),
+                th.Property("state", th.StringType),
+                th.Property("title", th.StringType),
+                th.Property("description", th.StringType),
+                th.Property(
+                    "creator",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("avatar_url", th.StringType),
+                        th.Property("gravatar_id", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("type", th.StringType),
+                        th.Property("site_admin", th.BooleanType),
+                    ),
+                ),
+                th.Property("open_issues", th.IntegerType),
+                th.Property("closed_issues", th.IntegerType),
+                th.Property("created_at", th.DateTimeType),
+                th.Property("updated_at", th.DateTimeType),
+                th.Property("closed_at", th.DateTimeType),
+                th.Property("due_on", th.DateTimeType),
+            ),
+        ),
+        th.Property("locked", th.BooleanType),
+        th.Property(
+            "pull_request",
+            th.ObjectType(
+                th.Property("html_url", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("diff_url", th.StringType),
+                th.Property("patch_url", th.StringType),
+            ),
+        ),
+        th.Property(
+            "head",
+            th.ObjectType(
+                th.Property("label", th.StringType),
+                th.Property("ref", th.StringType),
+                th.Property("sha", th.StringType),
+                th.Property(
+                    "user",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("avatar_url", th.StringType),
+                        th.Property("gravatar_id", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("type", th.StringType),
+                        th.Property("site_admin", th.BooleanType),
+                    ),
+                ),
+                th.Property(
+                    "repo",
+                    th.ObjectType(
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("full_name", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+        th.Property(
+            "base",
+            th.ObjectType(
+                th.Property("label", th.StringType),
+                th.Property("ref", th.StringType),
+                th.Property("sha", th.StringType),
+                th.Property(
+                    "user",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("avatar_url", th.StringType),
+                        th.Property("gravatar_id", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("type", th.StringType),
+                        th.Property("site_admin", th.BooleanType),
+                    ),
+                ),
+                th.Property(
+                    "repo",
+                    th.ObjectType(
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("full_name", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
             ),
         ),
     ).to_dict()
