@@ -11,6 +11,7 @@ from tap_github.streams import (
     IssuesStream,
     IssueCommentsStream,
     ReadmeStream,
+    CommunityProfileStream,
 )
 
 
@@ -46,6 +47,7 @@ class TapGitHub(Tap):
             IssuesStream(tap=self),
             RepositoryStream(tap=self),
             ReadmeStream(tap=self),
+            CommunityProfileStream(tap=self),
         ]
 
 

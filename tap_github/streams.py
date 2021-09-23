@@ -1,6 +1,5 @@
 """Stream type classes for tap-github."""
 
-import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -56,15 +55,6 @@ class RepositoryStream(GitHubStream):
             split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
         return None
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """
-        Parse the response which differs for this stream depending on which mode it is run in.
-        """
-        if "searches" in self.config:
-            return super(GitHubStream, self).parse_response(response)
-        else:
-            return [response.json()]
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
@@ -165,9 +155,6 @@ class ReadmeStream(GitHubStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        return [response.json()]
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -190,6 +177,90 @@ class ReadmeStream(GitHubStream):
                 th.Property("git", th.StringType),
                 th.Property("self", th.StringType),
                 th.Property("html", th.StringType),
+            ),
+        ),
+    ).to_dict()
+
+
+class CommunityProfileStream(GitHubStream):
+    """Defines 'CommunityProfile' stream."""
+
+    name = "community_profile"
+    path = "/repos/{org}/{repo}/community/profile"
+    primary_keys = ["repo", "org"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [404]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Community Profile
+        th.Property("health_percentage", th.IntegerType),
+        th.Property("description", th.StringType),
+        th.Property("documentation", th.StringType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("content_reports_enabled", th.BooleanType),
+        th.Property(
+            "files",
+            th.ObjectType(
+                th.Property(
+                    "code_of_conduct",
+                    th.ObjectType(
+                        th.Property("key", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "code_of_conduct_file",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "contributing",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "issue_template",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "pull_request_template",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "license",
+                    th.ObjectType(
+                        th.Property("key", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("spdx_id", th.StringType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("url", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "readme",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                    ),
+                ),
             ),
         ),
     ).to_dict()
