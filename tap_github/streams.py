@@ -237,7 +237,7 @@ class IssuesStream(GitHubStream):
         return headers
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
-        row["type"] = "pull_request" if row["pull_request"] else "issue"
+        row["type"] = "pull_request" if "pull_request" in row else "issue"
         return row
 
     schema = th.PropertiesList(
