@@ -1,7 +1,7 @@
 """REST client handling, including GitHubStream base class."""
 
 import requests
-from typing import Any, Dict, Optional, Iterable, cast
+from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
 
@@ -20,7 +20,7 @@ class GitHubStream(RESTStream):
 
     primary_keys = ["id"]
     replication_key: Optional[str] = None
-    tolerated_http_errors = []
+    tolerated_http_errors: List[int] = []
 
     @property
     def http_headers(self) -> dict:
