@@ -7,11 +7,12 @@ from singer_sdk import typing as th  # JSON schema typing helpers
 
 from tap_github.streams import (
     CommitsStream,
-    RepositoryStream,
-    IssuesStream,
-    IssueCommentsStream,
-    ReadmeStream,
     CommunityProfileStream,
+    IssueCommentsStream,
+    IssuesStream,
+    PullRequestsStream,
+    ReadmeStream,
+    RepositoryStream,
 )
 
 
@@ -43,11 +44,12 @@ class TapGitHub(Tap):
         """Return a list of discovered streams."""
         return [
             CommitsStream(tap=self),
+            CommunityProfileStream(tap=self),
             IssueCommentsStream(tap=self),
             IssuesStream(tap=self),
-            RepositoryStream(tap=self),
+            PullRequestsStream(tap=self),
             ReadmeStream(tap=self),
-            CommunityProfileStream(tap=self),
+            RepositoryStream(tap=self),
         ]
 
 
