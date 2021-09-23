@@ -247,14 +247,14 @@ class EventsStream(GitHubStream):
             th.ObjectType(
                 th.Property("id", th.StringType),
                 th.Property("name", th.StringType),
-            )
+            ),
         ),
         th.Property(
             "target_org",
             th.ObjectType(
                 th.Property("id", th.StringType),
                 th.Property("login", th.StringType),
-            )
+            ),
         ),
         th.Property(
             "actor",
@@ -288,7 +288,7 @@ class EventsStream(GitHubStream):
                                 th.ObjectType(
                                     th.Property("email", th.StringType),
                                     th.Property("name", th.StringType),
-                                )
+                                ),
                             ),
                             th.Property("distinct", th.BooleanType),
                             th.Property("message", th.StringType),
