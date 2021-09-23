@@ -213,35 +213,35 @@ class CommunityProfileStream(GitHubStream):
                         th.Property("name", th.StringType),
                         th.Property("html_url", th.StringType),
                         th.Property("url", th.StringType),
-                    )
+                    ),
                 ),
                 th.Property(
                     "code_of_conduct_file",
                     th.ObjectType(
                         th.Property("url", th.StringType),
                         th.Property("html_url", th.StringType),
-                    )
+                    ),
                 ),
                 th.Property(
                     "contributing",
                     th.ObjectType(
                         th.Property("url", th.StringType),
                         th.Property("html_url", th.StringType),
-                    )
+                    ),
                 ),
                 th.Property(
                     "issue_template",
                     th.ObjectType(
                         th.Property("url", th.StringType),
                         th.Property("html_url", th.StringType),
-                    )
+                    ),
                 ),
                 th.Property(
                     "pull_request_template",
                     th.ObjectType(
                         th.Property("url", th.StringType),
                         th.Property("html_url", th.StringType),
-                    )
+                    ),
                 ),
                 th.Property(
                     "license",
@@ -252,14 +252,14 @@ class CommunityProfileStream(GitHubStream):
                         th.Property("node_id", th.StringType),
                         th.Property("html_url", th.StringType),
                         th.Property("url", th.StringType),
-                    )
+                    ),
                 ),
                 th.Property(
                     "readme",
                     th.ObjectType(
                         th.Property("url", th.StringType),
                         th.Property("html_url", th.StringType),
-                    )
+                    ),
                 ),
             ),
         ),

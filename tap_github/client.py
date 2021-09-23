@@ -89,7 +89,9 @@ class GitHubStream(RESTStream):
                 extra_tags=extra_tags,
             )
         if response.status_code in self.tolerated_http_errors:
-            self.logger.info("Request returned a tolerated error for {}".format(prepared_request.url))
+            self.logger.info(
+                "Request returned a tolerated error for {}".format(prepared_request.url)
+            )
             self.logger.info(
                 f"Reason: {response.status_code} - {str(response.content)}"
             )
