@@ -680,6 +680,7 @@ class PullRequestsStream(GitHubStream):
     @property
     def http_headers(self) -> dict:
         """Return the http headers needed.
+
         Overridden to use beta endpoint which includes reactions as described here:
         https://developer.github.com/changes/2016-05-12-reactions-api-preview/
         """
