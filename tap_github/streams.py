@@ -430,8 +430,8 @@ class IssueEventsStream(GitHubStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
-        row["issue_number"] = int(row["issue"]["number"])
-        row["issue_url"] = row["issue"]["url"]
+        row["issue_number"] = int(row["issue"].pop("number"))
+        row["issue_url"] = row["issue"].pop("url")
         return row
 
     schema = th.PropertiesList(
