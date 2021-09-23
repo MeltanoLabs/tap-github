@@ -32,4 +32,4 @@ jobs:
         poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
       run: |
-        poetry run pytest
+        poetry run pytest --show-capture
