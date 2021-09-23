@@ -267,7 +267,7 @@ class CommunityProfileStream(GitHubStream):
 
 
 class IssuesStream(GitHubStream):
-    """Defines 'Issues' stream."""
+    """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
     name = "issues"
     path = "/repos/{org}/{repo}/issues"
@@ -277,19 +277,24 @@ class IssuesStream(GitHubStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        """Return a child context object from the record and optional provided context.
-
-        By default, will return context if provided and otherwise the record dict.
-        Developers may override this behavior to send specific information to child
-        streams for context.
-        """
-        if context is None:
-            raise ValueError("Issue stream should not have blank context.")
-
-        context["issue_number"] = record["number"]
-        context["comments"] = record["comments"]  # If zero, comments can be skipped
-        return context
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
+        params = super().get_url_params(context, next_page_token)
+        # Fetch all issues and PRs, regardless of state (OPEN, CLOSED, MERGED).
+        # To exclude PRs from the issues stream, you can use the Stream Maps in the config.
+        # {
+        #     // ..
+        #     "stream_maps": {
+        #         "issues": {
+        #             "__filter__": "record['type'] = 'issue'"
+        #         }
+        #     }
+        # {
+        params["state"] = "all"
+        return params
 
     @property
     def http_headers(self) -> dict:
@@ -301,6 +306,10 @@ class IssuesStream(GitHubStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        row["type"] = "pull_request" if "pull_request" in row else "issue"
+        return row
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
@@ -318,6 +327,7 @@ class IssuesStream(GitHubStream):
         th.Property("comments", th.IntegerType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
+        th.Property("type", th.StringType),
         th.Property(
             "user",
             th.ObjectType(
@@ -342,6 +352,23 @@ class IssuesStream(GitHubStream):
                     th.Property("description", th.StringType),
                     th.Property("color", th.StringType),
                     th.Property("default", th.BooleanType),
+                ),
+            ),
+        ),
+        th.Property(
+            "reactions",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType),
+                    th.Property("total_count", th.IntegerType),
+                    th.Property("+1", th.IntegerType),
+                    th.Property("-1", th.IntegerType),
+                    th.Property("laugh", th.IntegerType),
+                    th.Property("hooray", th.IntegerType),
+                    th.Property("confused", th.IntegerType),
+                    th.Property("heart", th.IntegerType),
+                    th.Property("rocket", th.IntegerType),
+                    th.Property("eyes", th.IntegerType),
                 ),
             ),
         ),
