@@ -266,6 +266,112 @@ class CommunityProfileStream(GitHubStream):
     ).to_dict()
 
 
+class EventsStream(GitHubStream):
+    """
+    Defines 'Events' stream.
+    Issue events are fetched from the repository level (as opposed to per issue)
+    to optimize for API quota usage.
+    """
+
+    name = "events"
+    path = "/repos/{org}/{repo}/events"
+    primary_keys = ["id"]
+    replication_key = "created_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    ignore_parent_replication_key = False
+
+    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+        Each row emitted should be a dictionary of property names to their values.
+        """
+        if context and context.get("events", None) == 0:
+            self.logger.debug(f"No events detected. Skipping '{self.name}' sync.")
+            return []
+
+        return super().get_records(context)
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        # TODO - We should think about the best approach to handle this. An alternative would be to do
+        # a 'dumb' tap that just keeps the same schemas as GitHub without renaming these objects to "target_".
+        row["target_repo"] = row.pop("repo", None)
+        row["target_org"] = row.pop("org", None)
+        return row
+
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType),
+        th.Property("type", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("public", th.BooleanType),
+        th.Property("payload", th.StringType),
+        th.Property("_sdc_repository", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("distinct_size", th.IntegerType),
+        th.Property("head", th.StringType),
+        th.Property("push_id", th.IntegerType),
+        th.Property("ref", th.StringType),
+        th.Property("size", th.IntegerType),
+        th.Property(
+            "target_repo",
+            th.ObjectType(
+                th.Property("id", th.StringType),
+                th.Property("name", th.StringType),
+            ),
+        ),
+        th.Property(
+            "target_org",
+            th.ObjectType(
+                th.Property("id", th.StringType),
+                th.Property("login", th.StringType),
+            ),
+        ),
+        th.Property(
+            "actor",
+            th.ObjectType(
+                th.Property("id", th.IntegerType),
+                th.Property("login", th.StringType),
+                th.Property("display_login", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+            ),
+        ),
+        th.Property(
+            "payload",
+            th.ObjectType(
+                th.Property("before", th.StringType),
+                th.Property("action", th.StringType),
+                th.Property("comment", th.StringType),
+                th.Property("issue", th.StringType),
+                th.Property("description", th.StringType),
+                th.Property("master_branch", th.StringType),
+                th.Property("pusher_type", th.StringType),
+                th.Property("ref", th.StringType),
+                th.Property("ref_type", th.StringType),
+                th.Property(
+                    "commits",
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property(
+                                "author",
+                                th.ObjectType(
+                                    th.Property("email", th.StringType),
+                                    th.Property("name", th.StringType),
+                                ),
+                            ),
+                            th.Property("distinct", th.BooleanType),
+                            th.Property("message", th.StringType),
+                            th.Property("sha", th.StringType),
+                            th.Property("url", th.StringType),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ).to_dict()
+
+
 class IssuesStream(GitHubStream):
     """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
