@@ -1,6 +1,7 @@
 """REST client handling, including GitHubStream base class."""
 
 import requests
+from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
@@ -28,8 +29,20 @@ class GitHubStream(RESTStream):
         headers = {"Accept": "application/vnd.github.v3+json"}
         if "user_agent" in self.config:
             headers["User-Agent"] = cast(str, self.config.get("user_agent"))
+
         if "auth_token" in self.config:
             headers["Authorization"] = f"token {self.config['auth_token']}"
+        elif "GITHUB_TOKEN" in environ:
+            self.logger.info(
+                "Found 'GITHUB_TOKEN' environment variable for authentication."
+            )
+            headers["Authorization"] = f"token {environ['GITHUB_TOKEN']}"
+        else:
+            self.logger.info(
+                "No auth token detected. "
+                "For higher rate limits, please specify `auth_token` in config."
+            )
+
         return headers
 
     def get_next_page_token(
