@@ -2,7 +2,7 @@
 
 import requests
 from os import environ
-from typing import Any, Dict, Optional, Iterable, cast
+from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
 
@@ -21,6 +21,7 @@ class GitHubStream(RESTStream):
 
     primary_keys = ["id"]
     replication_key: Optional[str] = None
+    tolerated_http_errors: List[int] = []
 
     @property
     def http_headers(self) -> dict:
@@ -84,13 +85,63 @@ class GitHubStream(RESTStream):
                 params["since"] = since
         return params
 
+    def _request_with_backoff(
+        self, prepared_request, context: Optional[dict]
+    ) -> requests.Response:
+        """Override private method _request_with_backoff to account for expected 404 Not Found erros."""
+        # TODO - Adapt Singer
+        response = self.requests_session.send(prepared_request)
+        if self._LOG_REQUEST_METRICS:
+            extra_tags = {}
+            if self._LOG_REQUEST_METRIC_URLS:
+                extra_tags["url"] = cast(str, prepared_request.path_url)
+            self._write_request_duration_log(
+                endpoint=self.path,
+                response=response,
+                context=context,
+                extra_tags=extra_tags,
+            )
+        if response.status_code in self.tolerated_http_errors:
+            self.logger.info(
+                "Request returned a tolerated error for {}".format(prepared_request.url)
+            )
+            self.logger.info(
+                f"Reason: {response.status_code} - {str(response.content)}"
+            )
+            return response
+
+        if response.status_code in [401, 403]:
+            self.logger.info("Failed request for {}".format(prepared_request.url))
+            self.logger.info(
+                f"Reason: {response.status_code} - {str(response.content)}"
+            )
+            raise RuntimeError(
+                "Requested resource was unauthorized, forbidden, or not found."
+            )
+        elif response.status_code >= 400:
+            raise RuntimeError(
+                f"Error making request to API: {prepared_request.url} "
+                f"[{response.status_code} - {str(response.content)}]".replace(
+                    "\\n", "\n"
+                )
+            )
+        self.logger.debug("Response received successfully.")
+        return response
+
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
+        # TODO - Split into handle_reponse and parse_response.
+        if response.status_code in self.tolerated_http_errors:
+            return []
+
         resp_json = response.json()
+
         if isinstance(resp_json, list):
             results = resp_json
-        else:
+        elif resp_json.get("items") is not None:
             results = resp_json.get("items")
+        else:
+            results = [resp_json]
 
         for row in results:
             yield row
