@@ -45,4 +45,6 @@ def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     tap2.sync_all()
     captured = capsys.readouterr()
     # Verify we got the right number of records (one per repo in the list)
-    assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == len(repo_list_2)
+    assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == len(
+        repo_list_2
+    )
