@@ -23,7 +23,7 @@ def repo_list_config(request):
     """
     marker = request.node.get_closest_marker("repo_list")
     if marker is None:
-        repo_list = ["octocat/hello-world"]
+        repo_list = ["octocat/hello-world", "mapswipe/mapswipe"]
     else:
         repo_list = marker.args[0]
 

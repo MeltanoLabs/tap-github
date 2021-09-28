@@ -357,19 +357,17 @@ class IssuesStream(GitHubStream):
         ),
         th.Property(
             "reactions",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("url", th.StringType),
-                    th.Property("total_count", th.IntegerType),
-                    th.Property("+1", th.IntegerType),
-                    th.Property("-1", th.IntegerType),
-                    th.Property("laugh", th.IntegerType),
-                    th.Property("hooray", th.IntegerType),
-                    th.Property("confused", th.IntegerType),
-                    th.Property("heart", th.IntegerType),
-                    th.Property("rocket", th.IntegerType),
-                    th.Property("eyes", th.IntegerType),
-                ),
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property("total_count", th.IntegerType),
+                th.Property("+1", th.IntegerType),
+                th.Property("-1", th.IntegerType),
+                th.Property("laugh", th.IntegerType),
+                th.Property("hooray", th.IntegerType),
+                th.Property("confused", th.IntegerType),
+                th.Property("heart", th.IntegerType),
+                th.Property("rocket", th.IntegerType),
+                th.Property("eyes", th.IntegerType),
             ),
         ),
         th.Property(
@@ -746,19 +744,17 @@ class PullRequestsStream(GitHubStream):
         ),
         th.Property(
             "reactions",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("url", th.StringType),
-                    th.Property("total_count", th.IntegerType),
-                    th.Property("+1", th.IntegerType),
-                    th.Property("-1", th.IntegerType),
-                    th.Property("laugh", th.IntegerType),
-                    th.Property("hooray", th.IntegerType),
-                    th.Property("confused", th.IntegerType),
-                    th.Property("heart", th.IntegerType),
-                    th.Property("rocket", th.IntegerType),
-                    th.Property("eyes", th.IntegerType),
-                ),
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property("total_count", th.IntegerType),
+                th.Property("+1", th.IntegerType),
+                th.Property("-1", th.IntegerType),
+                th.Property("laugh", th.IntegerType),
+                th.Property("hooray", th.IntegerType),
+                th.Property("confused", th.IntegerType),
+                th.Property("heart", th.IntegerType),
+                th.Property("rocket", th.IntegerType),
+                th.Property("eyes", th.IntegerType),
             ),
         ),
         th.Property(

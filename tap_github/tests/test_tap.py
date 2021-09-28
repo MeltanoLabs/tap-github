@@ -9,7 +9,7 @@ from singer_sdk.helpers._catalog import (
 
 from .fixtures import repo_list_config
 
-repo_list_2 = ["octocat/hello-world", "MeltanoLabs/tap-github"]
+repo_list_2 = ["octocat/hello-world", "MeltanoLabs/tap-github", "mapswipe/mapswipe"]
 
 
 @pytest.mark.repo_list(repo_list_2)
@@ -18,6 +18,7 @@ def test_validate_repo_list_config(repo_list_config):
     repo_list_context = [
         {"org": "octocat", "repo": "hello-world"},
         {"org": "MeltanoLabs", "repo": "tap-github"},
+        {"org": "mapswipe", "repo": "mapswipe"},
     ]
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions
@@ -44,4 +45,6 @@ def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     tap2.sync_all()
     captured = capsys.readouterr()
     # Verify we got the right number of records (one per repo in the list)
-    assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == 2
+    assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == len(
+        repo_list_2
+    )
