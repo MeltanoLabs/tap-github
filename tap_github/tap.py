@@ -36,6 +36,7 @@ class TapGitHub(Tap):
             ),
         ),
         th.Property("repositories", th.ArrayType(th.StringType)),
+        th.Property("organizations", th.ArrayType(th.StringType)),
         th.Property("start_date", th.DateTimeType),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),

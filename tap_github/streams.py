@@ -32,9 +32,11 @@ class RepositoryStream(GitHubStream):
         """Return the API endpoint path."""
         if "searches" in self.config:
             return "/search/repositories"
-        else:
+        elif "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
             return "/repos/{org}/{repo}"
+        else:
+            return "/orgs/{org}/repos"
 
     @property
     def records_jsonpath(self) -> str:  # type: ignore
@@ -54,6 +56,8 @@ class RepositoryStream(GitHubStream):
         if "repositories" in self.config:
             split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
+        if "organizations" in self.config:
+            return [{"org": org} for org in self.config["organizations"]]
         return None
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
@@ -440,15 +444,6 @@ class IssuesStream(GitHubStream):
             ),
         ),
     ).to_dict()
-
-    def get_url_params(
-        self,
-        context: Optional[dict],
-        next_page_token: Optional[Any],
-    ) -> Dict[str, Any]:
-        params = super().get_url_params(context, next_page_token)
-        params["state"] = "all"
-        return params
 
 
 class IssueCommentsStream(GitHubStream):
