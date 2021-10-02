@@ -441,6 +441,15 @@ class IssuesStream(GitHubStream):
         ),
     ).to_dict()
 
+    def get_url_params(
+        self,
+        context: Optional[dict],
+        next_page_token: Optional[Any],
+    ) -> Dict[str, Any]:
+        params = super().get_url_params(context, next_page_token)
+        params["state"] = "all"
+        return params
+
 
 class IssueCommentsStream(GitHubStream):
     """
