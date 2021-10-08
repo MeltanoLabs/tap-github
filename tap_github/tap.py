@@ -5,7 +5,7 @@ from typing import List
 from singer_sdk import Tap, Stream
 from singer_sdk import typing as th  # JSON schema typing helpers
 
-from tap_github.streams import (
+from tap_github.repository_streams import (
     CommitsStream,
     CommunityProfileStream,
     IssueCommentsStream,
@@ -14,6 +14,10 @@ from tap_github.streams import (
     PullRequestsStream,
     ReadmeStream,
     RepositoryStream,
+)
+
+from tap_github.user_streams import (
+    UserStream,
 )
 
 
@@ -52,6 +56,7 @@ class TapGitHub(Tap):
             PullRequestsStream(tap=self),
             ReadmeStream(tap=self),
             RepositoryStream(tap=self),
+            UserStream(tap=self),
         ]
 
 
