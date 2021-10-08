@@ -31,7 +31,7 @@ class UserStream(GitHubStream):
     def path(self) -> str:  # type: ignore
         """Return the API endpoint path."""
         if "searches" in self.config:
-            return "/search/repositories"
+            return "/search/users"
         else:
             # the `repo` and `org` args will be parsed from the partition's `context`
             return "/users/{username}"
@@ -46,11 +46,6 @@ class UserStream(GitHubStream):
     @property
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
-        if "searches" in self.config:
-            return [
-                {"search_name": s["name"], "search_query": s["query"]}
-                for s in self.config["searches"]
-            ]
         if "users" in self.config:
             return [{"username": u} for u in self.config["users"]]
         return None
@@ -63,7 +58,7 @@ class UserStream(GitHubStream):
         streams for context.
         """
         return {
-            "username": record["login"],
+            "username": record["login"] or record["email"],
         }
 
     schema = th.PropertiesList(
