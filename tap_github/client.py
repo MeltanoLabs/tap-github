@@ -64,11 +64,18 @@ class GitHubStream(RESTStream):
         else:
             results = resp_json.get("items")
 
-        if results:
-            # Paginate as long as the response has items
-            return (previous_token or 1) + 1
+        # Paginate as long as the response has items
+        if not results:
+            return None
 
-        return None
+        # Test if we have hit the last page for restricted pages such as "events".
+        if response.links.get('prev') and not response.links.get('next'):
+            self.logger.info(
+                "Last page limit reached."
+            )
+            return None
+
+        return (previous_token or 1) + 1
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
