@@ -1520,7 +1520,6 @@ class WorkflowRunJobsStream(GitHubRestStream):
     name = "workflow_run_jobs"
     path = "/repos/{org}/{repo}/actions/runs/{run_id}/jobs"
     primary_keys = ["id"]
-    replication_key = "completed_at"
     parent_stream_type = WorkflowRunsStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org", "run_id"]
