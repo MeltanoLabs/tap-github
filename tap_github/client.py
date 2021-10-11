@@ -69,10 +69,8 @@ class GitHubStream(RESTStream):
             return None
 
         # Test if we have hit the last page for restricted pages such as "events".
-        if response.links.get('prev') and not response.links.get('next'):
-            self.logger.info(
-                "Last page limit reached."
-            )
+        if response.links.get("prev") and not response.links.get("next"):
+            self.logger.info("Last page limit reached.")
             return None
 
         return (previous_token or 1) + 1
