@@ -1,7 +1,5 @@
 """Repository Stream types classes for tap-github."""
 
-import requests
-
 from typing import Any, Dict, Iterable, List, Optional
 
 import requests
