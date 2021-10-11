@@ -917,16 +917,6 @@ class ContributorsStream(GitHubStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
-    def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
-        params = super().get_url_params(context, next_page_token)
-        # Fetch anonymous contributors
-        params["anon"] = 1
-        return params
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -948,10 +938,9 @@ class ContributorsStream(GitHubStream):
         th.Property("repos_url", th.StringType),
         th.Property("events_url", th.StringType),
         th.Property("received_events_url", th.StringType),
-        # Anonymous contributor keys
+        # Anonymous contributor keys. Only fetched with params["anon"] = 'true'
         th.Property("email", th.StringType),
         th.Property("name", th.StringType),
-        th.Property("received_events_url", th.StringType),
         # Shared keys
         th.Property("type", th.StringType),
         th.Property("contributions", th.IntegerType),
