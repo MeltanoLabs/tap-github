@@ -65,7 +65,9 @@ class GitHubStream(RESTStream):
 
         parsed_url = urlparse(response.links["next"]["url"])
         captured_page_value_list = parse_qs(parsed_url.query).get("page")
-        next_page_string = captured_page_value_list[0] if captured_page_value_list else None
+        next_page_string = (
+            captured_page_value_list[0] if captured_page_value_list else None
+        )
         if next_page_string and next_page_string.isdigit():
             return int(next_page_string)
 
