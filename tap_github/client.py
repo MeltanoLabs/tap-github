@@ -3,6 +3,7 @@
 import requests
 from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
+from urllib.parse import parse_qs, urlparse
 
 from singer_sdk.streams import RESTStream
 
@@ -58,22 +59,17 @@ class GitHubStream(RESTStream):
         ):
             return None
 
-        resp_json = response.json()
-        if isinstance(resp_json, list):
-            results = resp_json
-        else:
-            results = resp_json.get("items")
-
-        # Paginate as long as the response has items
-        if not results:
+        # Leverage header links returned by the GitHub API.
+        if "next" not in response.links.keys():
             return None
 
-        # Test if we have hit the last page for restricted pages such as "events".
-        if response.links.get("prev") and not response.links.get("next"):
-            self.logger.info("Last page limit reached.")
-            return None
+        parsed_url = urlparse(response.links["next"]["url"])
+        captured_value_list = parse_qs(parsed_url.query).get("page")
+        next_page_string = captured_value_list[0] if captured_value_list else None
+        if next_page_string and next_page_string.isdigit():
+            return int(next_page_string)
 
-        return (previous_token or 1) + 1
+        return None
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
