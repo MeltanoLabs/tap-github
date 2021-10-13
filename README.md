@@ -45,7 +45,7 @@ A small number of records may be pulled without an auth token. However, a Github
 
 ### API Limitation - Pagination
 
-The GitHub is limited for some resources such as `/events`. For some resources, users might encounter the following error:
+The GitHub API is limited for some resources such as `/events`. For some resources, users might encounter the following error:
 
 ```
 In order to keep the API fast for everyone, pagination is limited for this resource. Check the rel=last link relation in the Link response header to see how far back you can traverse.
