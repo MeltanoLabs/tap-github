@@ -292,8 +292,10 @@ class EventsStream(GitHubStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
-        # TODO - We should think about the best approach to handle this. An alternative would be to do
-        # a 'dumb' tap that just keeps the same schemas as GitHub without renaming these objects to "target_".
+        # TODO - We should think about the best approach to handle this. An alternative would be to
+        # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
+        # objects to "target_". They are worth keeping, however, as they can be different from
+        # the parent stream, e.g. for fork/parent PR events.
         row["target_repo"] = row.pop("repo", None)
         row["target_org"] = row.pop("org", None)
         return row
