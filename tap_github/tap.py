@@ -14,6 +14,7 @@ from tap_github.streams import (
     PullRequestsStream,
     ReadmeStream,
     RepositoryStream,
+    StargazersStream,
 )
 
 
@@ -52,6 +53,7 @@ class TapGitHub(Tap):
             PullRequestsStream(tap=self),
             ReadmeStream(tap=self),
             RepositoryStream(tap=self),
+            StargazersStream(tap=self),
         ]
 
 
