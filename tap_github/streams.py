@@ -907,13 +907,13 @@ class PullRequestsStream(GitHubStream):
 
 
 class StargazersStream(GitHubStream):
-    """Defines 'Stargazers' stream."""
+    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
 
     name = "stargazers"
     path = "/repos/{org}/{repo}/stargazers"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys = ["repo", "org", "user_id"]
     replication_key = "starred_at"
 
     @property
@@ -926,6 +926,13 @@ class StargazersStream(GitHubStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
+    
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row["user_id"] = row["user"]["id"]
+        return row
 
     schema = th.PropertiesList(
         # Parent Keys
