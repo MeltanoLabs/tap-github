@@ -926,7 +926,7 @@ class StargazersStream(GitHubStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
-    
+
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
