@@ -911,9 +911,9 @@ class StargazersStream(GitHubStream):
 
     name = "stargazers"
     path = "/repos/{org}/{repo}/stargazers"
-    primary_keys = ["repo", "org"]
+    primary_keys = ["repo", "org", "user_id"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org", "user_id"]
+    state_partitioning_keys = ["repo", "org"]
     replication_key = "starred_at"
 
     @property
