@@ -938,6 +938,7 @@ class StargazersStream(GitHubStream):
         # Parent Keys
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
+        th.Property("user_id", th.StringType),
         # Stargazer Info
         th.Property("starred_at", th.IntegerType),
         th.Property(
