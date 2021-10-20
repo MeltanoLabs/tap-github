@@ -940,7 +940,7 @@ class StargazersStream(GitHubStream):
         th.Property("org", th.StringType),
         th.Property("user_id", th.StringType),
         # Stargazer Info
-        th.Property("starred_at", th.IntegerType),
+        th.Property("starred_at", th.DateTimeType),
         th.Property(
             "user",
             th.ObjectType(
