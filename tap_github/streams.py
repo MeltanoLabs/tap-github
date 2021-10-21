@@ -35,8 +35,13 @@ class RepositoryStream(GitHubStream):
         elif "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
             return "/repos/{org}/{repo}"
-        else:
+        elif "organizations" in self.config:
             return "/orgs/{org}/repos"
+        else:
+            raise ValueError(
+                "This tap requires one of the following path options: "
+                "search, repositories or organizations"
+            )
 
     @property
     def records_jsonpath(self) -> str:  # type: ignore
