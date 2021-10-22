@@ -5,6 +5,8 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
 
+VALID_REPO_QUERIES = {"repositories", "organizations", "searches"}
+
 
 class RepositoryStream(GitHubStream):
     """Defines 'Repository' stream."""
@@ -30,7 +32,7 @@ class RepositoryStream(GitHubStream):
     @property
     def path(self) -> str:  # type: ignore
         """Return the API endpoint path."""
-        if len({"repositories", "organizations", "searches"}.intersect(self.config)) != 1:
+        if len(VALID_REPO_QUERIES.intersect(self.config)) != 1:
             raise ValueError(
                 "This tap requires one of the following path options: "
                 "search, repositories or organizations"
