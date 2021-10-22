@@ -30,6 +30,12 @@ class RepositoryStream(GitHubStream):
     @property
     def path(self) -> str:  # type: ignore
         """Return the API endpoint path."""
+        if len({"repositories", "organizations", "searches"}.intersect(self.config)) != 1:
+            raise ValueError(
+                "This tap requires one of the following path options: "
+                "search, repositories or organizations"
+            )
+
         if "searches" in self.config:
             return "/search/repositories"
         elif "repositories" in self.config:
@@ -37,11 +43,6 @@ class RepositoryStream(GitHubStream):
             return "/repos/{org}/{repo}"
         elif "organizations" in self.config:
             return "/orgs/{org}/repos"
-        else:
-            raise ValueError(
-                "This tap requires one of the following path options: "
-                "search, repositories or organizations"
-            )
 
     @property
     def records_jsonpath(self) -> str:  # type: ignore
