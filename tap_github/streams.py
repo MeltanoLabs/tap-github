@@ -34,7 +34,7 @@ class RepositoryStream(GitHubStream):
         """Return the API endpoint path."""
         if len(VALID_REPO_QUERIES.intersection(self.config)) != 1:
             raise ValueError(
-                "This tap requires one of the following path options: "
+                "This tap requires one and only one of the following path options: "
                 "search, repositories or organizations"
             )
 
