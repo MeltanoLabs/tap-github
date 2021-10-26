@@ -115,6 +115,11 @@ class RepositoryStream(GitHubStream):
         th.Property("size", th.IntegerType),
         th.Property("stargazers_count", th.IntegerType),
         th.Property("fork", th.BooleanType),
+        th.Property(
+            "topics",
+            th.ArrayType(th.StringType),
+        ),
+        th.Property("visibility", th.StringType),
         # These `_count` metrics appear to be duplicates but have valid data
         # and are documented: https://docs.github.com/en/rest/reference/search
         th.Property("forks", th.IntegerType),
