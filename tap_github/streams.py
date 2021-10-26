@@ -120,6 +120,7 @@ class RepositoryStream(GitHubStream):
             th.ArrayType(th.StringType),
         ),
         th.Property("visibility", th.StringType),
+        th.Property("language", th.StringType),
         # These `_count` metrics appear to be duplicates but have valid data
         # and are documented: https://docs.github.com/en/rest/reference/search
         th.Property("forks", th.IntegerType),
