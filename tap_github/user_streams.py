@@ -15,39 +15,21 @@ class UserStream(GitHubStream):
 
     name = "users"
 
-    def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
-        params = super().get_url_params(context, next_page_token)
-        if "search_query" in context:
-            # we're in search mode
-            params["q"] = context["search_query"]
-
-        return params
-
     @property
     def path(self) -> str:  # type: ignore
         """Return the API endpoint path."""
-        if "searches" in self.config:
-            return "/search/users"
-        else:
-            # the `repo` and `org` args will be parsed from the partition's `context`
+        if "user_usernames" in self.config:
             return "/users/{username}"
-
-    @property
-    def records_jsonpath(self) -> str:  # type: ignore
-        if "searches" in self.config:
-            return "$.items[*]"
-        else:
-            return "$[*]"
+        elif "user_ids" in self.config:
+            return "/user/{id}"
 
     @property
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
-        if "users" in self.config:
-            return [{"username": u} for u in self.config["users"]]
+        if "user_usernames" in self.config:
+            return [{"username": u} for u in self.config["user_usernames"]]
+        elif "user_ids" in self.config:
+            return [{"id": id} for id in self.config["user_ids"]]
         return None
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
@@ -58,12 +40,11 @@ class UserStream(GitHubStream):
         streams for context.
         """
         return {
-            "username": record["login"] or record["email"],
+            "username": record["login"],
         }
 
     schema = th.PropertiesList(
-        th.Property("search_name", th.StringType),
-        th.Property("search_query", th.StringType),
+        th.Property("login", th.IntegerType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("avatar_url", th.StringType),
