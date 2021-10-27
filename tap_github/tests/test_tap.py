@@ -1,4 +1,4 @@
-import datetime
+import json
 import pytest
 
 from tap_github.tap import TapGitHub
@@ -48,3 +48,40 @@ def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == len(
         repo_list_2
     )
+
+
+@pytest.mark.repo_list(["facebook/react"])
+def test_get_a_repository_with_dependents_count(capsys, repo_list_config):
+    """
+    Discover the catalog, request a repo with the dependent count and
+    check that the value is what we expect
+    """
+    tap1 = TapGitHub(config=repo_list_config)
+    tap1.run_discovery()
+    catalog = tap1._singer_catalog
+    # disable child streams
+    deselect_all_streams(catalog)
+    set_catalog_stream_selected(
+        catalog=catalog, stream_name="repositories", selected=True
+    )
+    set_catalog_stream_selected(
+        catalog=catalog,
+        stream_name="repositories",
+        selected=True,
+        breadcrumb=("properties", "dependents_count_repositories"),
+    )
+    # discard previous output to stdout (potentially from other tests)
+    capsys.readouterr()
+    tap2 = TapGitHub(config=repo_list_config, catalog=catalog.to_dict())
+    tap2.sync_all()
+    captured = capsys.readouterr()
+    # Verify we got the right number of records (one per repo in the list)
+    record_marker = '{"type": "RECORD", "stream": "repositories"'
+    assert captured.out.count(record_marker) == 1
+    record = json.loads(
+        [line for line in captured.out.splitlines() if line.startswith(record_marker)][
+            0
+        ]
+    )
+    assert "dependents_count_repositories" in record["record"]
+    assert record["record"]["dependents_count_repositories"] > 7000000

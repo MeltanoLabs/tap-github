@@ -1,6 +1,8 @@
 """Stream type classes for tap-github."""
 
-from typing import Any, Dict, Iterable, List, Optional
+import re
+import requests
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
@@ -67,6 +69,39 @@ class RepositoryStream(GitHubStream):
             "org": record["owner"]["login"],
             "repo": record["name"],
         }
+
+    def fetch_dependents_counts_repos_and_packages(self, repo_full_name: str) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Fetch additional data about the number of dependents on this repository.
+
+        This parses HTML as the corresponding data is not available on any github
+        API endpoint (REST or graphQL)
+        """
+        url = f"https://github.com/{repo_full_name}/network/dependents"
+        response = requests.get(url)
+        if response.status_code != 200:
+            self.logger.info(f"Failed to get dependents page, setting value to 0")
+            return None, None
+        content = response.text
+        match = re.search(r'([0-9,]+)\s+Repositories.+?([0-9,]+)\s+Packages', content, re.DOTALL)
+        if match is None:
+            return None, None
+        return int(match.group(1).replace(',','').strip(' \n')), int(match.group(2).replace(',','').strip(' \n'))
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        """
+        Optionally add 2 extra fields on the repository record. These are deselected by default
+        as they are quite resource heavy to get.
+        """
+        fetch_dependents_count_repos: bool = self.mask[('properties', 'dependents_count_repositories')]
+        fetch_dependents_count_pkgs: bool = self.mask[('properties', 'dependents_count_packages')]
+        if fetch_dependents_count_repos or fetch_dependents_count_pkgs:
+            r, p = self.fetch_dependents_counts_repos_and_packages(row["full_name"])
+            if fetch_dependents_count_repos:
+                row["dependents_count_repositories"] = r
+            if fetch_dependents_count_pkgs:
+                row["dependents_count_packages"] = p
+        return row
 
     schema = th.PropertiesList(
         th.Property("search_name", th.StringType),
@@ -144,6 +179,8 @@ class RepositoryStream(GitHubStream):
                 th.Property("site_admin", th.BooleanType),
             ),
         ),
+        th.Property("dependents_count_repositories", th.IntegerType, selected_by_default=False),
+        th.Property("dependents_count_packages", th.IntegerType, selected_by_default=False),
     ).to_dict()
 
 
