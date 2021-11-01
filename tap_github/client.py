@@ -5,6 +5,7 @@ from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
+from tap_github.autenticator import GitHubTokenAuthenticator
 
 
 class GitHubStream(RESTStream):
@@ -14,6 +15,10 @@ class GitHubStream(RESTStream):
     MAX_RESULTS_LIMIT: Optional[int] = None
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.github_authenticator = GitHubTokenAuthenticator(self)
 
     @property
     def url_base(self) -> str:
@@ -30,13 +35,10 @@ class GitHubStream(RESTStream):
         if "user_agent" in self.config:
             headers["User-Agent"] = cast(str, self.config.get("user_agent"))
 
-        if "auth_token" in self.config:
-            headers["Authorization"] = f"token {self.config['auth_token']}"
-        elif "GITHUB_TOKEN" in environ:
-            self.logger.info(
-                "Found 'GITHUB_TOKEN' environment variable for authentication."
-            )
-            headers["Authorization"] = f"token {environ['GITHUB_TOKEN']}"
+        if self.github_authenticator.active_token:
+            headers[
+                "Authorization"
+            ] = f"token {self.github_authenticator.active_token.token}"
         else:
             self.logger.info(
                 "No auth token detected. "
@@ -110,6 +112,14 @@ class GitHubStream(RESTStream):
             )
             return response
 
+        # Rate limiting
+        if response.status_code == 403 and "Rate Limit Exceeded" in str(
+            response.content
+        ):
+            # Change token and force request retry.
+            self.github_authenticator.get_next_auth_token()
+            raise RuntimeError("Rate Limit Exceeded. Updating active token.")
+
         if response.status_code in [401, 403]:
             self.logger.info("Failed request for {}".format(prepared_request.url))
             self.logger.info(
@@ -133,6 +143,9 @@ class GitHubStream(RESTStream):
         # TODO - Split into handle_reponse and parse_response.
         if response.status_code in self.tolerated_http_errors:
             return []
+
+        # Update token rate limit info and loop through tokens if needed.
+        self.github_authenticator.update_rate_limit(response.headers)
 
         resp_json = response.json()
 
