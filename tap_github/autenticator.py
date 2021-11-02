@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from singer_sdk.streams import RESTStream
 
@@ -20,7 +20,7 @@ class TokenRateLimit:
         self.token = token
         self.rate_limit = self.DEFAULT_RATE_LIMIT
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
-        self.rate_limit_reset = None
+        self.rate_limit_reset: Optional[int] = None
         self.rate_limit_used = 0
 
     def update_rate_limit(self, response_headers: Any):
@@ -80,7 +80,7 @@ class GitHubTokenAuthenticator:
         self.tap_name: str = stream.tap_name
         self._config: Dict[str, Any] = dict(stream.config)
         self.tokens_map = self.prepare_tokens()
-        self.active_token: TokenRateLimit = (
+        self.active_token: Optional[TokenRateLimit] = (
             choice(list(self.tokens_map.values())) if len(self.tokens_map) else None
         )
 
