@@ -911,7 +911,7 @@ class ContributorsStream(GitHubStream):
 
     name = "contributors"
     path = "/repos/{org}/{repo}/contributors"
-    # primary_keys = ["id"]
+    primary_keys = ["org", "repo", "node_id"]
     # replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
