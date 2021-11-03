@@ -13,6 +13,9 @@ class TokenRateLimit:
     """A class to store token rate limiting information."""
 
     DEFAULT_RATE_LIMIT = 5000
+    # This buffer serves two purposes:
+    # - keep some leeway and rotate tokens before erroring out on rate limit.
+    # - not consume all available calls when we rare using an org or user token.
     DEFAULT_RATE_LIMIT_BUFFER = 1000
 
     def __init__(self, token: str, rate_limit_buffer: Optional[int]):

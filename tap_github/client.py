@@ -116,9 +116,12 @@ class GitHubStream(RESTStream):
         if response.status_code == 403 and "Rate Limit Exceeded" in str(
             response.content
         ):
-            # Change token and force request retry.
+            # Update token
             self.github_authenticator.get_next_auth_token()
-            raise RuntimeError("Rate Limit Exceeded. Updating active token.")
+            # Raise an error to force a retry with the new token (this function has a retry decorator).
+            raise RuntimeError(
+                "GitHub rate limit exceeded. Updated active token and retrying."
+            )
 
         if response.status_code in [401, 403]:
             self.logger.info("Failed request for {}".format(prepared_request.url))
