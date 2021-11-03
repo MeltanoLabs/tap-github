@@ -13,15 +13,20 @@ class TokenRateLimit:
     """A class to store token rate limiting information."""
 
     DEFAULT_RATE_LIMIT = 5000
-    RATE_LIMIT_BUFFER = 1000
+    DEFAULT_RATE_LIMIT_BUFFER = 1000
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, rate_limit_buffer: Optional[int]):
         """Init TokenRateLimit info."""
         self.token = token
         self.rate_limit = self.DEFAULT_RATE_LIMIT
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
         self.rate_limit_reset: Optional[int] = None
         self.rate_limit_used = 0
+        self.rate_limit_buffer = (
+            rate_limit_buffer
+            if rate_limit_buffer is not None
+            else self.DEFAULT_RATE_LIMIT_BUFFER
+        )
 
     def update_rate_limit(self, response_headers: Any):
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
@@ -38,7 +43,7 @@ class TokenRateLimit:
         if self.rate_limit_reset is None:
             return True
         if (
-            self.rate_limit_used > (self.rate_limit - self.RATE_LIMIT_BUFFER)
+            self.rate_limit_used > (self.rate_limit - self.rate_limit_buffer)
             and self.rate_limit_reset > datetime.now().timestamp()
         ):
             return False
@@ -68,7 +73,13 @@ class GitHubTokenAuthenticator:
                 )
                 available_tokens = env_tokens
 
-        return {token: TokenRateLimit(token) for token in available_tokens}
+        # Get rate_limit_buffer
+        rate_limit_buffer = self._config.get("rate_limit_buffer", None)
+
+        return {
+            token: TokenRateLimit(token, rate_limit_buffer)
+            for token in available_tokens
+        }
 
     def __init__(self, stream: RESTStream) -> None:
         """Init authenticator.

@@ -26,8 +26,10 @@ class TapGitHub(Tap):
     config_jsonschema = th.PropertiesList(
         th.Property("user_agent", th.StringType),
         th.Property("metrics_log_level", th.StringType),
+        # Authorization options
         th.Property("auth_token", th.StringType),
         th.Property("auth_tokens", th.ArrayType(th.StringType)),
+        th.Property("rate_limit_buffer", th.ArrayType(th.IntegerType)),
         th.Property(
             "searches",
             th.ArrayType(
