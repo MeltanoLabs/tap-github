@@ -13,7 +13,7 @@ class TokenRateLimit:
     """A class to store token rate limiting information."""
 
     DEFAULT_RATE_LIMIT = 5000
-    # This buffer serves two purposes:
+    # The DEFAULT_RATE_LIMIT_BUFFER buffer serves two purposes:
     # - keep some leeway and rotate tokens before erroring out on rate limit.
     # - not consume all available calls when we rare using an org or user token.
     DEFAULT_RATE_LIMIT_BUFFER = 1000
@@ -111,6 +111,10 @@ class GitHubTokenAuthenticator:
         )
 
     def update_rate_limit(self, response_headers):
+        # If no token or only one token is available, return early.
+        if len(self.tokens_map) <= 1:
+            return
+
         self.active_token.update_rate_limit(response_headers)
         if not self.active_token.is_valid():
             self.get_next_auth_token()
