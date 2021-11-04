@@ -6,6 +6,7 @@ from singer_sdk import Tap, Stream
 from singer_sdk import typing as th  # JSON schema typing helpers
 
 from tap_github.streams import (
+    AnonymousContributorsStream,
     CommitsStream,
     CommunityProfileStream,
     ContributorsStream,
@@ -46,6 +47,7 @@ class TapGitHub(Tap):
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams."""
         return [
+            AnonymousContributorsStream(tap=self),
             CommitsStream(tap=self),
             CommunityProfileStream(tap=self),
             ContributorsStream(tap=self),

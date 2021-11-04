@@ -1,5 +1,7 @@
 """Stream type classes for tap-github."""
 
+import requests
+
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -292,7 +294,7 @@ class IssuesStream(GitHubStream):
         #             "__filter__": "record['type'] = 'issue'"
         #         }
         #     }
-        # {
+        # }
         params["state"] = "all"
         return params
 
@@ -907,12 +909,11 @@ class PullRequestsStream(GitHubStream):
 
 
 class ContributorsStream(GitHubStream):
-    """Defines 'Contributors' stream."""
+    """Defines 'Contributors' stream. Fetching User & Bot contributors."""
 
     name = "contributors"
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["org", "repo", "node_id"]
-    # replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
@@ -938,10 +939,44 @@ class ContributorsStream(GitHubStream):
         th.Property("repos_url", th.StringType),
         th.Property("events_url", th.StringType),
         th.Property("received_events_url", th.StringType),
-        # Anonymous contributor keys. Only fetched with params["anon"] = 'true'
+        th.Property("type", th.StringType),
+        th.Property("site_admin", th.BooleanType),
+        th.Property("contributions", th.IntegerType),
+    ).to_dict()
+
+
+class AnonymousContributorsStream(GitHubStream):
+    """Defines 'AnonymousContributors' stream."""
+
+    name = "anonymous_contributors"
+    path = "/repos/{org}/{repo}/contributors"
+    primary_keys = ["org", "repo", "email"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
+        params = super().get_url_params(context, next_page_token)
+        # Fetch all contributions, including anonymous users.
+        params["anon"] = "true"
+        return params
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of anonymous contributors."""
+        parsed_response = super().parse_response(response)
+        return filter(lambda x: x["type"] == "Anonymous", parsed_response)
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Anonymous contributor keys
         th.Property("email", th.StringType),
         th.Property("name", th.StringType),
-        # Shared keys
         th.Property("type", th.StringType),
         th.Property("contributions", th.IntegerType),
     ).to_dict()
