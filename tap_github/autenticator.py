@@ -18,7 +18,7 @@ class TokenRateLimit:
     # - not consume all available calls when we rare using an org or user token.
     DEFAULT_RATE_LIMIT_BUFFER = 1000
 
-    def __init__(self, token: str, rate_limit_buffer: Optional[int]):
+    def __init__(self, token: str, rate_limit_buffer: Optional[int] = None):
         """Init TokenRateLimit info."""
         self.token = token
         self.rate_limit = self.DEFAULT_RATE_LIMIT
@@ -31,7 +31,7 @@ class TokenRateLimit:
             else self.DEFAULT_RATE_LIMIT_BUFFER
         )
 
-    def update_rate_limit(self, response_headers: Any):
+    def update_rate_limit(self, response_headers: Any) -> None:
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
         self.rate_limit_remaining = int(response_headers["X-RateLimit-Remaining"])
         self.rate_limit_reset = int(response_headers["X-RateLimit-Reset"])
@@ -41,7 +41,7 @@ class TokenRateLimit:
         """Check if token is valid.
 
         Returns:
-            True if the token is valid (fresh).
+            True if the token is valid and has enough api calls remaining.
         """
         if self.rate_limit_reset is None:
             return True
