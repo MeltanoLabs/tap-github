@@ -270,7 +270,7 @@ class CommunityProfileStream(GitHubStream):
 class LanguagesStream(GitHubStream):
     name = "languages"
     path = "/repos/{org}/{repo}/languages"
-    primary_keys = ["repo", "org"]
+    primary_keys = ["repo", "org", "language_name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
