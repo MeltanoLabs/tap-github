@@ -281,13 +281,8 @@ class LanguagesStream(GitHubStream):
             return []
 
         languages_json = response.json()
-        results = [
-            {"language_name": key, "bytes": value}
-            for key, value in languages_json.items()
-        ]
-
-        for row in results:
-            yield row
+        for key, value in languages_json.items()
+            yield {"language_name": key, "bytes": value}
 
     schema = th.PropertiesList(
         # Parent Keys
