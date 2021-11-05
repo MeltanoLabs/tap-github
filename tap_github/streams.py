@@ -276,7 +276,7 @@ class LanguagesStream(GitHubStream):
     state_partitioning_keys = ["repo", "org"]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the language response and reformat to return as an iterator of [{language_name: Python, byes: 23}]."""
+        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""
         if response.status_code in self.tolerated_http_errors:
             return []
 
