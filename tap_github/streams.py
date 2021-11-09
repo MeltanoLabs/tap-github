@@ -154,6 +154,7 @@ class ReadmeStream(GitHubStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
