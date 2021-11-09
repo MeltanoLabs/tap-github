@@ -675,6 +675,15 @@ class PullRequestsStream(GitHubStream):
         params["state"] = "all"
         return params
 
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        """
+        Give the PR number to children streams
+        """
+
+        return super().get_child_context(record, context) | {
+            "pull_number": record["number"],
+        }
+
     @property
     def http_headers(self) -> dict:
         """Return the http headers needed.
@@ -903,6 +912,32 @@ class PullRequestsStream(GitHubStream):
                 ),
             ),
         ),
+    ).to_dict()
+
+
+class PullRequestFilesStream(GitHubStream):
+    """Defines 'PullRequestFiles' stream."""
+
+    name = "pull_request_files"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/files"
+    primary_keys = ["sha"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Key
+        th.Property("sha", th.StringType),
+        # Rest
+        th.Property("filename", th.StringType),
+        th.Property("status", th.StringType),
+        th.Property("additions", th.IntegerType),
+        th.Property("deletions", th.IntegerType),
+        th.Property("changes", th.IntegerType),
+        th.Property("blob_url", th.StringType),
+        th.Property("raw_url", th.StringType),
+        th.Property("contents_url", th.StringType),
+        th.Property("patch", th.StringType),
     ).to_dict()
 
 
