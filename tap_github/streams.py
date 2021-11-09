@@ -920,16 +920,16 @@ class PullRequestFilesStream(GitHubStream):
 
     name = "pull_request_files"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/files"
-    primary_keys = ["sha"]
+    primary_keys = ["filename"]
     parent_stream_type = PullRequestsStream
-    ignore_parent_replication_key = True
+    ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Key
-        th.Property("sha", th.StringType),
-        # Rest
         th.Property("filename", th.StringType),
+        # Rest
+        th.Property("sha", th.StringType),
         th.Property("status", th.StringType),
         th.Property("additions", th.IntegerType),
         th.Property("deletions", th.IntegerType),
