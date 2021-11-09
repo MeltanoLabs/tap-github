@@ -1,6 +1,7 @@
 """Stream type classes for tap-github."""
 
 from typing import Any, Dict, Iterable, List, Optional
+
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
@@ -680,8 +681,11 @@ class PullRequestsStream(GitHubStream):
         Give the PR number to children streams
         """
 
-        return super().get_child_context(record, context) | {
-            "pull_number": record["number"],
+        return {
+            **super().get_child_context(record, context),
+            **{
+                "pull_number": record["number"],
+            },
         }
 
     @property
