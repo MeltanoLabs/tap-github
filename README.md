@@ -17,19 +17,20 @@ pipx install git+https://github.com/MeltanoLabs/tap-github.git
 This tap accepts the following configuration options:
 
 - Required: One and only one of the following:
-    1. `repositories`: an array of strings containing the github repos to be included
-    2. `searches`: an array of search descriptor objects with the following properties:
-        - `name`: a human readable name for the search query
-        - `query`: a github search string (generally the same as would come after `?q=` in the URL)
+  1. `repositories`: an array of strings containing the github repos to be included
+  2. `searches`: an array of search descriptor objects with the following properties:
+     - `name`: a human readable name for the search query
+     - `query`: a github search string (generally the same as would come after `?q=` in the URL)
 - Highly recommended:
-  - `auth_token` - 
+  - `auth_token` or `auth_tokens` - a (list of ) GitHub token(s) to authenticate API requests and augment rate limiting.
+  - alternatively, you can input auth tokens with any environment variables starting with GITHUB_TOKEN.
 - Optional:
   - `user_agent`
   - `start_date`
   - `metrics_log_level`
   - `stream_maps`
   - `stream_maps_config`
-
+  - `rate_limit_buffer` - A buffer to avoid consuming all query points for the auth_token at hand. Defaults to 1000.",
 
 A full list of supported settings and capabilities for this
 tap is available by running:
@@ -66,7 +67,7 @@ poetry install
 ### Create and Run Tests
 
 Create tests within the `tap_github/tests` subfolder and
-  then run:
+then run:
 
 ```bash
 poetry run pytest
@@ -117,5 +118,5 @@ mkdir -p .output && meltano elt tap-github target-jsonl --job_id $TESTJOB && mel
 
 ### Singer SDK Dev Guide
 
-See the [dev guide](../../docs/dev_guide.md) for more instructions on how to use the Singer SDK to 
+See the [dev guide](../../docs/dev_guide.md) for more instructions on how to use the Singer SDK to
 develop your own taps and targets.
