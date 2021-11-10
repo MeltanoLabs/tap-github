@@ -927,7 +927,7 @@ class PullRequestFilesStream(GitHubStream):
     primary_keys = ["filename"]
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys = ["repo", "org", "pull_number"]
 
     schema = th.PropertiesList(
         # Key
