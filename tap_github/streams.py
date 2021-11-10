@@ -929,9 +929,15 @@ class PullRequestFilesStream(GitHubStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org", "pull_number"]
 
+    def post_process(self, row: dict, context: Optional[dict] = None) -> Optional[dict]:
+        # Add the pull_number from context
+        row["pull_number"] = context["pull_number"]
+        return row
+
     schema = th.PropertiesList(
-        # Key
+        # Key (including parent)
         th.Property("filename", th.StringType),
+        th.Property("pull_number", th.IntegerType),
         # Rest
         th.Property("sha", th.StringType),
         th.Property("status", th.StringType),
