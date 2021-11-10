@@ -6,6 +6,7 @@ from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, Optional
 
+from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
 
 
@@ -53,7 +54,7 @@ class TokenRateLimit:
         return True
 
 
-class GitHubTokenAuthenticator:
+class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
     def prepare_tokens(self) -> Dict[str, TokenRateLimit]:
@@ -90,6 +91,7 @@ class GitHubTokenAuthenticator:
         Args:
             stream: A stream for a RESTful endpoint.
         """
+        super().__init__(stream=stream)
         self.logger: logging.Logger = stream.logger
         self.tap_name: str = stream.tap_name
         self._config: Dict[str, Any] = dict(stream.config)
@@ -118,3 +120,22 @@ class GitHubTokenAuthenticator:
         self.active_token.update_rate_limit(response_headers)
         if not self.active_token.is_valid():
             self.get_next_auth_token()
+
+    @property
+    def auth_headers(self) -> dict:
+        """Return a dictionary of auth headers to be applied.
+
+        These will be merged with any `http_headers` specified in the stream.
+
+        Returns:
+            HTTP headers for authentication.
+        """
+        result = super().auth_headers
+        if self.active_token:
+            result["Authorization"] = f"token {self.active_token.token}"
+        else:
+            self.logger.info(
+                "No auth token detected. "
+                "For higher rate limits, please specify `auth_token` in config."
+            )
+        return result

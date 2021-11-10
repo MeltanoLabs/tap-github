@@ -16,9 +16,9 @@ class GitHubStream(RESTStream):
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.github_authenticator = GitHubTokenAuthenticator(self)
+    @property
+    def authenticator(self):
+        return GitHubTokenAuthenticator(stream=self)
 
     @property
     def url_base(self) -> str:
@@ -34,16 +34,6 @@ class GitHubStream(RESTStream):
         headers = {"Accept": "application/vnd.github.v3+json"}
         if "user_agent" in self.config:
             headers["User-Agent"] = cast(str, self.config.get("user_agent"))
-
-        if self.github_authenticator.active_token:
-            headers[
-                "Authorization"
-            ] = f"token {self.github_authenticator.active_token.token}"
-        else:
-            self.logger.info(
-                "No auth token detected. "
-                "For higher rate limits, please specify `auth_token` in config."
-            )
 
         return headers
 
@@ -117,7 +107,7 @@ class GitHubStream(RESTStream):
             response.content
         ):
             # Update token
-            self.github_authenticator.get_next_auth_token()
+            self.authenticator.get_next_auth_token()
             # Raise an error to force a retry with the new token (this function has a retry decorator).
             raise RuntimeError(
                 "GitHub rate limit exceeded. Updated active token and retrying."
@@ -148,7 +138,7 @@ class GitHubStream(RESTStream):
             return []
 
         # Update token rate limit info and loop through tokens if needed.
-        self.github_authenticator.update_rate_limit(response.headers)
+        self.authenticator.update_rate_limit(response.headers)
 
         resp_json = response.json()
 
