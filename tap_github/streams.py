@@ -310,12 +310,12 @@ class IssuesStream(GitHubStream):
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["type"] = "pull_request" if "pull_request" in row else "issue"
-        if row['body'] is not None:
+        if row["body"] is not None:
             # some issue bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
             # such chars are removed from the data before we pass it on to
             # the target
-            row['body'] = row['body'].encode('utf-8', errors='ignore')
+            row["body"] = row["body"].encode("utf-8", errors="ignore")
         return row
 
     schema = th.PropertiesList(
