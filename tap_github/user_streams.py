@@ -9,10 +9,6 @@ from tap_github.client import GitHubStream
 class UserStream(GitHubStream):
     """Defines 'User' stream."""
 
-    # Search API max: 100 per page, 1,000 total
-    MAX_PER_PAGE = 100
-    MAX_RESULTS_LIMIT = 1000
-
     name = "users"
 
     @property

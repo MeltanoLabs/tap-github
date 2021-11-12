@@ -9,8 +9,7 @@ from tap_github.client import GitHubStream
 class RepositoryStream(GitHubStream):
     """Defines 'Repository' stream."""
 
-    # Search API max: 100 per page, 1,000 total
-    MAX_PER_PAGE = 100
+    # Search API max: 1,000 total.
     MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
