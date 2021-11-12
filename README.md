@@ -17,10 +17,11 @@ pipx install git+https://github.com/MeltanoLabs/tap-github.git
 This tap accepts the following configuration options:
 
 - Required: One and only one of the following:
-  1. `repositories`: an array of strings containing the github repos to be included
-  2. `searches`: an array of search descriptor objects with the following properties:
-     - `name`: a human readable name for the search query
-     - `query`: a github search string (generally the same as would come after `?q=` in the URL)
+    1. `repositories`: an array of strings containing the github repos to be included
+    2. `organizations`: an array of strings containing the github organizations to be included
+    3. `searches`: an array of search descriptor objects with the following properties:
+        - `name`: a human readable name for the search query
+        - `query`: a github search string (generally the same as would come after `?q=` in the URL)
 - Highly recommended:
   - `auth_token` or `auth_tokens` - a (list of ) GitHub token(s) to authenticate API requests and augment rate limiting.
   - alternatively, you can input auth tokens with any environment variables starting with GITHUB_TOKEN.

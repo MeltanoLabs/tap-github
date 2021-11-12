@@ -5,6 +5,8 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
 
+VALID_REPO_QUERIES = {"repositories", "organizations", "searches"}
+
 
 class RepositoryStream(GitHubStream):
     """Defines 'Repository' stream."""
@@ -30,11 +32,19 @@ class RepositoryStream(GitHubStream):
     @property
     def path(self) -> str:  # type: ignore
         """Return the API endpoint path."""
+        if len(VALID_REPO_QUERIES.intersection(self.config)) != 1:
+            raise ValueError(
+                "This tap requires one and only one of the following path options: "
+                "search, repositories or organizations"
+            )
+
         if "searches" in self.config:
             return "/search/repositories"
-        else:
+        elif "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
             return "/repos/{org}/{repo}"
+        elif "organizations" in self.config:
+            return "/orgs/{org}/repos"
 
     @property
     def records_jsonpath(self) -> str:  # type: ignore
@@ -54,6 +64,8 @@ class RepositoryStream(GitHubStream):
         if "repositories" in self.config:
             split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
+        if "organizations" in self.config:
+            return [{"org": org} for org in self.config["organizations"]]
         return None
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
@@ -154,6 +166,7 @@ class ReadmeStream(GitHubStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -309,6 +322,12 @@ class IssuesStream(GitHubStream):
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["type"] = "pull_request" if "pull_request" in row else "issue"
+        if row["body"] is not None:
+            # some issue bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["body"] = row["body"].encode("utf-8", errors="ignore")
         return row
 
     schema = th.PropertiesList(
