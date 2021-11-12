@@ -1,5 +1,6 @@
 """Stream type classes for tap-github."""
 
+import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -276,6 +277,34 @@ class CommunityProfileStream(GitHubStream):
                 ),
             ),
         ),
+    ).to_dict()
+
+
+class LanguagesStream(GitHubStream):
+    name = "languages"
+    path = "/repos/{org}/{repo}/languages"
+    primary_keys = ["repo", "org", "language_name"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""
+        if response.status_code in self.tolerated_http_errors:
+            return []
+
+        languages_json = response.json()
+        for key, value in languages_json.items():
+            yield {"language_name": key, "bytes": value}
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # A list of languages parsed by GitHub is available here:
+        # https://github.com/github/linguist/blob/master/lib/linguist/languages.yml
+        th.Property("language_name", th.StringType),
+        th.Property("bytes", th.IntegerType),
     ).to_dict()
 
 
