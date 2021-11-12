@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
@@ -59,11 +59,11 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
     def prepare_tokens(self) -> Dict[str, TokenRateLimit]:
         # Save GitHub tokens
-        available_tokens = []
+        available_tokens: List[str] = []
         if "auth_token" in self._config:
-            available_tokens = [self._config["auth_token"]]
-        elif "auth_tokens" in self._config:
-            available_tokens = self._config["auth_tokens"]
+            available_tokens = available_tokens + [self._config["auth_token"]]
+        if "additional_auth_tokens" in self._config:
+            available_tokens = available_tokens + self._config["additional_auth_tokens"]
         else:
             # Accept multiple tokens using environment variables GITHUB_TOKEN*
             env_tokens = [
@@ -80,9 +80,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
 
+        # Dedup tokens and create a dict of TokenRateLimit
         return {
             token: TokenRateLimit(token, rate_limit_buffer)
-            for token in available_tokens
+            for token in list(set(available_tokens))
         }
 
     def __init__(self, stream: RESTStream) -> None:

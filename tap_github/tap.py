@@ -33,9 +33,9 @@ class TapGitHub(Tap):
             description="GitHub token to authenticate with.",
         ),
         th.Property(
-            "auth_tokens",
+            "additional_auth_tokens",
             th.ArrayType(th.StringType),
-            description="List of GitHub tokens to authenticate with. Streams will loop through them when they hit rate limits.",
+            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",
         ),
         th.Property(
             "rate_limit_buffer",
