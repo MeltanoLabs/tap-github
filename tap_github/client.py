@@ -32,7 +32,7 @@ class GitHubStream(RESTStream):
     tolerated_http_errors: List[int] = []
 
     @property
-    def http_headers(self) -> dict:
+    def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
         if "user_agent" in self.config:

@@ -1,6 +1,7 @@
 """Classes to assist in authenticating to the GitHub API."""
 
 import logging
+import requests
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
@@ -73,9 +74,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             ]
             if len(env_tokens) > 0:
                 self.logger.info(
-                    "Found 'GITHUB_TOKEN' environment variables for authentication."
+                    "Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
                 )
                 available_tokens = env_tokens
+        self.logger.info(f"Tap will run with {len(available_tokens)} auth tokens")
 
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
@@ -101,19 +103,22 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             choice(list(self.tokens_map.values())) if len(self.tokens_map) else None
         )
 
-    def get_next_auth_token(self):
+    def get_next_auth_token(self) -> None:
         tokens_list = list(self.tokens_map.items())
         shuffle(tokens_list)
         for _, token_rate_limit in tokens_list:
             if token_rate_limit.is_valid():
                 self.active_token = token_rate_limit
+                self.logger.info(f"Switching to fresh auth token")
                 return
 
         raise RuntimeError(
             "All GitHub tokens have hit their rate limit. Stopping here."
         )
 
-    def update_rate_limit(self, response_headers):
+    def update_rate_limit(
+        self, response_headers: requests.models.CaseInsensitiveDict
+    ) -> None:
         # If no token or only one token is available, return early.
         if len(self.tokens_map) <= 1:
             return
@@ -123,7 +128,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             self.get_next_auth_token()
 
     @property
-    def auth_headers(self) -> dict:
+    def auth_headers(self) -> dict[str, str]:
         """Return a dictionary of auth headers to be applied.
 
         These will be merged with any `http_headers` specified in the stream.
