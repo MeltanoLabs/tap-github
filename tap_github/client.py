@@ -1,7 +1,6 @@
 """REST client handling, including GitHubStream base class."""
 
 import requests
-from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
