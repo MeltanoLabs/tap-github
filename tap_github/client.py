@@ -5,7 +5,7 @@ from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
-from tap_github.autenticator import GitHubTokenAuthenticator
+from tap_github.authenticator import GitHubTokenAuthenticator
 
 
 class GitHubStream(RESTStream):
