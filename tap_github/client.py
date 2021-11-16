@@ -15,9 +15,13 @@ class GitHubStream(RESTStream):
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
+    _authenticator: Optional[GitHubTokenAuthenticator] = None
+
     @property
-    def authenticator(self):
-        return GitHubTokenAuthenticator(stream=self)
+    def authenticator(self) -> GitHubTokenAuthenticator:
+        if self._authenticator is None:
+            self._authenticator = GitHubTokenAuthenticator(stream=self)
+        return self._authenticator
 
     @property
     def url_base(self) -> str:
