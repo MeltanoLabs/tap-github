@@ -120,7 +120,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self, response_headers: requests.models.CaseInsensitiveDict
     ) -> None:
         # If no token or only one token is available, return early.
-        if len(self.tokens_map) <= 1:
+        if len(self.tokens_map) <= 1 or self.active_token is None:
             return
 
         self.active_token.update_rate_limit(response_headers)
