@@ -124,8 +124,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             return
 
         self.active_token.update_rate_limit(response_headers)
-        if not self.active_token.is_valid():
-            self.get_next_auth_token()
 
     @property
     def auth_headers(self) -> dict[str, str]:
@@ -138,6 +136,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         """
         result = super().auth_headers
         if self.active_token:
+            # Make sure that our token is still valid or update it.
+            if not self.active_token.is_valid():
+                self.get_next_auth_token()
             result["Authorization"] = f"token {self.active_token.token}"
         else:
             self.logger.info(
