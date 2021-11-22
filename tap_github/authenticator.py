@@ -126,7 +126,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.active_token.update_rate_limit(response_headers)
 
     @property
-    def auth_headers(self) -> dict[str, str]:
+    def auth_headers(self) -> Dict[str, str]:
         """Return a dictionary of auth headers to be applied.
 
         These will be merged with any `http_headers` specified in the stream.
