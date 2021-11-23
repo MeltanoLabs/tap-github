@@ -356,7 +356,7 @@ class IssuesStream(GitHubStream):
             # that some targets (such as postgresql) choke on. This ensures
             # such chars are removed from the data before we pass it on to
             # the target
-            row["body"] = row["body"].encode("utf-8", errors="ignore").decode()
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
@@ -523,7 +523,7 @@ class IssueCommentsStream(GitHubStream):
             # that some targets (such as postgresql) choke on. This ensures
             # such chars are removed from the data before we pass it on to
             # the target
-            row["body"] = row["body"].encode("utf-8", errors="ignore").decode()
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
@@ -746,7 +746,7 @@ class PullRequestsStream(GitHubStream):
             # that some targets (such as postgresql) choke on. This ensures
             # such chars are removed from the data before we pass it on to
             # the target
-            row["body"] = row["body"].encode("utf-8", errors="ignore").decode()
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
