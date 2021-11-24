@@ -1,10 +1,16 @@
 """REST client handling, including GitHubStream base class."""
 
-import requests
+from datetime import datetime
 from os import environ
-from typing import Any, Dict, List, Optional, Iterable, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, cast
 
+import requests
+from ratelimit import RateLimitException, limits
+from ratelimit.decorators import sleep_and_retry
+from singer_sdk.exceptions import FatalAPIError
 from singer_sdk.streams import RESTStream
+
+limiter = limits(calls=1000, period=3600)
 
 
 class GitHubStream(RESTStream):
@@ -45,6 +51,31 @@ class GitHubStream(RESTStream):
 
         return headers
 
+    def request_decorator(self, func: Callable) -> Callable:
+        """Decorate the request method of the stream.
+        Args:
+            func: The RESTStream._request method.
+        Returns:
+            Decorated method.
+        """
+        return sleep_and_retry(limiter(func))
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Validate the HTTP response."""
+        remaining = int(response.headers["X-RateLimit-Remaining"])
+        reset = int(response.headers["X-RateLimit-Reset"])
+        self.logger.info("Remaining requests %d", remaining)
+
+        # raise FatalAPIError("woops")
+
+        if remaining == 0:
+            backoff = reset - datetime.utcnow().timestamp()
+            self.logger.info("Backing off for %s seconds", backoff)
+            raise RateLimitException("Backoff triggered", backoff)
+
+        if response.status_code not in self.tolerated_http_errors:
+            super().validate_response(response)
+
     def get_next_page_token(
         self, response: requests.Response, previous_token: Optional[Any]
     ) -> Optional[Any]:
@@ -84,49 +115,6 @@ class GitHubStream(RESTStream):
             if since:
                 params["since"] = since
         return params
-
-    def _request_with_backoff(
-        self, prepared_request, context: Optional[dict]
-    ) -> requests.Response:
-        """Override private method _request_with_backoff to account for expected 404 Not Found erros."""
-        # TODO - Adapt Singer
-        response = self.requests_session.send(prepared_request)
-        if self._LOG_REQUEST_METRICS:
-            extra_tags = {}
-            if self._LOG_REQUEST_METRIC_URLS:
-                extra_tags["url"] = cast(str, prepared_request.path_url)
-            self._write_request_duration_log(
-                endpoint=self.path,
-                response=response,
-                context=context,
-                extra_tags=extra_tags,
-            )
-        if response.status_code in self.tolerated_http_errors:
-            self.logger.info(
-                "Request returned a tolerated error for {}".format(prepared_request.url)
-            )
-            self.logger.info(
-                f"Reason: {response.status_code} - {str(response.content)}"
-            )
-            return response
-
-        if response.status_code in [401, 403]:
-            self.logger.info("Failed request for {}".format(prepared_request.url))
-            self.logger.info(
-                f"Reason: {response.status_code} - {str(response.content)}"
-            )
-            raise RuntimeError(
-                "Requested resource was unauthorized, forbidden, or not found."
-            )
-        elif response.status_code >= 400:
-            raise RuntimeError(
-                f"Error making request to API: {prepared_request.url} "
-                f"[{response.status_code} - {str(response.content)}]".replace(
-                    "\\n", "\n"
-                )
-            )
-        self.logger.debug("Response received successfully.")
-        return response
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""

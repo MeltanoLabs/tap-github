@@ -1,13 +1,6 @@
-import datetime
 import pytest
 
 from tap_github.tap import TapGitHub
-from singer_sdk.helpers._catalog import (
-    set_catalog_stream_selected,
-    deselect_all_streams,
-)
-
-from .fixtures import repo_list_config
 
 repo_list_2 = ["octocat/hello-world", "MeltanoLabs/tap-github", "mapswipe/mapswipe"]
 

@@ -5,13 +5,25 @@ description = "`tap-github` is Singer tap for GitHub, built with the Singer SDK.
 authors = ["AJ Steers (Meltano)"]
 license = "Apache 2.0"
 
+[tool.poetry.scripts]
+# CLI declaration
+tap-github = 'tap_github.tap:cli'
+
 [tool.poetry.dependencies]
 python = "<3.10,>=3.6.2"
-requests = "^2.25.1"
-singer-sdk = "^0.3.8"
+singer-sdk = "0.3.14"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
 # singer-sdk = {git = "https://gitlab.com/meltano/singer-sdk.git", rev = "97-hierarchical-streams"}
+ratelimit = "^2.2.1"
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3 # Vertical Hanging Indent
+src_paths = "tap_github"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"
@@ -19,11 +31,8 @@ mypy = "^0.910"
 flake8 = "^3.9.2"
 black = {version = "^21.5b1", allow-prereleases = true}
 types-requests = "^2.25.6"
+isort = "^5.10.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-# CLI declaration
-tap-github = 'tap_github.tap:cli'
