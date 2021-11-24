@@ -504,6 +504,9 @@ class IssueCommentsStream(GitHubStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
+    # FIXME: this allows the tap to continue on server-side timeouts but means
+    # we have gaps in our data
+    tolerated_http_errors = [502]
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
