@@ -356,7 +356,7 @@ class IssuesStream(GitHubStream):
             # that some targets (such as postgresql) choke on. This ensures
             # such chars are removed from the data before we pass it on to
             # the target
-            row["body"] = row["body"].encode("utf-8", errors="ignore")
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
@@ -518,6 +518,12 @@ class IssueCommentsStream(GitHubStream):
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
+        if row["body"] is not None:
+            # some comment bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
@@ -733,6 +739,15 @@ class PullRequestsStream(GitHubStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        if row["body"] is not None:
+            # some pr bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["body"] = row["body"].replace("\x00", "")
+        return row
 
     schema = th.PropertiesList(
         # Parent keys
