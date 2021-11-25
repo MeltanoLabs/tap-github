@@ -162,7 +162,7 @@ class RepositoryStream(GitHubStream):
     ).to_dict()
 
 
-class ReadmeStream(GitHubStream):
+class ReadmeHtmlStream(GitHubStream):
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
@@ -192,55 +192,7 @@ class ReadmeStream(GitHubStream):
         if response.status_code in self.tolerated_http_errors:
             return []
 
-        yield {"temp_readme_html": response.text}
-
-    def format_relative_links(self, readme: str, org: str, repo: str):
-        """Convert Readme relative links into absolute links.
-
-        Match all "a", "img" and "link" which have a "href" (or "src") attribute not followed
-        by "http[s]://" or "#" or "mailto" or "www"
-        Will match
-            <a href="image/hello.png">
-            <a target="_blank" href="image/hello.png" style="...">
-            <img style="..." src="image/hello.png" />
-        Will not match
-            <a href="https://image/hello.png">
-            <a href="mailto:openmlHQ@googlegroups.com">
-            <a href="www.openmlHQ@googlegroups.com">
-            <a href="#description">
-            <a target="_blank" href="http://image/hello.png" style="...">
-            <img style="..." src="https://image/hello.png" />
-        """
-        if not readme:
-            return ""
-
-        link_regex = r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)'
-        name_with_owner = f"{org}/{repo}"
-
-        #  Loop through relative url links and replace them.
-        all_finds = re.finditer(link_regex, readme)
-        for link_find in list(all_finds):
-            match = link_find.group()
-            (relative_url,) = link_find.groups()
-            absolute_url = (
-                f"https://raw.githubusercontent.com/{name_with_owner}/master/{relative_url}"
-                if match.startswith("<img")
-                else f"https://github.com/{name_with_owner}/blob/master/{relative_url}"
-            )
-            readme = readme.replace(match, match.replace(relative_url, absolute_url))
-
-        return readme
-
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
-        """Process the raw response readme in HTML string."""
-        if context is None or row["temp_readme_html"]:
-            return {}
-        org: str = context.get("org", "")
-        repo: str = context.get("repo", "")
-        temp_readme_html: str = row.get("temp_readme_html", "")
-        # Process html text to format relative links and dump to JSON.
-        readme_html = self.format_relative_links(temp_readme_html, org, repo)
-        return {"raw_html": json.dumps(readme_html)}
+        yield {"raw_html": json.dumps(response.text)}
 
     schema = th.PropertiesList(
         # Parent Keys
