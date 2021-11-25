@@ -169,30 +169,30 @@ class ReadmeStream(GitHubStream):
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to get HTML version of the readme.
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.html"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the README to yield the html response inside of an object."""
+        if response.status_code in self.tolerated_http_errors:
+            return []
+
+        readme_html = response.text
+        return [{"raw_html": readme_html}]
+
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        # README Keys
-        th.Property("type", th.StringType),
-        th.Property("encoding", th.StringType),
-        th.Property("size", th.IntegerType),
-        th.Property("name", th.StringType),
-        th.Property("path", th.StringType),
-        th.Property("content", th.StringType),
-        th.Property("sha", th.StringType),
-        th.Property("url", th.StringType),
-        th.Property("git_url", th.StringType),
-        th.Property("html_url", th.StringType),
-        th.Property("download_url", th.StringType),
-        th.Property(
-            "_links",
-            th.ObjectType(
-                th.Property("git", th.StringType),
-                th.Property("self", th.StringType),
-                th.Property("html", th.StringType),
-            ),
-        ),
+        # README HTML
+        th.Property("raw_html", th.StringType),
     ).to_dict()
 
 
