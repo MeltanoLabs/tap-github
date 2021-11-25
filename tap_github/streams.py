@@ -1,7 +1,8 @@
 """Stream type classes for tap-github."""
 
-import requests
 import json
+import re
+import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -180,6 +181,12 @@ class ReadmeStream(GitHubStream):
         headers["Accept"] = "application/vnd.github.v3.html"
         return headers
 
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """Notify the stream that it should not try to paginate."""
+        return None
+
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the README to yield the html response instead of an object."""
         if response.status_code in self.tolerated_http_errors:
@@ -188,6 +195,55 @@ class ReadmeStream(GitHubStream):
         readme_html = json.dumps(response.text)
         yield {"raw_html": readme_html}
 
+    def format_relative_links(self, readme, org, repo):
+        """Convert Readme relative links into absolute links.
+
+        Match all "a", "img" and "link" which have a "href" (or "src") attribute not followed
+        by "http[s]://" or "#" or "mailto" or "www"
+        Will match
+            <a href="image/hello.png">
+            <a target="_blank" href="image/hello.png" style="...">
+            <img style="..." src="image/hello.png" />
+        Will not match
+            <a href="https://image/hello.png">
+            <a href="mailto:openmlHQ@googlegroups.com">
+            <a href="www.openmlHQ@googlegroups.com">
+            <a href="#description">
+            <a target="_blank" href="http://image/hello.png" style="...">
+            <img style="..." src="https://image/hello.png" />
+        """
+        # regex = r('(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)','g')
+        # matches = re.findall(r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)')
+        name_with_owner = f"{org}/{repo}"
+        if not readme:
+            return ""
+
+        def url_replace(match):
+            match, relative_url = match.group()
+            absolute_url = (
+                f"https://raw.githubusercontent.com/{name_with_owner}/master/{relative_url}"
+                if match.startsWith("<img")
+                else f"https://github.com/{name_with_owner}/blob/master/{relative_url}"
+            )
+            return match and match.replace(relative_url, absolute_url)
+
+        return readme and re.sub(
+            r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)',
+            url_replace,
+            readme,
+        )
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        if row["raw_html"] is not None:
+            # some issue bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["raw_html"] = self.format_relative_links(
+                row["raw_html"], context["org"], context["repo"]
+            )
+        return row
+
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -195,12 +251,6 @@ class ReadmeStream(GitHubStream):
         # Readme HTML
         th.Property("raw_html", th.StringType),
     ).to_dict()
-
-    def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
-        """Notify the stream that it should not try to paginate."""
-        return None
 
 
 class CommunityProfileStream(GitHubStream):
