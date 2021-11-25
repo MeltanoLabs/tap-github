@@ -1,7 +1,6 @@
 """Stream type classes for tap-github."""
 
 import json
-import re
 import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
@@ -199,7 +198,7 @@ class ReadmeStream(GitHubStream):
 
 
 class ReadmeHtmlStream(GitHubStream):
-    name = "readme"
+    name = "readme_html"
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
