@@ -192,10 +192,9 @@ class ReadmeStream(GitHubStream):
         if response.status_code in self.tolerated_http_errors:
             return []
 
-        readme_html = json.dumps(response.text)
-        yield {"raw_html": readme_html}
+        yield response.text
 
-    def format_relative_links(self, readme, org, repo):
+    def format_relative_links(self, readme: str, org: str, repo: str):
         """Convert Readme relative links into absolute links.
 
         Match all "a", "img" and "link" which have a "href" (or "src") attribute not followed
@@ -212,37 +211,35 @@ class ReadmeStream(GitHubStream):
             <a target="_blank" href="http://image/hello.png" style="...">
             <img style="..." src="https://image/hello.png" />
         """
-        # regex = r('(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)','g')
-        # matches = re.findall(r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)')
-        name_with_owner = f"{org}/{repo}"
         if not readme:
             return ""
+        
+        link_regex = r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)'
+        name_with_owner = f"{org}/{repo}"
 
-        def url_replace(match):
-            match, relative_url = match.group()
+        #  Loop through relative url links and replace them.
+        all_finds = re.finditer(link_regex, readme)
+        for link_find in list(all_finds):
+            match = link_find.group()
+            (relative_url,) = link_find.groups()
             absolute_url = (
                 f"https://raw.githubusercontent.com/{name_with_owner}/master/{relative_url}"
-                if match.startsWith("<img")
+                if match.startswith("<img")
                 else f"https://github.com/{name_with_owner}/blob/master/{relative_url}"
             )
-            return match and match.replace(relative_url, absolute_url)
+            readme = readme.replace(match, match.replace(relative_url, absolute_url))
 
-        return readme and re.sub(
-            r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)',
-            url_replace,
-            readme,
-        )
+        return readme
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
-        if row["raw_html"] is not None:
-            # some issue bodies include control characters such as \x00
-            # that some targets (such as postgresql) choke on. This ensures
-            # such chars are removed from the data before we pass it on to
-            # the target
-            row["raw_html"] = self.format_relative_links(
-                row["raw_html"], context["org"], context["repo"]
+    def post_process(self, row: str, context: Optional[dict] = None) -> dict:
+        """Process the raw response readme in HTML string."""
+        if row is not None:
+            # Process html text to format relative links and dump to JSON.
+            readme_html = self.format_relative_links(
+                row, context["org"], context["repo"]
             )
-        return row
+            return {"raw_html": json.dumps(readme_html)}
+        return {}
 
     schema = th.PropertiesList(
         # Parent Keys
