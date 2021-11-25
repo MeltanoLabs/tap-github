@@ -192,7 +192,7 @@ class ReadmeStream(GitHubStream):
         if response.status_code in self.tolerated_http_errors:
             return []
 
-        yield response.text
+        yield {"temp_readme_html": response.text}
 
     def format_relative_links(self, readme: str, org: str, repo: str):
         """Convert Readme relative links into absolute links.
@@ -213,7 +213,7 @@ class ReadmeStream(GitHubStream):
         """
         if not readme:
             return ""
-        
+
         link_regex = r'(?:<(?:link|img|a)[^>]+(?:src|href)s*=s*)[\'"](?!(?:data|http|#|mailto|www))([^\'")>]+)'
         name_with_owner = f"{org}/{repo}"
 
@@ -231,15 +231,16 @@ class ReadmeStream(GitHubStream):
 
         return readme
 
-    def post_process(self, row: str, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         """Process the raw response readme in HTML string."""
-        if row is not None:
-            # Process html text to format relative links and dump to JSON.
-            readme_html = self.format_relative_links(
-                row, context["org"], context["repo"]
-            )
-            return {"raw_html": json.dumps(readme_html)}
-        return {}
+        if context is None or row["temp_readme_html"]:
+            return {}
+        org: str = context.get("org", "")
+        repo: str = context.get("repo", "")
+        temp_readme_html: str = row.get("temp_readme_html", "")
+        # Process html text to format relative links and dump to JSON.
+        readme_html = self.format_relative_links(temp_readme_html, org, repo)
+        return {"raw_html": json.dumps(readme_html)}
 
     schema = th.PropertiesList(
         # Parent Keys
