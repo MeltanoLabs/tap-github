@@ -1,6 +1,7 @@
 """Stream type classes for tap-github."""
 
 import requests
+import json
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -180,20 +181,26 @@ class ReadmeStream(GitHubStream):
         return headers
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the README to yield the html response inside of an object."""
+        """Parse the README to yield the html response instead of an object."""
         if response.status_code in self.tolerated_http_errors:
             return []
 
-        readme_html = response.text
-        return [{"raw_html": readme_html}]
+        readme_html = json.dumps(response.text)
+        yield {"raw_html": readme_html}
 
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        # README HTML
+        # Readme HTML
         th.Property("raw_html", th.StringType),
     ).to_dict()
+
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """Notify the stream that it should not try to paginate."""
+        return None
 
 
 class CommunityProfileStream(GitHubStream):
