@@ -162,6 +162,12 @@ class RepositoryStream(GitHubStream):
 
 
 class ReadmeStream(GitHubStream):
+    """
+    A stream dedicated to fetching the object version of a README.md.
+
+    Inclduding its content, base64 encoded.
+    """
+
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
@@ -198,6 +204,8 @@ class ReadmeStream(GitHubStream):
 
 
 class ReadmeHtmlStream(GitHubStream):
+    """A stream dedicated to fetching the HTML version of README.md"""
+
     name = "readme_html"
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
