@@ -1,4 +1,4 @@
-"""Stream type classes for tap-github."""
+"""Repository Stream types classes for tap-github."""
 
 import requests
 from typing import Any, Dict, Iterable, List, Optional
@@ -6,14 +6,11 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream
 
-VALID_REPO_QUERIES = {"repositories", "organizations", "searches"}
-
 
 class RepositoryStream(GitHubStream):
     """Defines 'Repository' stream."""
 
-    # Search API max: 100 per page, 1,000 total
-    MAX_PER_PAGE = 100
+    # Search API max: 1,000 total.
     MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
@@ -32,19 +29,14 @@ class RepositoryStream(GitHubStream):
 
     @property
     def path(self) -> str:  # type: ignore
-        """Return the API endpoint path."""
-        if len(VALID_REPO_QUERIES.intersection(self.config)) != 1:
-            raise ValueError(
-                "This tap requires one and only one of the following path options: "
-                "search, repositories or organizations"
-            )
+        """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
             return "/search/repositories"
-        elif "repositories" in self.config:
+        if "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
             return "/repos/{org}/{repo}"
-        elif "organizations" in self.config:
+        if "organizations" in self.config:
             return "/orgs/{org}/repos"
 
     @property
