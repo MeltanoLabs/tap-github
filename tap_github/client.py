@@ -10,7 +10,7 @@ from singer_sdk.streams import RESTStream
 class GitHubStream(RESTStream):
     """GitHub stream class."""
 
-    MAX_PER_PAGE = 100
+    MAX_PER_PAGE = 100  # GitHub's limit is 100.
     MAX_RESULTS_LIMIT: Optional[int] = None
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
