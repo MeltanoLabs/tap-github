@@ -214,7 +214,7 @@ class ReadmeHtmlStream(GitHubStream):
     def http_headers(self) -> dict:
         """Return the http headers needed.
 
-        Overridden to get HTML version of the readme.
+        Overridden to get the raw HTML version of the readme.
         """
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.v3.html"
