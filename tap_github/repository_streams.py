@@ -1,6 +1,5 @@
 """Repository Stream types classes for tap-github."""
 
-import json
 import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
@@ -231,7 +230,7 @@ class ReadmeHtmlStream(GitHubStream):
         if response.status_code in self.tolerated_http_errors:
             return []
 
-        yield {"raw_html": json.dumps(response.text)}
+        yield {"raw_html": response.text}
 
     schema = th.PropertiesList(
         # Parent Keys
