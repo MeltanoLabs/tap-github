@@ -106,8 +106,9 @@ class GitHubStream(RESTStream):
             return response
 
         # Rate limiting
-        if response.status_code == 403 and "Rate Limit Exceeded" in str(
-            response.content
+        if (
+            response.status_code == 403
+            and "rate limit exceeded" in str(response.content).lower()
         ):
             # Update token
             self.authenticator.get_next_auth_token()
