@@ -1,5 +1,6 @@
 """REST client handling, including GitHubStream base class."""
 
+import backoff
 import requests
 from typing import Any, Dict, List, Optional, Iterable, cast
 
@@ -80,6 +81,12 @@ class GitHubStream(RESTStream):
                 params["since"] = since
         return params
 
+    @backoff.on_exception(
+        backoff.expo,
+        (requests.exceptions.RequestException),
+        max_tries=3,
+        factor=2,
+    )
     def _request_with_backoff(
         self, prepared_request, context: Optional[dict]
     ) -> requests.Response:
