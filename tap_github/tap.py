@@ -71,6 +71,7 @@ class TapGitHub(Tap):
                 AnonymousContributorsStream(tap=self),
                 CommitsStream(tap=self),
                 CommunityProfileStream(tap=self),
+                ContributorsStream(tap=self),
                 IssueCommentsStream(tap=self),
                 IssueEventsStream(tap=self),
                 IssuesStream(tap=self),
