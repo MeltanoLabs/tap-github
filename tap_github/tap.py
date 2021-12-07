@@ -69,6 +69,17 @@ class TapGitHub(Tap):
         th.Property("stream_map_config", th.ObjectType()),
     ).to_dict()
 
+    def run_connection_test(self):
+        """
+        TEMP fix which allows dumping the entire schema without
+        using any github connections. this is called via the --test flag.
+        This is OVIO code only, not to be merged.
+        Remove this method when this MR is resolved
+        https://gitlab.com/meltano/sdk/-/merge_requests/218
+        """
+        for stream in self.streams.values():
+            stream._write_schema_message()
+
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams for each query."""
         VALID_USER_QUERIES = {"user_usernames", "user_ids"}
