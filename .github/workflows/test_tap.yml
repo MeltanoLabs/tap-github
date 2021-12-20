@@ -11,9 +11,19 @@ jobs:
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9, "3.10"]
+      # run the matrix jobs one after the other so they can benefit from caching
+      max-parallel: 1
 
     steps:
     - uses: actions/checkout@v2
+    - name: Cache github API responses
+      uses: actions/cache@v2
+      with:
+        # must match the path in tests/__init__.py
+        path: ./api_calls_tests_cache.sqlite
+        # github cache expires after 1wk, and we expire the content after 24h
+        # this key should not need to change unless we need to clear the cache
+        key: api-cache-v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:

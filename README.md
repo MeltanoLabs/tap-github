@@ -16,13 +16,16 @@ pipx install git+https://github.com/MeltanoLabs/tap-github.git
 
 This tap accepts the following configuration options:
 
-- Required: One and only one of the following:
-    1. `repositories`: an array of strings containing the github repos to be included
-    2. `searches`: an array of search descriptor objects with the following properties:
-        - `name`: a human readable name for the search query
-        - `query`: a github search string (generally the same as would come after `?q=` in the URL)
+- Required: One and only one of the following modes:
+  1. `repositories`: an array of strings containing the github repos to be included
+  2. `organizations`: an array of strings containing the github organizations to be included
+  3. `searches`: an array of search descriptor objects with the following properties:
+     - `name`: a human readable name for the search query
+     - `query`: a github search string (generally the same as would come after `?q=` in the URL)
+  4. `user_usernames`: a list of github usernames
+  5. `user_ids`: a list of github user ids [int]
 - Highly recommended:
-  - `auth_token` - 
+  - `auth_token` -
 - Optional:
   - `user_agent`
   - `start_date`
@@ -30,6 +33,7 @@ This tap accepts the following configuration options:
   - `stream_maps`
   - `stream_maps_config`
 
+Note that 1-3 are `repository` modes and 4-5 are `user` modes and will not run the same set of streams.
 
 A full list of supported settings and capabilities for this
 tap is available by running:
@@ -66,7 +70,7 @@ poetry install
 ### Create and Run Tests
 
 Create tests within the `tap_github/tests` subfolder and
-  then run:
+then run:
 
 ```bash
 poetry run pytest
@@ -117,5 +121,5 @@ mkdir -p .output && meltano elt tap-github target-jsonl --job_id $TESTJOB && mel
 
 ### Singer SDK Dev Guide
 
-See the [dev guide](../../docs/dev_guide.md) for more instructions on how to use the Singer SDK to 
+See the [dev guide](../../docs/dev_guide.md) for more instructions on how to use the Singer SDK to
 develop your own taps and targets.
