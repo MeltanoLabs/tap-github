@@ -23,7 +23,7 @@ jobs:
         path: ./api_calls_tests_cache.sqlite
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
-        key: api-cache-v1
+        key: api-cache-v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
