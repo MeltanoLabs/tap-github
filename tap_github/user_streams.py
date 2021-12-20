@@ -40,7 +40,7 @@ class UserStream(GitHubStream):
         }
 
     schema = th.PropertiesList(
-        th.Property("login", th.IntegerType),
+        th.Property("login", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("avatar_url", th.StringType),
