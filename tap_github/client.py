@@ -83,16 +83,8 @@ class GitHubStream(RESTStream):
 
     def validate_response(self, response: requests.Response) -> None:
         """Validate HTTP response.
-
-        By default, checks for error status codes (>400) and raises a
-        :class:`singer_sdk.exceptions.FatalAPIError`.
-
-        Tap developers are encouraged to override this method if their APIs use HTTP
-        status codes in non-conventional ways, or if they communicate errors
-        differently (e.g. in the response body).
-
-        .. image:: ../images/200.png
-
+        
+        In case an error is tolerated, continue without raising it.
 
         In case an error is deemed transient and can be safely retried, then this
         method should raise an :class:`singer_sdk.exceptions.RetriableAPIError`.
