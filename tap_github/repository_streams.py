@@ -1,5 +1,6 @@
-"""Stream type classes for tap-github."""
+"""Repository Stream types classes for tap-github."""
 
+import requests
 from typing import Any, Dict, Iterable, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -9,8 +10,7 @@ from tap_github.client import GitHubStream
 class RepositoryStream(GitHubStream):
     """Defines 'Repository' stream."""
 
-    # Search API max: 100 per page, 1,000 total
-    MAX_PER_PAGE = 100
+    # Search API max: 1,000 total.
     MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
@@ -29,12 +29,15 @@ class RepositoryStream(GitHubStream):
 
     @property
     def path(self) -> str:  # type: ignore
-        """Return the API endpoint path."""
+        """Return the API endpoint path. Path options are mutually exclusive."""
+
         if "searches" in self.config:
             return "/search/repositories"
-        else:
+        if "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
             return "/repos/{org}/{repo}"
+        if "organizations" in self.config:
+            return "/orgs/{org}/repos"
 
     @property
     def records_jsonpath(self) -> str:  # type: ignore
@@ -54,6 +57,8 @@ class RepositoryStream(GitHubStream):
         if "repositories" in self.config:
             split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
             return [{"org": r[0], "repo": r[1]} for r in split_repo_names]
+        if "organizations" in self.config:
+            return [{"org": org} for org in self.config["organizations"]]
         return None
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
@@ -115,6 +120,12 @@ class RepositoryStream(GitHubStream):
         th.Property("size", th.IntegerType),
         th.Property("stargazers_count", th.IntegerType),
         th.Property("fork", th.BooleanType),
+        th.Property(
+            "topics",
+            th.ArrayType(th.StringType),
+        ),
+        th.Property("visibility", th.StringType),
+        th.Property("language", th.StringType),
         # These `_count` metrics appear to be duplicates but have valid data
         # and are documented: https://docs.github.com/en/rest/reference/search
         th.Property("forks", th.IntegerType),
@@ -154,6 +165,7 @@ class ReadmeStream(GitHubStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -374,6 +386,34 @@ class EventsStream(GitHubStream):
     ).to_dict()
 
 
+class LanguagesStream(GitHubStream):
+    name = "languages"
+    path = "/repos/{org}/{repo}/languages"
+    primary_keys = ["repo", "org", "language_name"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""
+        if response.status_code in self.tolerated_http_errors:
+            return []
+
+        languages_json = response.json()
+        for key, value in languages_json.items():
+            yield {"language_name": key, "bytes": value}
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # A list of languages parsed by GitHub is available here:
+        # https://github.com/github/linguist/blob/master/lib/linguist/languages.yml
+        th.Property("language_name", th.StringType),
+        th.Property("bytes", th.IntegerType),
+    ).to_dict()
+
+
 class IssuesStream(GitHubStream):
     """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
@@ -417,6 +457,12 @@ class IssuesStream(GitHubStream):
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["type"] = "pull_request" if "pull_request" in row else "issue"
+        if row["body"] is not None:
+            # some issue bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
@@ -465,19 +511,17 @@ class IssuesStream(GitHubStream):
         ),
         th.Property(
             "reactions",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("url", th.StringType),
-                    th.Property("total_count", th.IntegerType),
-                    th.Property("+1", th.IntegerType),
-                    th.Property("-1", th.IntegerType),
-                    th.Property("laugh", th.IntegerType),
-                    th.Property("hooray", th.IntegerType),
-                    th.Property("confused", th.IntegerType),
-                    th.Property("heart", th.IntegerType),
-                    th.Property("rocket", th.IntegerType),
-                    th.Property("eyes", th.IntegerType),
-                ),
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property("total_count", th.IntegerType),
+                th.Property("+1", th.IntegerType),
+                th.Property("-1", th.IntegerType),
+                th.Property("laugh", th.IntegerType),
+                th.Property("hooray", th.IntegerType),
+                th.Property("confused", th.IntegerType),
+                th.Property("heart", th.IntegerType),
+                th.Property("rocket", th.IntegerType),
+                th.Property("eyes", th.IntegerType),
             ),
         ),
         th.Property(
@@ -580,6 +624,12 @@ class IssueCommentsStream(GitHubStream):
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
+        if row["body"] is not None:
+            # some comment bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["body"] = row["body"].replace("\x00", "")
         return row
 
     schema = th.PropertiesList(
@@ -796,6 +846,15 @@ class PullRequestsStream(GitHubStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        if row["body"] is not None:
+            # some pr bodies include control characters such as \x00
+            # that some targets (such as postgresql) choke on. This ensures
+            # such chars are removed from the data before we pass it on to
+            # the target
+            row["body"] = row["body"].replace("\x00", "")
+        return row
+
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -854,19 +913,17 @@ class PullRequestsStream(GitHubStream):
         ),
         th.Property(
             "reactions",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("url", th.StringType),
-                    th.Property("total_count", th.IntegerType),
-                    th.Property("+1", th.IntegerType),
-                    th.Property("-1", th.IntegerType),
-                    th.Property("laugh", th.IntegerType),
-                    th.Property("hooray", th.IntegerType),
-                    th.Property("confused", th.IntegerType),
-                    th.Property("heart", th.IntegerType),
-                    th.Property("rocket", th.IntegerType),
-                    th.Property("eyes", th.IntegerType),
-                ),
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property("total_count", th.IntegerType),
+                th.Property("+1", th.IntegerType),
+                th.Property("-1", th.IntegerType),
+                th.Property("laugh", th.IntegerType),
+                th.Property("hooray", th.IntegerType),
+                th.Property("confused", th.IntegerType),
+                th.Property("heart", th.IntegerType),
+                th.Property("rocket", th.IntegerType),
+                th.Property("eyes", th.IntegerType),
             ),
         ),
         th.Property(
@@ -1013,6 +1070,57 @@ class PullRequestsStream(GitHubStream):
                         th.Property("html_url", th.StringType),
                     ),
                 ),
+            ),
+        ),
+    ).to_dict()
+
+
+class StargazersStream(GitHubStream):
+    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
+
+    name = "stargazers"
+    path = "/repos/{org}/{repo}/stargazers"
+    primary_keys = ["repo", "org", "user_id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    replication_key = "starred_at"
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use an endpoint which includes starred_at property:
+        https://docs.github.com/en/rest/reference/activity#custom-media-types-for-starring
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.star+json"
+        return headers
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row["user_id"] = row["user"]["id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("user_id", th.StringType),
+        # Stargazer Info
+        th.Property("starred_at", th.DateTimeType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
             ),
         ),
     ).to_dict()
