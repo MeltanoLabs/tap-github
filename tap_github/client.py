@@ -83,7 +83,7 @@ class GitHubStream(RESTStream):
 
     def validate_response(self, response: requests.Response) -> None:
         """Validate HTTP response.
-        
+
         In case an error is tolerated, continue without raising it.
 
         In case an error is deemed transient and can be safely retried, then this
