@@ -1,10 +1,10 @@
 """REST client handling, including GitHubStream base class."""
 
-import backoff
 import requests
 from typing import Any, Dict, List, Optional, Iterable, cast
 
 from singer_sdk.streams import RESTStream
+from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 
@@ -81,66 +81,60 @@ class GitHubStream(RESTStream):
                 params["since"] = since
         return params
 
-    @backoff.on_exception(
-        backoff.expo,
-        (requests.exceptions.RequestException),
-        max_tries=3,
-        factor=2,
-    )
-    def _request_with_backoff(
-        self, prepared_request, context: Optional[dict]
-    ) -> requests.Response:
-        """Override private method _request_with_backoff to account for expected 404 Not Found erros."""
-        # TODO - Adapt Singer
-        response = self.requests_session.send(prepared_request)
-        if self._LOG_REQUEST_METRICS:
-            extra_tags = {}
-            if self._LOG_REQUEST_METRIC_URLS:
-                extra_tags["url"] = cast(str, prepared_request.path_url)
-            self._write_request_duration_log(
-                endpoint=self.path,
-                response=response,
-                context=context,
-                extra_tags=extra_tags,
-            )
+    def validate_response(self, response: requests.Response) -> None:
+        """Validate HTTP response.
+
+        By default, checks for error status codes (>400) and raises a
+        :class:`singer_sdk.exceptions.FatalAPIError`.
+
+        Tap developers are encouraged to override this method if their APIs use HTTP
+        status codes in non-conventional ways, or if they communicate errors
+        differently (e.g. in the response body).
+
+        .. image:: ../images/200.png
+
+
+        In case an error is deemed transient and can be safely retried, then this
+        method should raise an :class:`singer_sdk.exceptions.RetriableAPIError`.
+
+        Args:
+            response: A `requests.Response`_ object.
+
+        Raises:
+            FatalAPIError: If the request is not retriable.
+            RetriableAPIError: If the request is retriable.
+
+        .. _requests.Response:
+            https://docs.python-requests.org/en/latest/api/#requests.Response
+        """
         if response.status_code in self.tolerated_http_errors:
             self.logger.info(
-                "Request returned a tolerated error for {}".format(prepared_request.url)
+                "Request returned a tolerated error for {}".format(response.url)
             )
             self.logger.info(
                 f"Reason: {response.status_code} - {str(response.content)}"
             )
-            return response
+            return
 
-        # Rate limiting
-        if (
-            response.status_code == 403
-            and "rate limit exceeded" in str(response.content).lower()
-        ):
-            # Update token
-            self.authenticator.get_next_auth_token()
-            # Raise an error to force a retry with the new token (this function has a retry decorator).
-            raise RuntimeError(
-                "GitHub rate limit exceeded. Updated active token and retrying."
+        if 400 <= response.status_code < 500:
+            msg = (
+                f"{response.status_code} Client Error: "
+                f"{response.reason} for path: {self.path}"
             )
+            # Retry on rate limiting
+            if response.status_code == 403:
+                # Update token
+                self.authenticator.get_next_auth_token()
+                # Raise an error to force a retry with the new token (this function has a retry decorator).
+                raise RetriableAPIError(msg)
+            raise FatalAPIError(msg)
 
-        if response.status_code in [401, 403]:
-            self.logger.info("Failed request for {}".format(prepared_request.url))
-            self.logger.info(
-                f"Reason: {response.status_code} - {str(response.content)}"
+        elif 500 <= response.status_code < 600:
+            msg = (
+                f"{response.status_code} Server Error: "
+                f"{response.reason} for path: {self.path}"
             )
-            raise RuntimeError(
-                "Requested resource was unauthorized, forbidden, or not found."
-            )
-        elif response.status_code >= 400:
-            raise RuntimeError(
-                f"Error making request to API: {prepared_request.url} "
-                f"[{response.status_code} - {str(response.content)}]".replace(
-                    "\\n", "\n"
-                )
-            )
-        self.logger.debug("Response received successfully.")
-        return response
+            raise RetriableAPIError(msg)
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
