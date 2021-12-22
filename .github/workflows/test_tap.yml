@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Cache github API responses
-      uses: actions/cache@v2
+      uses: actions/cache@v2.1.7
       with:
         # must match the path in tests/__init__.py
         path: ./api_calls_tests_cache.sqlite
