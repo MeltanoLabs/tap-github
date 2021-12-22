@@ -13,6 +13,7 @@ from tap_github.repository_streams import (
     IssuesStream,
     LanguagesStream,
     PullRequestsStream,
+    ReadmeHtmlStream,
     ReadmeStream,
     RepositoryStream,
     StargazersStream,
@@ -31,7 +32,22 @@ class TapGitHub(Tap):
     config_jsonschema = th.PropertiesList(
         th.Property("user_agent", th.StringType),
         th.Property("metrics_log_level", th.StringType),
-        th.Property("auth_token", th.StringType),
+        # Authentication options
+        th.Property(
+            "auth_token",
+            th.StringType,
+            description="GitHub token to authenticate with.",
+        ),
+        th.Property(
+            "additional_auth_tokens",
+            th.ArrayType(th.StringType),
+            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",
+        ),
+        th.Property(
+            "rate_limit_buffer",
+            th.ArrayType(th.IntegerType),
+            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",
+        ),
         th.Property(
             "searches",
             th.ArrayType(
@@ -73,6 +89,7 @@ class TapGitHub(Tap):
                 IssuesStream(tap=self),
                 LanguagesStream(tap=self),
                 PullRequestsStream(tap=self),
+                ReadmeHtmlStream(tap=self),
                 ReadmeStream(tap=self),
                 RepositoryStream(tap=self),
                 StargazersStream(tap=self),
