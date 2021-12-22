@@ -100,12 +100,11 @@ class GitHubStream(RESTStream):
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
         if response.status_code in self.tolerated_http_errors:
-            self.logger.info(
-                "Request returned a tolerated error for {}".format(response.url)
+            msg = (
+                f"{response.status_code} Tolerated Status Code: "
+                f"{response.reason} for path: {self.path}"
             )
-            self.logger.info(
-                f"Reason: {response.status_code} - {str(response.content)}"
-            )
+            self.logger.info(msg)
             return
 
         if 400 <= response.status_code < 500:
