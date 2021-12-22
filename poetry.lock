@@ -610,6 +610,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "types-simplejson"
+version = "3.17.2"
+description = "Typing stubs for simplejson"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "typing-extensions"
 version = "4.0.1"
 description = "Backported and Experimental Type Hints for Python 3.6+"
@@ -1035,6 +1043,10 @@ typed-ast = [
 types-requests = [
     {file = "types-requests-2.26.2.tar.gz", hash = "sha256:0e22d9cdeff4c3eb068eb883d59b127c98d80525f3d0412a1c4499c6ae1f711e"},
     {file = "types_requests-2.26.2-py3-none-any.whl", hash = "sha256:fabe1acc784708ac798ced6373568465b93642c8aa1ebd33e2921b60d4e7aa29"},
+]
+types-simplejson = [
+    {file = "types-simplejson-3.17.2.tar.gz", hash = "sha256:37ee5a1e30c69196ab52672664509dc40b9c2fed7dacdb5587701e0b768b6bfb"},
+    {file = "types_simplejson-3.17.2-py3-none-any.whl", hash = "sha256:a1ea755d518bb87038c7a2aaefc77d3ad43976dee5566dfd6ca5aa5758ec7a0f"},
 ]
 typing-extensions = [
     {file = "typing_extensions-4.0.1-py3-none-any.whl", hash = "sha256:7f001e5ac290a0c0401508864c7ec868be4e701886d5b573a9528ed3973d9d3b"},
