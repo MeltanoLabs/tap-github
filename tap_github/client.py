@@ -1,11 +1,12 @@
 """REST client handling, including GitHubStream base class."""
 
 import requests
-from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
 from urllib.parse import parse_qs, urlparse
 
 from singer_sdk.streams import RESTStream
+from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
+from tap_github.authenticator import GitHubTokenAuthenticator
 
 
 class GitHubStream(RESTStream):
@@ -16,6 +17,14 @@ class GitHubStream(RESTStream):
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
+    _authenticator: Optional[GitHubTokenAuthenticator] = None
+
+    @property
+    def authenticator(self) -> GitHubTokenAuthenticator:
+        if self._authenticator is None:
+            self._authenticator = GitHubTokenAuthenticator(stream=self)
+        return self._authenticator
+
     @property
     def url_base(self) -> str:
         return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
@@ -25,24 +34,11 @@ class GitHubStream(RESTStream):
     tolerated_http_errors: List[int] = []
 
     @property
-    def http_headers(self) -> dict:
+    def http_headers(self) -> Dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
         if "user_agent" in self.config:
             headers["User-Agent"] = cast(str, self.config.get("user_agent"))
-
-        if "auth_token" in self.config:
-            headers["Authorization"] = f"token {self.config['auth_token']}"
-        elif "GITHUB_TOKEN" in environ:
-            self.logger.info(
-                "Found 'GITHUB_TOKEN' environment variable for authentication."
-            )
-            headers["Authorization"] = f"token {environ['GITHUB_TOKEN']}"
-        else:
-            self.logger.info(
-                "No auth token detected. "
-                "For higher rate limits, please specify `auth_token` in config."
-            )
 
         return headers
 
@@ -88,54 +84,63 @@ class GitHubStream(RESTStream):
                 params["since"] = since
         return params
 
-    def _request_with_backoff(
-        self, prepared_request, context: Optional[dict]
-    ) -> requests.Response:
-        """Override private method _request_with_backoff to account for expected 404 Not Found erros."""
-        # TODO - Adapt Singer
-        response = self.requests_session.send(prepared_request)
-        if self._LOG_REQUEST_METRICS:
-            extra_tags = {}
-            if self._LOG_REQUEST_METRIC_URLS:
-                extra_tags["url"] = cast(str, prepared_request.path_url)
-            self._write_request_duration_log(
-                endpoint=self.path,
-                response=response,
-                context=context,
-                extra_tags=extra_tags,
-            )
-        if response.status_code in self.tolerated_http_errors:
-            self.logger.info(
-                "Request returned a tolerated error for {}".format(prepared_request.url)
-            )
-            self.logger.info(
-                f"Reason: {response.status_code} - {str(response.content)}"
-            )
-            return response
+    def validate_response(self, response: requests.Response) -> None:
+        """Validate HTTP response.
 
-        if response.status_code in [401, 403]:
-            self.logger.info("Failed request for {}".format(prepared_request.url))
-            self.logger.info(
-                f"Reason: {response.status_code} - {str(response.content)}"
+        In case an error is tolerated, continue without raising it.
+
+        In case an error is deemed transient and can be safely retried, then this
+        method should raise an :class:`singer_sdk.exceptions.RetriableAPIError`.
+
+        Args:
+            response: A `requests.Response`_ object.
+
+        Raises:
+            FatalAPIError: If the request is not retriable.
+            RetriableAPIError: If the request is retriable.
+
+        .. _requests.Response:
+            https://docs.python-requests.org/en/latest/api/#requests.Response
+        """
+        if response.status_code in self.tolerated_http_errors:
+            msg = (
+                f"{response.status_code} Tolerated Status Code: "
+                f"{response.reason} for path: {self.path}"
             )
-            raise RuntimeError(
-                "Requested resource was unauthorized, forbidden, or not found."
+            self.logger.info(msg)
+            return
+
+        if 400 <= response.status_code < 500:
+            msg = (
+                f"{response.status_code} Client Error: "
+                f"{response.reason} for path: {self.path}"
             )
-        elif response.status_code >= 400:
-            raise RuntimeError(
-                f"Error making request to API: {prepared_request.url} "
-                f"[{response.status_code} - {str(response.content)}]".replace(
-                    "\\n", "\n"
-                )
+            # Retry on rate limiting
+            if (
+                response.status_code == 403
+                and "rate limit exceeded" in str(response.content).lower()
+            ):
+                # Update token
+                self.authenticator.get_next_auth_token()
+                # Raise an error to force a retry with the new token.
+                raise RetriableAPIError(msg)
+            raise FatalAPIError(msg)
+
+        elif 500 <= response.status_code < 600:
+            msg = (
+                f"{response.status_code} Server Error: "
+                f"{response.reason} for path: {self.path}"
             )
-        self.logger.debug("Response received successfully.")
-        return response
+            raise RetriableAPIError(msg)
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
         # TODO - Split into handle_reponse and parse_response.
         if response.status_code in self.tolerated_http_errors:
             return []
+
+        # Update token rate limit info and loop through tokens if needed.
+        self.authenticator.update_rate_limit(response.headers)
 
         resp_json = response.json()
 

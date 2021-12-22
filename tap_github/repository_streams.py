@@ -159,6 +159,13 @@ class RepositoryStream(GitHubStream):
 
 
 class ReadmeStream(GitHubStream):
+    """
+    A stream dedicated to fetching the object version of a README.md.
+
+    Inclduding its content, base64 encoded of the readme in GitHub flavored Markdown.
+    For html, see ReadmeHtmlStream.
+    """
+
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
@@ -191,6 +198,47 @@ class ReadmeStream(GitHubStream):
                 th.Property("html", th.StringType),
             ),
         ),
+    ).to_dict()
+
+
+class ReadmeHtmlStream(GitHubStream):
+    """
+    A stream dedicated to fetching the HTML version of README.md.
+
+    For the object details, such as path and size, see ReadmeStream.
+    """
+
+    name = "readme_html"
+    path = "/repos/{org}/{repo}/readme"
+    primary_keys = ["repo", "org"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [404]
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to get the raw HTML version of the readme.
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.html"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the README to yield the html response instead of an object."""
+        if response.status_code in self.tolerated_http_errors:
+            return []
+
+        yield {"raw_html": response.text}
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Readme HTML
+        th.Property("raw_html", th.StringType),
     ).to_dict()
 
 

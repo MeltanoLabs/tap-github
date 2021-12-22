@@ -546,11 +546,11 @@ python-versions = "*"
 
 [[package]]
 name = "singer-sdk"
-version = "0.3.13"
+version = "0.3.17"
 description = "A framework for building Singer taps"
 category = "main"
 optional = false
-python-versions = ">=3.6.2,<3.10"
+python-versions = ">=3.6.2,<3.11"
 
 [package.dependencies]
 backoff = ">=1.8.0,<2.0"
@@ -610,6 +610,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "types-simplejson"
+version = "3.17.2"
+description = "Typing stubs for simplejson"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "typing-extensions"
 version = "4.0.1"
 description = "Backported and Experimental Type Hints for Python 3.6+"
@@ -656,7 +664,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "<3.10,>=3.7.2"
-content-hash = "f23ca75dd785961b962aa70818b4fdd8d34bf2866d021f9802d56904fb024b20"
+content-hash = "7637533d10d3baade5cd098ca6dee172af85c3ad0b5b66c124751ae1e3466cf9"
 
 [metadata.files]
 appdirs = [
@@ -985,8 +993,8 @@ simplejson = [
     {file = "simplejson-3.11.1.win32-py3.5.exe", hash = "sha256:c76d55d78dc8b06c96fd08c6cc5e2b0b650799627d3f9ca4ad23f40db72d5f6d"},
 ]
 singer-sdk = [
-    {file = "singer-sdk-0.3.13.tar.gz", hash = "sha256:1984f45b6fcbe92cd66f6f20da9931a2c02fb086b9530b1f6e5b719bb1cad34e"},
-    {file = "singer_sdk-0.3.13-py3-none-any.whl", hash = "sha256:695546308709541d4851bff9ff469dd0d90c583c8a2e1f8e083999194a225f75"},
+    {file = "singer-sdk-0.3.17.tar.gz", hash = "sha256:74ac79df1d410700d740fc1c648eae49830c2147d66166492e2adedf2378a3f0"},
+    {file = "singer_sdk-0.3.17-py3-none-any.whl", hash = "sha256:314801ffac1e69a420e436f27a20e384cddc8d57866854d4a0e4e48b2d5f2849"},
 ]
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
@@ -1035,6 +1043,10 @@ typed-ast = [
 types-requests = [
     {file = "types-requests-2.26.2.tar.gz", hash = "sha256:0e22d9cdeff4c3eb068eb883d59b127c98d80525f3d0412a1c4499c6ae1f711e"},
     {file = "types_requests-2.26.2-py3-none-any.whl", hash = "sha256:fabe1acc784708ac798ced6373568465b93642c8aa1ebd33e2921b60d4e7aa29"},
+]
+types-simplejson = [
+    {file = "types-simplejson-3.17.2.tar.gz", hash = "sha256:37ee5a1e30c69196ab52672664509dc40b9c2fed7dacdb5587701e0b768b6bfb"},
+    {file = "types_simplejson-3.17.2-py3-none-any.whl", hash = "sha256:a1ea755d518bb87038c7a2aaefc77d3ad43976dee5566dfd6ca5aa5758ec7a0f"},
 ]
 typing-extensions = [
     {file = "typing_extensions-4.0.1-py3-none-any.whl", hash = "sha256:7f001e5ac290a0c0401508864c7ec868be4e701886d5b573a9528ed3973d9d3b"},
