@@ -35,7 +35,6 @@ jobs:
         version: 1.1.8
     - name: Install dependencies
       run: |
-        ls
         poetry install
     - name: Check formatting with black
       run: |
