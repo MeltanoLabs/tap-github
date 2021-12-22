@@ -488,7 +488,7 @@ class IssuesStream(GitHubStream):
         #             "__filter__": "record['type'] = 'issue'"
         #         }
         #     }
-        # {
+        # }
         params["state"] = "all"
         return params
 
@@ -658,6 +658,9 @@ class IssueCommentsStream(GitHubStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
+    # FIXME: this allows the tap to continue on server-side timeouts but means
+    # we have gaps in our data
+    tolerated_http_errors = [502]
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -1120,6 +1123,80 @@ class PullRequestsStream(GitHubStream):
                 ),
             ),
         ),
+    ).to_dict()
+
+
+class ContributorsStream(GitHubStream):
+    """Defines 'Contributors' stream. Fetching User & Bot contributors."""
+
+    name = "contributors"
+    path = "/repos/{org}/{repo}/contributors"
+    primary_keys = ["org", "repo", "node_id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # User/Bot contributor keys
+        th.Property("login", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("avatar_url", th.StringType),
+        th.Property("gravatar_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("followers_url", th.StringType),
+        th.Property("following_url", th.StringType),
+        th.Property("gists_url", th.StringType),
+        th.Property("starred_url", th.StringType),
+        th.Property("subscriptions_url", th.StringType),
+        th.Property("organizations_url", th.StringType),
+        th.Property("repos_url", th.StringType),
+        th.Property("events_url", th.StringType),
+        th.Property("received_events_url", th.StringType),
+        th.Property("type", th.StringType),
+        th.Property("site_admin", th.BooleanType),
+        th.Property("contributions", th.IntegerType),
+    ).to_dict()
+
+
+class AnonymousContributorsStream(GitHubStream):
+    """Defines 'AnonymousContributors' stream."""
+
+    name = "anonymous_contributors"
+    path = "/repos/{org}/{repo}/contributors"
+    primary_keys = ["org", "repo", "email"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
+        params = super().get_url_params(context, next_page_token)
+        # Fetch all contributions, including anonymous users.
+        params["anon"] = "true"
+        return params
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of anonymous contributors."""
+        parsed_response = super().parse_response(response)
+        return filter(lambda x: x["type"] == "Anonymous", parsed_response)
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Anonymous contributor keys
+        th.Property("email", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("type", th.StringType),
+        th.Property("contributions", th.IntegerType),
     ).to_dict()
 
 
