@@ -20,7 +20,7 @@ jobs:
       uses: actions/cache@v2.1.7
       with:
         # must match the path in tests/__init__.py
-        path: ./api_calls_tests_cache.sqlite
+        path: '**/api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v2
@@ -35,6 +35,7 @@ jobs:
         version: 1.1.8
     - name: Install dependencies
       run: |
+        ls
         poetry install
     - name: Check formatting with black
       run: |
