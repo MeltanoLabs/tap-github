@@ -162,7 +162,8 @@ class ReadmeStream(GitHubStream):
     """
     A stream dedicated to fetching the object version of a README.md.
 
-    Inclduding its content, base64 encoded. For html, see ReadmeHtmlStream.
+    Inclduding its content, base64 encoded of the readme in GitHub flavored Markdown.
+    For html, see ReadmeHtmlStream.
     """
 
     name = "readme"
