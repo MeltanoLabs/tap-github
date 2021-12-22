@@ -225,12 +225,6 @@ class ReadmeHtmlStream(GitHubStream):
         headers["Accept"] = "application/vnd.github.v3.html"
         return headers
 
-    def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
-        """Notify the stream that it should not try to paginate."""
-        return None
-
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the README to yield the html response instead of an object."""
         if response.status_code in self.tolerated_http_errors:

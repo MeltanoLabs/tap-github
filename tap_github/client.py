@@ -1,6 +1,7 @@
 """REST client handling, including GitHubStream base class."""
 
 import requests
+import simplejson
 from os import environ
 from typing import Any, Dict, List, Optional, Iterable, cast
 
@@ -58,7 +59,12 @@ class GitHubStream(RESTStream):
         ):
             return None
 
-        resp_json = response.json()
+        try:
+            resp_json = response.json()
+        except simplejson.JSONDecodeError:
+            # This can happen when we get a 500 from github or get a raw README file.
+            return None
+
         if isinstance(resp_json, list):
             results = resp_json
         else:
