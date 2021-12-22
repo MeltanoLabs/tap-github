@@ -120,7 +120,7 @@ class GitHubStream(RESTStream):
             ):
                 # Update token
                 self.authenticator.get_next_auth_token()
-                # Raise an error to force a retry with the new token (this function has a retry decorator).
+                # Raise an error to force a retry with the new token.
                 raise RetriableAPIError(msg)
             raise FatalAPIError(msg)
 
