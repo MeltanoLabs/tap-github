@@ -96,7 +96,7 @@ class GitHubStream(RESTStream):
             params["sort"] = "created"
             params["direction"] = "desc"
         elif self.replication_key:
-            self.logger.warn(
+            self.logger.warning(
                 "The replication key '{self.replication_key}' is not supported by this client yet."
             )
 
