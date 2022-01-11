@@ -82,10 +82,7 @@ class TapGitHub(Tap):
             )
         is_user_query = len(VALID_USER_QUERIES.intersection(self.config)) > 0
         if is_user_query:
-            return [
-                StarredStream(tap=self),
-                UserStream(tap=self)
-            ]
+            return [StarredStream(tap=self), UserStream(tap=self)]
         else:
             return [
                 AnonymousContributorsStream(tap=self),

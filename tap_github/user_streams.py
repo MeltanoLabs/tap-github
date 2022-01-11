@@ -74,6 +74,7 @@ class UserStream(GitHubStream):
         th.Property("created_at", th.DateTimeType),
     ).to_dict()
 
+
 class StarredStream(GitHubStream):
     """Defines 'Stars' stream. Warning: this stream does NOT track star deletions."""
 
