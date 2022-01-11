@@ -2,6 +2,7 @@
 
 import requests
 import simplejson
+from dateutil.parser import parse
 from typing import Any, Dict, List, Optional, Iterable, cast
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
@@ -77,7 +78,7 @@ class GitHubStream(RESTStream):
         if self.replication_key == "starred_at":
             parsed_url = urlparse(response.request.url)
             since = parse_qs(str(parsed_url.query))["since"][0]
-            if results[-1][self.replication_key] > since:
+            if since and (parse(results[-1][self.replication_key]) > parse(since)):
                 return None
 
         return (previous_token or 1) + 1
