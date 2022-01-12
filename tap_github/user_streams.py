@@ -114,7 +114,7 @@ class StarredStream(GitHubStream):
             "repo",
             th.ObjectType(
                 th.Property("id", th.IntegerType),
-                th.Property("node_id", th.IntegerType),
+                th.Property("node_id", th.StringType),
                 th.Property("full_name", th.StringType),
                 th.Property("description", th.StringType),
                 th.Property("html_url", th.StringType),
