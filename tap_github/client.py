@@ -73,7 +73,7 @@ class GitHubStream(RESTStream):
         if not results:
             return None
 
-        # Unfortunately the /starred and /stargazers endpoint do not support
+        # Unfortunately the /starred and /stargazers endpoints do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         if self.replication_key == "starred_at":
             parsed_url = urlparse(response.request.url)
@@ -101,7 +101,7 @@ class GitHubStream(RESTStream):
                 "The replication key '{self.replication_key}' is not supported by this client yet."
             )
 
-        # Unfortunately the /starred and /stargazers endpoint do not support
+        # Unfortunately the /starred and /stargazers endpoints do not support
         # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
