@@ -22,6 +22,20 @@ black = {version = "^21.5b1", allow-prereleases = true}
 types-requests = "^2.25.6"
 requests-cache = "^0.8.1"
 
+[[tool.mypy.overrides]]
+module = [
+    "backoff",
+]
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3 # Vertical Hanging Indent
+src_paths = "tap_github"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

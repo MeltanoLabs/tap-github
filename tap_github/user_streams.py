@@ -1,6 +1,7 @@
 """User Stream types classes for tap-github."""
 
 from typing import Any, Dict, List, Optional
+
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubStream

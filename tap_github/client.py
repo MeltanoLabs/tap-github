@@ -1,11 +1,12 @@
 """REST client handling, including GitHubStream base class."""
 
+from typing import Any, Dict, Iterable, List, Optional, cast
+
 import requests
 import simplejson
-from typing import Any, Dict, List, Optional, Iterable, cast
-
-from singer_sdk.streams import RESTStream
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
+from singer_sdk.streams import RESTStream
+
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 
@@ -154,5 +155,4 @@ class GitHubStream(RESTStream):
         else:
             results = [resp_json]
 
-        for row in results:
-            yield row
+        yield from results
