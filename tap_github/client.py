@@ -82,7 +82,7 @@ class GitHubStream(RESTStream):
         if self.replication_key == "starred_at":
             parsed_url = urlparse(response.request.url)
             since = parse_qs(str(parsed_url.query))["since"][0]
-            if since and (parse(results[-1][self.replication_key]) > parse(since)):
+            if since and (parse(results[-1][self.replication_key]) < parse(since)):
                 return None
 
         return (previous_token or 1) + 1
