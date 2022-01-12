@@ -1,12 +1,12 @@
 """Classes to assist in authenticating to the GitHub API."""
 
 import logging
-import requests
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional
 
+import requests
 from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
 
