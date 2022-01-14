@@ -2,7 +2,7 @@
 
 from typing import List
 
-from singer_sdk import Tap, Stream
+from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
 
 from tap_github.repository_streams import (
@@ -21,10 +21,7 @@ from tap_github.repository_streams import (
     RepositoryStream,
     StargazersStream,
 )
-
-from tap_github.user_streams import (
-    UserStream,
-)
+from tap_github.user_streams import UserStream
 
 
 class TapGitHub(Tap):
