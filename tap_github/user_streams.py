@@ -86,6 +86,7 @@ class StarredStream(GitHubStream):
     parent_stream_type = UserStream
     state_partitioning_keys = ["username"]
     replication_key = "starred_at"
+    ignore_parent_replication_key = True
 
     @property
     def http_headers(self) -> dict:
