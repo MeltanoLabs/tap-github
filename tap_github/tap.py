@@ -20,7 +20,10 @@ from tap_github.repository_streams import (
     RepositoryStream,
     StargazersStream,
 )
-from tap_github.user_streams import UserStream
+from tap_github.user_streams import (
+    StarredStream,
+    UserStream,
+)
 
 
 class TapGitHub(Tap):
@@ -78,7 +81,7 @@ class TapGitHub(Tap):
             )
         is_user_query = len(VALID_USER_QUERIES.intersection(self.config)) > 0
         if is_user_query:
-            return [UserStream(tap=self)]
+            return [StarredStream(tap=self), UserStream(tap=self)]
         else:
             return [
                 AnonymousContributorsStream(tap=self),

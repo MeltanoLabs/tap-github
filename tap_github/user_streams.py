@@ -74,3 +74,87 @@ class UserStream(GitHubStream):
         th.Property("updated_at", th.DateTimeType),
         th.Property("created_at", th.DateTimeType),
     ).to_dict()
+
+
+class StarredStream(GitHubStream):
+    """Defines 'Stars' stream. Warning: this stream does NOT track star deletions."""
+
+    name = "starred"
+    path = "/users/{username}/starred"
+    # "repo_id" is the starred repo's id.
+    primary_keys = ["repo_id", "username"]
+    parent_stream_type = UserStream
+    state_partitioning_keys = ["username"]
+    replication_key = "starred_at"
+    ignore_parent_replication_key = True
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use an endpoint which includes starred_at property:
+        https://docs.github.com/en/rest/reference/activity#custom-media-types-for-starring
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.star+json"
+        return headers
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+        """
+        Add a repo_id top-level field to be used as state replication key.
+        """
+        row["repo_id"] = row["repo"]["id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("username", th.StringType),
+        th.Property("repo_id", th.StringType),
+        # Starred Repo Info
+        th.Property("starred_at", th.DateTimeType),
+        th.Property(
+            "repo",
+            th.ObjectType(
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("full_name", th.StringType),
+                th.Property("description", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property(
+                    "owner",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("id", th.IntegerType),
+                        th.Property("node_id", th.StringType),
+                        th.Property("type", th.StringType),
+                        th.Property("avatar_url", th.StringType),
+                        th.Property("html_url", th.StringType),
+                        th.Property("site_admin", th.BooleanType),
+                    ),
+                ),
+                th.Property(
+                    "license",
+                    th.ObjectType(
+                        th.Property("key", th.StringType),
+                        th.Property("name", th.StringType),
+                        th.Property("url", th.StringType),
+                        th.Property("spdx_id", th.StringType),
+                    ),
+                ),
+                th.Property("updated_at", th.DateTimeType),
+                th.Property("created_at", th.DateTimeType),
+                th.Property("pushed_at", th.DateTimeType),
+                th.Property("stargazers_count", th.IntegerType),
+                th.Property("fork", th.BooleanType),
+                th.Property(
+                    "topics",
+                    th.ArrayType(th.StringType),
+                ),
+                th.Property("visibility", th.StringType),
+                th.Property("language", th.StringType),
+                th.Property("forks", th.IntegerType),
+                th.Property("watchers", th.IntegerType),
+                th.Property("open_issues", th.IntegerType),
+            ),
+        ),
+    ).to_dict()
