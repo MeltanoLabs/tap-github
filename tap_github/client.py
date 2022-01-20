@@ -2,11 +2,14 @@
 
 from typing import Any, Dict, Iterable, List, Optional, cast
 
-import simplejson
 import requests
+import simplejson
 
-from urllib.parse import parse_qs, urlparse
+from dateutil.parser import parse
+from urllib.parse import urlparse
+from urllib.parse import parse_qs
 
+from singer_sdk.streams import RESTStream
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.streams import RESTStream
 
@@ -63,15 +66,24 @@ class GitHubStream(RESTStream):
         if "next" not in response.links.keys():
             return None
 
-        parsed_url = urlparse(response.links["next"]["url"])
-        captured_page_value_list = parse_qs(parsed_url.query).get("page")
-        next_page_string = (
-            captured_page_value_list[0] if captured_page_value_list else None
-        )
-        if next_page_string and next_page_string.isdigit():
-            return int(next_page_string)
+        if isinstance(resp_json, list):
+            results = resp_json
+        else:
+            results = resp_json.get("items")
 
-        return None
+        # Paginate as long as the response has items
+        if not results:
+            return None
+
+        # Unfortunately the /starred and /stargazers endpoints do not support
+        # the "since" parameter out of the box. So we use a workaround here to exit early.
+        if self.replication_key == "starred_at":
+            parsed_url = urlparse(response.request.url)
+            since = parse_qs(str(parsed_url.query))["since"][0]
+            if since and (parse(results[-1][self.replication_key]) < parse(since)):
+                return None
+
+        return (previous_token or 1) + 1
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
@@ -80,12 +92,22 @@ class GitHubStream(RESTStream):
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
             params["page"] = next_page_token
-        if self.replication_key:
+        if self.replication_key == "updated_at":
             params["sort"] = "updated"
             params["direction"] = "asc"
-            since = self.get_starting_timestamp(context)
-            if since:
-                params["since"] = since
+        elif self.replication_key == "starred_at":
+            params["sort"] = "created"
+            params["direction"] = "desc"
+        elif self.replication_key:
+            self.logger.warning(
+                "The replication key '{self.replication_key}' is not supported by this client yet."
+            )
+
+        # Unfortunately the /starred and /stargazers endpoints do not support
+        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
+        since = self.get_starting_timestamp(context)
+        if self.replication_key and since:
+            params["since"] = since
         return params
 
     def validate_response(self, response: requests.Response) -> None:
