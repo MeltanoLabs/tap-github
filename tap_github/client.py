@@ -72,7 +72,7 @@ class GitHubStream(RESTStream):
             results = resp_json
         else:
             results = resp_json.get("items")
-        
+
         # Exit early if the response has no items. ? Maybe duplicative the "next" link check.
         if not results:
             return None
