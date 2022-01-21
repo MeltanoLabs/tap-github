@@ -6,8 +6,7 @@ import requests
 import simplejson
 
 from dateutil.parser import parse
-from urllib.parse import urlparse
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 
 from singer_sdk.streams import RESTStream
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
@@ -62,28 +61,36 @@ class GitHubStream(RESTStream):
         ):
             return None
 
-        try:
-            resp_json = response.json()
-        except simplejson.JSONDecodeError:
-            # This can happen when we get a 500 from github or get a raw README file.
+        # Leverage header links returned by the GitHub API.
+        if "next" not in response.links.keys():
             return None
 
+        # Unfortunately the /starred and /stargazers endpoints do not support
+        # the "since" parameter out of the box. So we use a workaround here to exit early.
+        resp_json = response.json()
         if isinstance(resp_json, list):
             results = resp_json
         else:
             results = resp_json.get("items")
 
-        # Paginate as long as the response has items
+        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.
         if not results:
             return None
 
-        # Unfortunately the /starred and /stargazers endpoints do not support
-        # the "since" parameter out of the box. So we use a workaround here to exit early.
         if self.replication_key == "starred_at":
-            parsed_url = urlparse(response.request.url)
-            since = parse_qs(str(parsed_url.query))["since"][0]
+            parsed_request_url = urlparse(response.request.url)
+            since = parse_qs(str(parsed_request_url.query))["since"][0]
             if since and (parse(results[-1][self.replication_key]) < parse(since)):
                 return None
+
+        # Use header links returned by the GitHub API.
+        parsed_url = urlparse(response.links["next"]["url"])
+        captured_page_value_list = parse_qs(parsed_url.query).get("page")
+        next_page_string = (
+            captured_page_value_list[0] if captured_page_value_list else None
+        )
+        if next_page_string and next_page_string.isdigit():
+            return int(next_page_string)
 
         return (previous_token or 1) + 1
 

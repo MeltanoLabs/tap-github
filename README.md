@@ -50,6 +50,16 @@ A small number of records may be pulled without an auth token. However, a Github
 
 ## Usage
 
+### API Limitation - Pagination
+
+The GitHub API is limited for some resources such as `/events`. For some resources, users might encounter the following error:
+
+```
+In order to keep the API fast for everyone, pagination is limited for this resource. Check the rel=last link relation in the Link response header to see how far back you can traverse.
+```
+
+To avoid this, the GitHub streams will exit early. I.e. when there are no more `next page` available. If you are fecthing `/events` at the repository level, beware of letting the tap disabled for longer than a few days or you will have gaps in your data.
+
 You can easily run `tap-github` by itself or in a pipeline using [Meltano](www.meltano.com).
 
 ### Executing the Tap Directly
