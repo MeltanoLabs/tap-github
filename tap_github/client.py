@@ -64,7 +64,7 @@ class GitHubStream(RESTStream):
         # Leverage header links returned by the GitHub API.
         if "next" not in response.links.keys():
             return None
-        
+
         # Unfortunately the /starred and /stargazers endpoints do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         resp_json = response.json()
