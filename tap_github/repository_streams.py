@@ -1317,7 +1317,7 @@ class StatsContributorsStream(GitHubStream):
 
     name = "stats_contributors"
     path = "/repos/{org}/{repo}/stats/contributors"
-    primary_keys = ["org", "repo", "user_id"]
+    primary_keys = ["org", "repo", "user_id", "w"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
@@ -1337,13 +1337,13 @@ class StatsContributorsStream(GitHubStream):
                 week_with_author = dict()
                 week_with_author.update(week)
                 week_with_author.update(contributor_activity["author"])
+                week_with_author["user_id"] = week_with_author.pop("id")
                 yield week_with_author
 
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("user_id", th.IntegerType),
         # Activity keys
         th.Property("w", th.IntegerType),
         th.Property("a", th.IntegerType),
@@ -1351,7 +1351,7 @@ class StatsContributorsStream(GitHubStream):
         th.Property("c", th.IntegerType),
         # Contributor keys
         th.Property("login", th.StringType),
-        th.Property("id", th.IntegerType),
+        th.Property("user_id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("avatar_url", th.StringType),
         th.Property("gravatar_id", th.StringType),
