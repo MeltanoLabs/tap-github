@@ -1317,7 +1317,7 @@ class StatsContributorsStream(GitHubStream):
 
     name = "stats_contributors"
     path = "/repos/{org}/{repo}/stats/contributors"
-    primary_keys = ["org", "repo", "user_id", "w"]
+    primary_keys = ["org", "repo", "user_id", "week_start"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
