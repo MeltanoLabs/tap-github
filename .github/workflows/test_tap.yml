@@ -1,6 +1,11 @@
 name: Test tap-github
 
-on: [push, pull_request]
+on:
+  # Run on all pull requets and on pushes to master.
+  pull_request:
+  push:
+    branches:
+      - master
 
 jobs:
   tests:
