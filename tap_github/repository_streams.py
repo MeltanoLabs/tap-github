@@ -1332,8 +1332,7 @@ class StatsContributorsStream(GitHubStream):
             weekly_data = contributor_activity["weeks"]
             for week in weekly_data:
                 # no need to save weeks with no contributions.
-                is_week_empty = sum(week[key] for key in ["a", "c", "d"]) > 0
-                if is_week_empty:
+                if sum(week[key] for key in ["a", "c", "d"]) == 0:
                     continue
                 week_with_author = dict()
                 week_with_author.update(week)
