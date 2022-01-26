@@ -21,7 +21,7 @@ mypy = "^0.910"
 flake8 = "^3.9.2"
 black = {version = "^21.5b1", allow-prereleases = true}
 types-requests = "^2.25.6"
-requests-cache = "^0.8.1"
+requests-cache = "^0.9.1"
 
 [[tool.mypy.overrides]]
 module = [
