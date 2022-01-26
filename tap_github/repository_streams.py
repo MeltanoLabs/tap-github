@@ -1341,7 +1341,6 @@ class StatsContributorsStream(GitHubStream):
                 if sum(week[key] for key in ["a", "c", "d"]) == 0:
                     continue
                 week_with_author = {replacement_keys[k]: v for k, v in week.items()}
-                week_with_author.update(week)
                 week_with_author.update(contributor_activity["author"])
                 week_with_author["user_id"] = week_with_author.pop("id")
                 yield week_with_author
