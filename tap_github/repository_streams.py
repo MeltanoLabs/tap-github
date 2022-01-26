@@ -620,8 +620,8 @@ class IssuesStream(GitHubStream):
             th.ObjectType(
                 th.Property("url", th.StringType),
                 th.Property("total_count", th.IntegerType),
-                th.Property("+1", th.IntegerType),
-                th.Property("-1", th.IntegerType),
+                th.Property("plus_one", th.IntegerType),
+                th.Property("minus_one", th.IntegerType),
                 th.Property("laugh", th.IntegerType),
                 th.Property("hooray", th.IntegerType),
                 th.Property("confused", th.IntegerType),
@@ -1025,8 +1025,8 @@ class PullRequestsStream(GitHubStream):
             th.ObjectType(
                 th.Property("url", th.StringType),
                 th.Property("total_count", th.IntegerType),
-                th.Property("+1", th.IntegerType),
-                th.Property("-1", th.IntegerType),
+                th.Property("plus_one", th.IntegerType),
+                th.Property("minus_one", th.IntegerType),
                 th.Property("laugh", th.IntegerType),
                 th.Property("hooray", th.IntegerType),
                 th.Property("confused", th.IntegerType),
