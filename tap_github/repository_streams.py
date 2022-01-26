@@ -569,6 +569,10 @@ class IssuesStream(GitHubStream):
             # such chars are removed from the data before we pass it on to
             # the target
             row["body"] = row["body"].replace("\x00", "")
+
+        # replace +1/-1 emojis to avoid downstream column name errors.
+        row["plus_one"] = row.pop("+1", None)
+        row["minus_one"] = row.pop("-1", None)
         return row
 
     schema = th.PropertiesList(
@@ -962,6 +966,10 @@ class PullRequestsStream(GitHubStream):
             # such chars are removed from the data before we pass it on to
             # the target
             row["body"] = row["body"].replace("\x00", "")
+
+        # replace +1/-1 emojis to avoid downstream column name errors.
+        row["plus_one"] = row.pop("+1", None)
+        row["minus_one"] = row.pop("-1", None)
         return row
 
     schema = th.PropertiesList(
@@ -1340,7 +1348,9 @@ class StatsContributorsStream(GitHubStream):
                 # no need to save weeks with no contributions.
                 if sum(week[key] for key in ["a", "c", "d"]) == 0:
                     continue
-                week_with_author = {replacement_keys[k]: v for k, v in week.items()}
+                week_with_author = {
+                    replacement_keys.get(k, k): v for k, v in week.items()
+                }
                 week_with_author.update(contributor_activity["author"])
                 week_with_author["user_id"] = week_with_author.pop("id")
                 yield week_with_author
