@@ -109,7 +109,7 @@ class GitHubStream(RESTStream):
             params["direction"] = "desc"
         elif self.replication_key:
             self.logger.warning(
-                "The replication key '{self.replication_key}' is not supported by this client yet."
+                f"The replication key '{self.replication_key}' is not supported by this client yet."
             )
 
         # Unfortunately the /starred and /stargazers endpoints do not support
