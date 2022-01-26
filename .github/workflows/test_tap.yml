@@ -1,7 +1,7 @@
 name: Test tap-github
 
 on:
-  # Run on all pull requets and on pushes to master.
+  # Run on all pull requests and on pushes to master.
   pull_request:
   push:
     branches:
