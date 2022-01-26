@@ -1313,9 +1313,6 @@ class StatsContributorsStream(GitHubStream):
     """
     Defines 'StatsContributors' stream. Fetching contributors activity.
     https://docs.github.com/en/rest/reference/metrics#get-all-contributor-commit-activity
-
-    Note - these queries are expensive and the API might return an HTTP 202 if the response
-    has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
     """
 
     name = "stats_contributors"
@@ -1324,6 +1321,9 @@ class StatsContributorsStream(GitHubStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
+    # Note - these queries are expensive and the API might return an HTTP 202 if the response
+    # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
+    tolerated_http_errors = [202]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of flattened contributor activity."""
