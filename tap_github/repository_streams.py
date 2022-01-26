@@ -1327,6 +1327,12 @@ class StatsContributorsStream(GitHubStream):
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of flattened contributor activity."""
+        replacement_keys = {
+            "a": "additions",
+            "c": "commits",
+            "d": "deletions",
+            "w": "week_start"
+        }
         parsed_response = super().parse_response(response)
         for contributor_activity in parsed_response:
             weekly_data = contributor_activity["weeks"]
@@ -1334,7 +1340,7 @@ class StatsContributorsStream(GitHubStream):
                 # no need to save weeks with no contributions.
                 if sum(week[key] for key in ["a", "c", "d"]) == 0:
                     continue
-                week_with_author = dict()
+                week_with_author = {replacement_keys[k]: v for k, v in week.items()}
                 week_with_author.update(week)
                 week_with_author.update(contributor_activity["author"])
                 week_with_author["user_id"] = week_with_author.pop("id")
@@ -1345,10 +1351,10 @@ class StatsContributorsStream(GitHubStream):
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
         # Activity keys
-        th.Property("w", th.IntegerType),
-        th.Property("a", th.IntegerType),
-        th.Property("d", th.IntegerType),
-        th.Property("c", th.IntegerType),
+        th.Property("week_start", th.IntegerType),
+        th.Property("additions", th.IntegerType),
+        th.Property("deletions", th.IntegerType),
+        th.Property("commits", th.IntegerType),
         # Contributor keys
         th.Property("login", th.StringType),
         th.Property("user_id", th.IntegerType),
