@@ -1331,7 +1331,7 @@ class StatsContributorsStream(GitHubStream):
             "a": "additions",
             "c": "commits",
             "d": "deletions",
-            "w": "week_start"
+            "w": "week_start",
         }
         parsed_response = super().parse_response(response)
         for contributor_activity in parsed_response:
