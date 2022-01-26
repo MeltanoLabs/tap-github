@@ -1307,3 +1307,59 @@ class StargazersStream(GitHubStream):
             ),
         ),
     ).to_dict()
+
+
+class StatsContributorsStream(GitHubStream):
+    """
+    Defines 'StatsContributors' stream. Fetching contributors activity.
+    https://docs.github.com/en/rest/reference/metrics#get-all-contributor-commit-activity
+    """
+
+    name = "stats_contributors"
+    path = "/repos/{org}/{repo}/stats/contributors"
+    primary_keys = ["org", "repo", "user_id", "week_start"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+    # Note - these queries are expensive and the API might return an HTTP 202 if the response
+    # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
+    tolerated_http_errors = [202]
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of flattened contributor activity."""
+        replacement_keys = {
+            "a": "additions",
+            "c": "commits",
+            "d": "deletions",
+            "w": "week_start",
+        }
+        parsed_response = super().parse_response(response)
+        for contributor_activity in parsed_response:
+            weekly_data = contributor_activity["weeks"]
+            for week in weekly_data:
+                # no need to save weeks with no contributions.
+                if sum(week[key] for key in ["a", "c", "d"]) == 0:
+                    continue
+                week_with_author = {replacement_keys[k]: v for k, v in week.items()}
+                week_with_author.update(contributor_activity["author"])
+                week_with_author["user_id"] = week_with_author.pop("id")
+                yield week_with_author
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Activity keys
+        th.Property("week_start", th.IntegerType),
+        th.Property("additions", th.IntegerType),
+        th.Property("deletions", th.IntegerType),
+        th.Property("commits", th.IntegerType),
+        # Contributor keys
+        th.Property("login", th.StringType),
+        th.Property("user_id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("avatar_url", th.StringType),
+        th.Property("gravatar_id", th.StringType),
+        th.Property("type", th.StringType),
+        th.Property("site_admin", th.BooleanType),
+    ).to_dict()

@@ -74,7 +74,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             ]
             if len(env_tokens) > 0:
                 self.logger.info(
-                    "Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
+                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
                 )
                 available_tokens = env_tokens
         self.logger.info(f"Tap will run with {len(available_tokens)} auth tokens")
