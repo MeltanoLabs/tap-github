@@ -1197,7 +1197,7 @@ class ContributorsStream(GitHubStream):
 
     name = "contributors"
     path = "/repos/{org}/{repo}/contributors"
-    primary_keys = ["org", "repo", "node_id"]
+    primary_keys = ["node_id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
@@ -1234,7 +1234,7 @@ class AnonymousContributorsStream(GitHubStream):
 
     name = "anonymous_contributors"
     path = "/repos/{org}/{repo}/contributors"
-    primary_keys = ["org", "repo", "email"]
+    primary_keys = ["email", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
@@ -1271,7 +1271,7 @@ class StargazersStream(GitHubStream):
 
     name = "stargazers"
     path = "/repos/{org}/{repo}/stargazers"
-    primary_keys = ["repo", "org", "user_id"]
+    primary_keys = ["user_id", "repo", "org"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     replication_key = "starred_at"
@@ -1325,7 +1325,7 @@ class StatsContributorsStream(GitHubStream):
 
     name = "stats_contributors"
     path = "/repos/{org}/{repo}/stats/contributors"
-    primary_keys = ["org", "repo", "user_id", "week_start"]
+    primary_keys = ["user_id", "week_start", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
