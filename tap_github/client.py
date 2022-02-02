@@ -137,7 +137,7 @@ class GitHubStream(RESTStream):
         .. _requests.Response:
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
-        full_path = response.url
+        full_path = urlparse(response.url).path
         if response.status_code in self.tolerated_http_errors:
             msg = (
                 f"{response.status_code} Tolerated Status Code: "
