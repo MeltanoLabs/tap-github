@@ -137,10 +137,11 @@ class GitHubStream(RESTStream):
         .. _requests.Response:
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
+        full_path = urlparse(response.url).path
         if response.status_code in self.tolerated_http_errors:
             msg = (
                 f"{response.status_code} Tolerated Status Code: "
-                f"{response.reason} for path: {self.path}"
+                f"{response.reason} for path: {full_path}"
             )
             self.logger.info(msg)
             return
@@ -148,7 +149,7 @@ class GitHubStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{response.reason} for path: {self.path}"
+                f"{response.reason} for path: {full_path}"
             )
             # Retry on rate limiting
             if (
@@ -164,7 +165,7 @@ class GitHubStream(RESTStream):
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{response.reason} for path: {self.path}"
+                f"{response.reason} for path: {full_path}"
             )
             raise RetriableAPIError(msg)
 
