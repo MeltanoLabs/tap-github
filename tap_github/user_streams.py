@@ -4,10 +4,10 @@ from typing import Any, Dict, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
-from tap_github.client import GitHubStream
+from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 
 
-class UserStream(GitHubStream):
+class UserStream(GitHubRestStream):
     """Defines 'User' stream."""
 
     name = "users"
@@ -76,7 +76,7 @@ class UserStream(GitHubStream):
     ).to_dict()
 
 
-class StarredStream(GitHubStream):
+class StarredStream(GitHubRestStream):
     """Defines 'Stars' stream. Warning: this stream does NOT track star deletions."""
 
     name = "starred"
@@ -155,6 +155,66 @@ class StarredStream(GitHubStream):
                 th.Property("forks", th.IntegerType),
                 th.Property("watchers", th.IntegerType),
                 th.Property("open_issues", th.IntegerType),
+            ),
+        ),
+    ).to_dict()
+
+
+class UserContributionsStream(GitHubGraphqlStream):
+    """Gitlab Current User stream."""
+
+    name = "user_contributions"
+    primary_keys = ["username"]
+    replication_key = None
+    parent_stream_type = UserStream
+    state_partitioning_keys = ["username"]
+    ignore_parent_replication_key = True
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        return """
+                user (login: "ericboucher") {
+                    repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+                    totalCount
+                        edges {
+                            node {
+                                id
+                                nameWithOwner
+                                openGraphImageUrl
+                                stargazerCount
+                                owner {
+                                    id
+                                    login
+                                }
+                            }
+                        }
+                    } 
+                }
+            """
+
+    schema = th.PropertiesList(
+        th.Property("code", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("native", th.StringType),
+        th.Property("phone", th.StringType),
+        th.Property("capital", th.StringType),
+        th.Property("currency", th.StringType),
+        th.Property("emoji", th.StringType),
+        th.Property(
+            "continent",
+            th.ObjectType(
+                th.Property("code", th.StringType),
+                th.Property("name", th.StringType),
+            ),
+        ),
+        th.Property(
+            "languages",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("code", th.StringType),
+                    th.Property("name", th.StringType),
+                )
             ),
         ),
     ).to_dict()
