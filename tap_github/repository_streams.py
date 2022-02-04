@@ -833,8 +833,7 @@ class IssueEventsStream(GitHubStream):
 class CommitsStream(GitHubStream):
     """
     Defines the 'Commits' stream.
-    The stream is fetched per repository to maximize optimize for API quota
-    usage.
+    The stream is fetched per repository to optimize for API quota usage.
     """
 
     name = "commits"

@@ -101,7 +101,11 @@ class GitHubStream(RESTStream):
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
             params["page"] = next_page_token
-        if self.replication_key == "updated_at":
+
+        # By default, the API returns the data in descending order by creation / timestamp.
+        if self.replication_key in ["commit_timestamp", "created_at"]:
+            pass
+        elif self.replication_key == "updated_at":
             params["sort"] = "updated"
             params["direction"] = "asc"
         elif self.replication_key == "starred_at":
