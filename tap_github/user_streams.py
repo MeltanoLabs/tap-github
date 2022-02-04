@@ -160,7 +160,7 @@ class StarredStream(GitHubRestStream):
     ).to_dict()
 
 
-class UserContributionsStream(GitHubGraphqlStream):
+class UserContributedToStream(GitHubGraphqlStream):
     """Gitlab Current User stream."""
 
     name = "user_contributed_to"

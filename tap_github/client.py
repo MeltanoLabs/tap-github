@@ -194,8 +194,11 @@ class GitHubRestStream(RESTStream):
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
-    # TODO - construct it from rest url.
-    url_base = "https://api.github.com/graphql"
+    @property
+    def url_base(self) -> str:
+        return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
+
+    query_path = ''
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows.
@@ -219,6 +222,6 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self, context: Optional[dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context
+        params = context or dict()
         params["per_page"] = self.MAX_PER_PAGE
         return params
