@@ -27,6 +27,7 @@ requests-cache = "^0.9.1"
 [[tool.mypy.overrides]]
 module = [
     "backoff",
+    "glom",
 ]
 ignore_missing_imports = true
 
