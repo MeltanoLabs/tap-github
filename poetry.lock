@@ -64,6 +64,14 @@ python2 = ["typed-ast (>=1.4.3)"]
 uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
+name = "boltons"
+version = "21.0.0"
+description = "When they're not builtins, they're boltons."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "cattrs"
 version = "1.10.0"
 description = "Composable complex class support for attrs and dataclasses."
@@ -161,6 +169,17 @@ optional = false
 python-versions = ">=3.5"
 
 [[package]]
+name = "face"
+version = "20.1.1"
+description = "A command-line application framework (and CLI parser). Friendly for users, full-featured for developers."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+boltons = ">=20.0.0"
+
+[[package]]
 name = "flake8"
 version = "3.9.2"
 description = "the modular source code checker: pep8 pyflakes and co"
@@ -173,6 +192,22 @@ importlib-metadata = {version = "*", markers = "python_version < \"3.8\""}
 mccabe = ">=0.6.0,<0.7.0"
 pycodestyle = ">=2.7.0,<2.8.0"
 pyflakes = ">=2.3.0,<2.4.0"
+
+[[package]]
+name = "glom"
+version = "22.1.0"
+description = "A declarative object transformer and formatter, for conglomerating nested data."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+attrs = "*"
+boltons = ">=19.3.0"
+face = ">=20.1.0"
+
+[package.extras]
+yaml = ["pyyaml"]
 
 [[package]]
 name = "idna"
@@ -686,7 +721,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "<=3.10.1,>=3.7.2"
-content-hash = "31205d8d791b1afde579070e5031a08c938000ec17e5ad090dda70aa7b3f5924"
+content-hash = "a9371e163ff170d27a9e6661b649134198cb7e1eb112ce4ceab791334d079352"
 
 [metadata.files]
 appdirs = [
@@ -708,6 +743,10 @@ backoff = [
 black = [
     {file = "black-21.12b0-py3-none-any.whl", hash = "sha256:a615e69ae185e08fdd73e4715e260e2479c861b5740057fde6e8b4e3b7dd589f"},
     {file = "black-21.12b0.tar.gz", hash = "sha256:77b80f693a569e2e527958459634f18df9b0ba2625ba4e0c2d5da5be42e6f2b3"},
+]
+boltons = [
+    {file = "boltons-21.0.0-py2.py3-none-any.whl", hash = "sha256:b9bb7b58b2b420bbe11a6025fdef6d3e5edc9f76a42fb467afe7ca212ef9948b"},
+    {file = "boltons-21.0.0.tar.gz", hash = "sha256:65e70a79a731a7fe6e98592ecfb5ccf2115873d01dbc576079874629e5c90f13"},
 ]
 cattrs = [
     {file = "cattrs-1.10.0-py3-none-any.whl", hash = "sha256:35dd9063244263e63bd0bd24ea61e3015b00272cead084b2c40d788b0f857c46"},
@@ -809,9 +848,17 @@ decorator = [
     {file = "decorator-5.1.1-py3-none-any.whl", hash = "sha256:b8c3f85900b9dc423225913c5aace94729fe1fa9763b38939a95226f02d37186"},
     {file = "decorator-5.1.1.tar.gz", hash = "sha256:637996211036b6385ef91435e4fae22989472f9d571faba8927ba8253acbc330"},
 ]
+face = [
+    {file = "face-20.1.1-py2-none-any.whl", hash = "sha256:3790311a7329e4b0d90baee346eecad54b337629576edf3a246683a5f0d24446"},
+    {file = "face-20.1.1.tar.gz", hash = "sha256:7d59ca5ba341316e58cf72c6aff85cca2541cf5056c4af45cb63af9a814bed3e"},
+]
 flake8 = [
     {file = "flake8-3.9.2-py2.py3-none-any.whl", hash = "sha256:bf8fd333346d844f616e8d47905ef3a3384edae6b4e9beb0c5101e25e3110907"},
     {file = "flake8-3.9.2.tar.gz", hash = "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b"},
+]
+glom = [
+    {file = "glom-22.1.0-py2.py3-none-any.whl", hash = "sha256:5339da206bf3532e01a83a35aca202960ea885156986d190574b779598e9e772"},
+    {file = "glom-22.1.0.tar.gz", hash = "sha256:1510c6587a8f9c64a246641b70033cbc5ebde99f02ad245693678038e821aeb5"},
 ]
 idna = [
     {file = "idna-3.3-py3-none-any.whl", hash = "sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff"},

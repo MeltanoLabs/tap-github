@@ -6,6 +6,7 @@ import requests
 import simplejson
 
 from dateutil.parser import parse
+from glom import glom
 from urllib.parse import parse_qs, urlparse
 
 from singer_sdk.streams import RESTStream
@@ -190,8 +191,28 @@ class GitHubRestStream(RESTStream):
         yield from results
 
 
-class GitHubGraphqlStream(GitHubRestStream, GraphQLStream):
+class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
     # TODO - construct it from rest url.
     url_base = "https://api.github.com/graphql"
+
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows.
+
+        Args:
+            response: A raw `requests.Response`_ object.
+
+        Yields:
+            One item for every item found in the response.
+
+        .. _requests.Response:
+            https://docs.python-requests.org/en/latest/api/#requests.Response
+        """
+        resp_json = response.json()
+        data = glom(resp_json["data"], self.query_path)
+        print(data)
+
+        for row in data:
+            yield row

@@ -1,6 +1,6 @@
 """User Stream types classes for tap-github."""
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -163,7 +163,8 @@ class StarredStream(GitHubRestStream):
 class UserContributionsStream(GitHubGraphqlStream):
     """Gitlab Current User stream."""
 
-    name = "user_contributions"
+    name = "user_contributed_to"
+    query_path = "user.repositoriesContributedTo.nodes"
     primary_keys = ["username"]
     replication_key = None
     parent_stream_type = UserStream
@@ -174,47 +175,32 @@ class UserContributionsStream(GitHubGraphqlStream):
     def query(self) -> str:
         """Return dynamic GraphQL query."""
         return """
-                user (login: "ericboucher") {
-                    repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
-                    totalCount
-                        edges {
-                            node {
-                                id
-                                nameWithOwner
-                                openGraphImageUrl
-                                stargazerCount
-                                owner {
-                                    id
-                                    login
-                                }
-                            }
-                        }
-                    } 
+            user (login: "ericboucher") {
+              repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+                nodes {
+                  id
+                  nameWithOwner
+                  openGraphImageUrl
+                  stargazerCount
+                  owner {
+                    id
+                    login
+                  }
                 }
+              } 
+            }
             """
 
     schema = th.PropertiesList(
-        th.Property("code", th.StringType),
-        th.Property("name", th.StringType),
-        th.Property("native", th.StringType),
-        th.Property("phone", th.StringType),
-        th.Property("capital", th.StringType),
-        th.Property("currency", th.StringType),
-        th.Property("emoji", th.StringType),
+        th.Property("id", th.StringType),
+        th.Property("nameWithOwner", th.StringType),
+        th.Property("openGraphImageUrl", th.StringType),
+        th.Property("stargazerCount", th.IntegerType),
         th.Property(
-            "continent",
+            "owner",
             th.ObjectType(
-                th.Property("code", th.StringType),
-                th.Property("name", th.StringType),
-            ),
-        ),
-        th.Property(
-            "languages",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("code", th.StringType),
-                    th.Property("name", th.StringType),
-                )
+                th.Property("id", th.StringType),
+                th.Property("login", th.StringType),
             ),
         ),
     ).to_dict()
