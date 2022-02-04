@@ -109,7 +109,7 @@ class GitHubStream(RESTStream):
             params["sort"] = "created"
             params["direction"] = "desc"
         # By default, the API returns the data in descending order by creation / timestamp.
-        # Warnig: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
         elif self.replication_key not in ["commit_timestamp", "created_at"]:
             self.logger.warning(
                 f"The replication key '{self.replication_key}' is not fully supported by this client yet."
