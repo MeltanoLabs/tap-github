@@ -212,7 +212,14 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         """
         resp_json = response.json()
         data = glom(resp_json["data"], self.query_path)
-        print(data)
 
         for row in data:
             yield row
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = context
+        params["per_page"] = self.MAX_PER_PAGE
+        return params

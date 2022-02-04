@@ -175,7 +175,8 @@ class UserContributionsStream(GitHubGraphqlStream):
     def query(self) -> str:
         """Return dynamic GraphQL query."""
         return """
-            user (login: "ericboucher") {
+          query userContributedTo($username: String!) {
+            user (login: $username) {
               repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
                 nodes {
                   id
@@ -188,8 +189,9 @@ class UserContributionsStream(GitHubGraphqlStream):
                   }
                 }
               } 
-            }
-            """
+            }    
+          }
+        """
 
     schema = th.PropertiesList(
         th.Property("id", th.StringType),
