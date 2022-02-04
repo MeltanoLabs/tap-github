@@ -197,7 +197,6 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     # TODO - construct it from rest url.
     url_base = "https://api.github.com/graphql"
 
-
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows.
 
