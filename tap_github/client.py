@@ -65,7 +65,7 @@ class GitHubStream(RESTStream):
         if "next" not in response.links.keys():
             return None
 
-        # Unfortunately the /starred and /stargazers endpoints do not support
+        # Unfortunately the /starred, /stargazers and /events endpoints do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         resp_json = response.json()
         if isinstance(resp_json, list):
@@ -77,7 +77,7 @@ class GitHubStream(RESTStream):
         if not results:
             return None
 
-        if self.replication_key == "starred_at":
+        if self.replication_key in ["starred_at", "created_at"]:
             parsed_request_url = urlparse(response.request.url)
             since = parse_qs(str(parsed_request_url.query))["since"][0]
             if since and (parse(results[-1][self.replication_key]) < parse(since)):
@@ -102,21 +102,20 @@ class GitHubStream(RESTStream):
         if next_page_token:
             params["page"] = next_page_token
 
-        # By default, the API returns the data in descending order by creation / timestamp.
-        if self.replication_key in ["commit_timestamp", "created_at"]:
-            pass
-        elif self.replication_key == "updated_at":
+        if self.replication_key == "updated_at":
             params["sort"] = "updated"
             params["direction"] = "asc"
         elif self.replication_key == "starred_at":
             params["sort"] = "created"
             params["direction"] = "desc"
-        elif self.replication_key:
+        # By default, the API returns the data in descending order by creation / timestamp.
+        # Warnig: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+        elif self.replication_key not in ["commit_timestamp", "created_at"]:
             self.logger.warning(
-                f"The replication key '{self.replication_key}' is not supported by this client yet."
+                f"The replication key '{self.replication_key}' is not fully supported by this client yet."
             )
 
-        # Unfortunately the /starred and /stargazers endpoints do not support
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
         # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
