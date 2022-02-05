@@ -1345,13 +1345,15 @@ class StatsContributorsStream(GitHubStream):
         for contributor_activity in parsed_response:
             weekly_data = contributor_activity["weeks"]
             for week in weekly_data:
-                # no need to save weeks with no contributions.
-                if sum(week[key] for key in ["a", "c", "d"]) == 0:
+                # no need to save weeks with no contributions or author.
+                # if a user has deleted their account, GitHub may surprisingly return author: None.
+                author = contributor_activity["author"]
+                if sum(week[key] for key in ["a", "c", "d"]) == 0 or author is None:
                     continue
                 week_with_author = {
                     replacement_keys.get(k, k): v for k, v in week.items()
                 }
-                week_with_author.update(contributor_activity["author"])
+                week_with_author.update(author)
                 week_with_author["user_id"] = week_with_author.pop("id")
                 yield week_with_author
 
