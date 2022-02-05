@@ -1348,7 +1348,7 @@ class StatsContributorsStream(GitHubStream):
                 # no need to save weeks with no contributions or author.
                 # if a user has deleted their account, GitHub may surprisingly return author: None.
                 author = contributor_activity["author"]
-                if sum(week[key] for key in ["a", "c", "d"]) == 0 or author is None:
+                if (sum(week[key] for key in ["a", "c", "d"]) == 0) or (author is None):
                     continue
                 week_with_author = {
                     replacement_keys.get(k, k): v for k, v in week.items()
