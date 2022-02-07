@@ -198,7 +198,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
 
     # the jsonpath under which to fetch the list of records from the graphql response
-    query_jsonpath: str = "$.data.*"
+    query_jsonpath: str = "$.data.[*]"
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows.
