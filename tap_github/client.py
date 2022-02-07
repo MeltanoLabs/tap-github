@@ -6,7 +6,6 @@ import requests
 import simplejson
 
 from dateutil.parser import parse
-from glom import glom
 from urllib.parse import parse_qs, urlparse
 
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
