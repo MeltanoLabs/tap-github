@@ -1,13 +1,13 @@
 """User Stream types classes for tap-github."""
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
-from tap_github.client import GitHubStream
+from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 
 
-class UserStream(GitHubStream):
+class UserStream(GitHubRestStream):
     """Defines 'User' stream."""
 
     name = "users"
@@ -76,7 +76,7 @@ class UserStream(GitHubStream):
     ).to_dict()
 
 
-class StarredStream(GitHubStream):
+class StarredStream(GitHubRestStream):
     """Defines 'Stars' stream. Warning: this stream does NOT track star deletions."""
 
     name = "starred"
@@ -155,6 +155,55 @@ class StarredStream(GitHubStream):
                 th.Property("forks", th.IntegerType),
                 th.Property("watchers", th.IntegerType),
                 th.Property("open_issues", th.IntegerType),
+            ),
+        ),
+    ).to_dict()
+
+
+class UserContributedToStream(GitHubGraphqlStream):
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+
+    name = "user_contributed_to"
+    query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"
+    primary_keys = ["username"]
+    replication_key = None
+    parent_stream_type = UserStream
+    state_partitioning_keys = ["username"]
+    ignore_parent_replication_key = True
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        return """
+          query userContributedTo($username: String!) {
+            user (login: $username) {
+              repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+                nodes {
+                  node_id: id
+                  nameWithOwner
+                  openGraphImageUrl
+                  stargazerCount
+                  owner {
+                    node_id: id
+                    login
+                  }
+                }
+              } 
+            }    
+          }
+        """
+
+    schema = th.PropertiesList(
+        th.Property("node_id", th.StringType),
+        th.Property("nameWithOwner", th.StringType),
+        th.Property("openGraphImageUrl", th.StringType),
+        th.Property("stargazerCount", th.IntegerType),
+        th.Property(
+            "owner",
+            th.ObjectType(
+                th.Property("node_id", th.StringType),
+                th.Property("login", th.StringType),
             ),
         ),
     ).to_dict()
