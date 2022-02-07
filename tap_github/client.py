@@ -8,15 +8,15 @@ import simplejson
 from dateutil.parser import parse
 from urllib.parse import parse_qs, urlparse
 
-from singer_sdk.streams import RESTStream
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
-from singer_sdk.streams import RESTStream
+from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.streams import GraphQLStream, RESTStream
 
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 
-class GitHubStream(RESTStream):
-    """GitHub stream class."""
+class GitHubRestStream(RESTStream):
+    """GitHub Rest stream class."""
 
     MAX_PER_PAGE = 100  # GitHub's limit is 100.
     MAX_RESULTS_LIMIT: Optional[int] = None
@@ -191,3 +191,37 @@ class GitHubStream(RESTStream):
             results = [resp_json]
 
         yield from results
+
+
+class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
+    """GitHub Graphql stream class."""
+
+    @property
+    def url_base(self) -> str:
+        return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
+
+    # the jsonpath under which to fetch the list of records from the graphql response
+    query_jsonpath: str = "$.data.[*]"
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows.
+
+        Args:
+            response: A raw `requests.Response`_ object.
+
+        Yields:
+            One item for every item found in the response.
+
+        .. _requests.Response:
+            https://docs.python-requests.org/en/latest/api/#requests.Response
+        """
+        resp_json = response.json()
+        yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = context or dict()
+        params["per_page"] = self.MAX_PER_PAGE
+        return params

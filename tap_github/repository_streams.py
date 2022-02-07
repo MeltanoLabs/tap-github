@@ -5,10 +5,10 @@ from typing import Any, Dict, Iterable, List, Optional
 import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
-from tap_github.client import GitHubStream
+from tap_github.client import GitHubRestStream
 
 
-class RepositoryStream(GitHubStream):
+class RepositoryStream(GitHubRestStream):
     """Defines 'Repository' stream."""
 
     # Search API max: 1,000 total.
@@ -159,7 +159,7 @@ class RepositoryStream(GitHubStream):
     ).to_dict()
 
 
-class ReadmeStream(GitHubStream):
+class ReadmeStream(GitHubRestStream):
     """
     A stream dedicated to fetching the object version of a README.md.
 
@@ -202,7 +202,7 @@ class ReadmeStream(GitHubStream):
     ).to_dict()
 
 
-class ReadmeHtmlStream(GitHubStream):
+class ReadmeHtmlStream(GitHubRestStream):
     """
     A stream dedicated to fetching the HTML version of README.md.
 
@@ -243,7 +243,7 @@ class ReadmeHtmlStream(GitHubStream):
     ).to_dict()
 
 
-class CommunityProfileStream(GitHubStream):
+class CommunityProfileStream(GitHubRestStream):
     """Defines 'CommunityProfile' stream."""
 
     name = "community_profile"
@@ -327,7 +327,7 @@ class CommunityProfileStream(GitHubStream):
     ).to_dict()
 
 
-class EventsStream(GitHubStream):
+class EventsStream(GitHubRestStream):
     """
     Defines 'Events' stream.
     Issue events are fetched from the repository level (as opposed to per issue)
@@ -492,7 +492,7 @@ class EventsStream(GitHubStream):
     ).to_dict()
 
 
-class LanguagesStream(GitHubStream):
+class LanguagesStream(GitHubRestStream):
     name = "languages"
     path = "/repos/{org}/{repo}/languages"
     primary_keys = ["repo", "org", "language_name"]
@@ -520,7 +520,7 @@ class LanguagesStream(GitHubStream):
     ).to_dict()
 
 
-class IssuesStream(GitHubStream):
+class IssuesStream(GitHubRestStream):
     """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
     name = "issues"
@@ -706,7 +706,7 @@ class IssuesStream(GitHubStream):
     ).to_dict()
 
 
-class IssueCommentsStream(GitHubStream):
+class IssueCommentsStream(GitHubRestStream):
     """
     Defines 'IssueComments' stream.
     Issue comments are fetched from the repository level (as opposed to per issue)
@@ -772,7 +772,7 @@ class IssueCommentsStream(GitHubStream):
     ).to_dict()
 
 
-class IssueEventsStream(GitHubStream):
+class IssueEventsStream(GitHubRestStream):
     """
     Defines 'IssueEvents' stream.
     Issue events are fetched from the repository level (as opposed to per issue)
@@ -830,7 +830,7 @@ class IssueEventsStream(GitHubStream):
     ).to_dict()
 
 
-class CommitsStream(GitHubStream):
+class CommitsStream(GitHubRestStream):
     """
     Defines the 'Commits' stream.
     The stream is fetched per repository to optimize for API quota usage.
@@ -926,7 +926,7 @@ class CommitsStream(GitHubStream):
     ).to_dict()
 
 
-class PullRequestsStream(GitHubStream):
+class PullRequestsStream(GitHubRestStream):
     """Defines 'PullRequests' stream."""
 
     name = "pull_requests"
@@ -1191,7 +1191,7 @@ class PullRequestsStream(GitHubStream):
     ).to_dict()
 
 
-class ContributorsStream(GitHubStream):
+class ContributorsStream(GitHubRestStream):
     """Defines 'Contributors' stream. Fetching User & Bot contributors."""
 
     name = "contributors"
@@ -1228,7 +1228,7 @@ class ContributorsStream(GitHubStream):
     ).to_dict()
 
 
-class AnonymousContributorsStream(GitHubStream):
+class AnonymousContributorsStream(GitHubRestStream):
     """Defines 'AnonymousContributors' stream."""
 
     name = "anonymous_contributors"
@@ -1265,7 +1265,7 @@ class AnonymousContributorsStream(GitHubStream):
     ).to_dict()
 
 
-class StargazersStream(GitHubStream):
+class StargazersStream(GitHubRestStream):
     """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
 
     name = "stargazers"
@@ -1316,7 +1316,7 @@ class StargazersStream(GitHubStream):
     ).to_dict()
 
 
-class StatsContributorsStream(GitHubStream):
+class StatsContributorsStream(GitHubRestStream):
     """
     Defines 'StatsContributors' stream. Fetching contributors activity.
     https://docs.github.com/en/rest/reference/metrics#get-all-contributor-commit-activity
