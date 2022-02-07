@@ -164,7 +164,7 @@ class UserContributedToStream(GitHubGraphqlStream):
     """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
 
     name = "user_contributed_to"
-    query_path = "user.repositoriesContributedTo.nodes"
+    query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.*"
     primary_keys = ["username"]
     replication_key = None
     parent_stream_type = UserStream
@@ -174,17 +174,18 @@ class UserContributedToStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
         return """
           query userContributedTo($username: String!) {
             user (login: $username) {
               repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
                 nodes {
-                  id
+                  node_id: id
                   nameWithOwner
                   openGraphImageUrl
                   stargazerCount
                   owner {
-                    id
+                    node_id: id
                     login
                   }
                 }
@@ -194,14 +195,14 @@ class UserContributedToStream(GitHubGraphqlStream):
         """
 
     schema = th.PropertiesList(
-        th.Property("id", th.StringType),
+        th.Property("node_id", th.StringType),
         th.Property("nameWithOwner", th.StringType),
         th.Property("openGraphImageUrl", th.StringType),
         th.Property("stargazerCount", th.IntegerType),
         th.Property(
             "owner",
             th.ObjectType(
-                th.Property("id", th.StringType),
+                th.Property("node_id", th.StringType),
                 th.Property("login", th.StringType),
             ),
         ),

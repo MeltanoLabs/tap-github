@@ -9,8 +9,8 @@ from dateutil.parser import parse
 from glom import glom
 from urllib.parse import parse_qs, urlparse
 
-from singer_sdk.streams import RESTStream
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
+from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.streams import GraphQLStream, RESTStream
 
 from tap_github.authenticator import GitHubTokenAuthenticator
@@ -198,9 +198,8 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     def url_base(self) -> str:
         return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
 
-    # the path in dot notation under which to fetch the list of
-    # records from the graphql response
-    query_path: str = ""
+    # the jsonpath under which to fetch the list of records from the graphql response
+    query_jsonpath: str = "$.data.*"
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows.
@@ -215,10 +214,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
         resp_json = response.json()
-        data = glom(resp_json["data"], self.query_path)
-
-        for row in data:
-            yield row
+        yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
