@@ -8,15 +8,15 @@ import simplejson
 from dateutil.parser import parse
 from urllib.parse import parse_qs, urlparse
 
-from singer_sdk.streams import RESTStream
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
-from singer_sdk.streams import RESTStream
+from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.streams import GraphQLStream, RESTStream
 
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 
-class GitHubStream(RESTStream):
-    """GitHub stream class."""
+class GitHubRestStream(RESTStream):
+    """GitHub Rest stream class."""
 
     MAX_PER_PAGE = 100  # GitHub's limit is 100.
     MAX_RESULTS_LIMIT: Optional[int] = None
@@ -65,7 +65,7 @@ class GitHubStream(RESTStream):
         if "next" not in response.links.keys():
             return None
 
-        # Unfortunately the /starred and /stargazers endpoints do not support
+        # Unfortunately the /starred, /stargazers and /events endpoints do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         resp_json = response.json()
         if isinstance(resp_json, list):
@@ -77,7 +77,7 @@ class GitHubStream(RESTStream):
         if not results:
             return None
 
-        if self.replication_key == "starred_at":
+        if self.replication_key in ["starred_at", "created_at"]:
             parsed_request_url = urlparse(response.request.url)
             since = parse_qs(str(parsed_request_url.query))["since"][0]
             if since and (parse(results[-1][self.replication_key]) < parse(since)):
@@ -101,18 +101,21 @@ class GitHubStream(RESTStream):
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
             params["page"] = next_page_token
+
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
             params["direction"] = "asc"
         elif self.replication_key == "starred_at":
             params["sort"] = "created"
             params["direction"] = "desc"
-        elif self.replication_key:
+        # By default, the API returns the data in descending order by creation / timestamp.
+        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+        elif self.replication_key not in ["commit_timestamp", "created_at"]:
             self.logger.warning(
-                f"The replication key '{self.replication_key}' is not supported by this client yet."
+                f"The replication key '{self.replication_key}' is not fully supported by this client yet."
             )
 
-        # Unfortunately the /starred and /stargazers endpoints do not support
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
         # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
@@ -188,3 +191,37 @@ class GitHubStream(RESTStream):
             results = [resp_json]
 
         yield from results
+
+
+class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
+    """GitHub Graphql stream class."""
+
+    @property
+    def url_base(self) -> str:
+        return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
+
+    # the jsonpath under which to fetch the list of records from the graphql response
+    query_jsonpath: str = "$.data.[*]"
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows.
+
+        Args:
+            response: A raw `requests.Response`_ object.
+
+        Yields:
+            One item for every item found in the response.
+
+        .. _requests.Response:
+            https://docs.python-requests.org/en/latest/api/#requests.Response
+        """
+        resp_json = response.json()
+        yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = context or dict()
+        params["per_page"] = self.MAX_PER_PAGE
+        return params
