@@ -181,24 +181,25 @@ class UserContributedToStream(GitHubGraphqlStream):
               repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
                 nodes {
                   node_id: id
-                  nameWithOwner
-                  openGraphImageUrl
-                  stargazerCount
+                  name_with_owner: nameWithOwner
+                  open_graph_image_url: openGraphImageUrl
+                  stargazer_count: stargazerCount
                   owner {
                     node_id: id
                     login
                   }
                 }
-              } 
-            }    
+              }
+            }
           }
         """
 
     schema = th.PropertiesList(
         th.Property("node_id", th.StringType),
-        th.Property("nameWithOwner", th.StringType),
-        th.Property("openGraphImageUrl", th.StringType),
-        th.Property("stargazerCount", th.IntegerType),
+        th.Property("username", th.StringType),
+        th.Property("name_with_owner", th.StringType),
+        th.Property("open_graph_image_url", th.StringType),
+        th.Property("stargazer_count", th.IntegerType),
         th.Property(
             "owner",
             th.ObjectType(
