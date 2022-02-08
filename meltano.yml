@@ -20,7 +20,7 @@ plugins:
     - name: additional_auth_tokens
       kind: array
     - name: rate_limit_buffer
-      kind: array
+      kind: integer
     - name: searches
       kind: array
     - name: organizations
