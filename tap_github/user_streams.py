@@ -11,6 +11,7 @@ class UserStream(GitHubRestStream):
     """Defines 'User' stream."""
 
     name = "users"
+    replication_key = "updated_at"
 
     @property
     def path(self) -> str:  # type: ignore

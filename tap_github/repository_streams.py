@@ -15,6 +15,9 @@ class RepositoryStream(GitHubRestStream):
     MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
+    # updated_at will be updated any time the repository object is updated,
+    # e.g. when the description or the primary language of the repository is updated.
+    replication_key = "updated_at"
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
@@ -171,7 +174,7 @@ class ReadmeStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -213,7 +216,7 @@ class ReadmeHtmlStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -250,7 +253,7 @@ class CommunityProfileStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/community/profile"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -340,7 +343,7 @@ class EventsStream(GitHubRestStream):
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -528,7 +531,7 @@ class IssuesStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
@@ -719,7 +722,7 @@ class IssueCommentsStream(GitHubRestStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # FIXME: this allows the tap to continue on server-side timeouts but means
     # we have gaps in our data
     tolerated_http_errors = [502]
@@ -785,7 +788,7 @@ class IssueEventsStream(GitHubRestStream):
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -934,7 +937,7 @@ class PullRequestsStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
@@ -1198,7 +1201,7 @@ class ContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["node_id", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
@@ -1235,7 +1238,7 @@ class AnonymousContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["email", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
@@ -1326,7 +1329,7 @@ class StatsContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/stats/contributors"
     primary_keys = ["user_id", "week_start", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     # Note - these queries are expensive and the API might return an HTTP 202 if the response
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
