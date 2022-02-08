@@ -1,26 +1,43 @@
 version: 1
-send_anonymous_usage_stats: true
+send_anonymous_usage_stats: false
 project_id: 96584f7b-a36c-46e0-b41a-7f9074293137
 plugins:
   extractors:
   - name: tap-github
     namespace: tap_github
-    pip_url: blah
-    executable: /Users/ajsteers/Source/tap-github/tap-github.sh
+    pip_url: -e .
     capabilities:
     - state
     - catalog
     - discover
     settings:
-    - name: searches
-      kind: array
+    - name: user_agent
+      kind: string
+    - name: metrics_log_level
+      kind: string
     - name: auth_token
       kind: password
+    - name: additional_auth_tokens
+      kind: array
+    - name: rate_limit_buffer
+      kind: integer
+    - name: searches
+      kind: array
+    - name: organizations
+      kind: array
+    - name: repositories
+      kind: array
+    - name: user_usernames
+      kind: array
+    - name: user_ids
+      kind: array
     - name: start_date
+      kind: date_iso8601
       value: '2010-01-01T00:00:00Z'
-    config:
-      searches:
-      - {name: "target-athena", query: "target-athena+fork:only"}
+    - name: stream_maps
+      kind: object
+    - name: stream_map_config
+      kind: object
     select:
     - '*.*'
   loaders:
@@ -29,4 +46,4 @@ plugins:
     pip_url: target-jsonl
     config:
       destination_path: .output
-      do_timestamp_file: false
+      do_timestamp_file: true
