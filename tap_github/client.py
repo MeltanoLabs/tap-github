@@ -24,7 +24,7 @@ class GitHubRestStream(RESTStream):
     LOG_REQUEST_METRIC_URLS = True
 
     # GitHub is missing the "since" parameter on a few endpoints
-    # use this paramter if your stream needs to navigate data in descending order
+    # set this parameter to True if your stream needs to navigate data in descending order
     # and try to exit early on its own.
     missing_since_parameter = False
 
