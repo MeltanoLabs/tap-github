@@ -82,6 +82,8 @@ class GitHubRestStream(RESTStream):
 
         # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
+        # For such streams, we sort by descending dates (most recent first), and paginate
+        # "back in time" until we reach records before our "since" parameter.
         request_parameters = parse_qs(str(urlparse(response.request.url).query))
         since = request_parameters["since"][0]
         direction = request_parameters["direction"][0]
