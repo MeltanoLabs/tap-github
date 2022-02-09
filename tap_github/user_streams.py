@@ -167,7 +167,7 @@ class UserContributedToStream(GitHubGraphqlStream):
 
     name = "user_contributed_to"
     query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"
-    primary_keys = ["username"]
+    primary_keys = ["username", "name_with_owner"]
     replication_key = None
     parent_stream_type = UserStream
     state_partitioning_keys = ["username"]
