@@ -50,7 +50,7 @@ class TapGitHub(Tap):
         ),
         th.Property(
             "rate_limit_buffer",
-            th.ArrayType(th.IntegerType),
+            th.IntegerType,
             description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",
         ),
         th.Property(

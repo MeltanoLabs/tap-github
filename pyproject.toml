@@ -21,6 +21,7 @@ mypy = "^0.910"
 flake8 = "^3.9.2"
 black = {version = "^21.5b1", allow-prereleases = true}
 types-requests = "^2.25.6"
+types-python-dateutil = "^2.8.9"
 requests-cache = "^0.9.1"
 
 [[tool.mypy.overrides]]
@@ -38,7 +39,11 @@ multi_line_output = 3 # Vertical Hanging Indent
 src_paths = "tap_github"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+# Uncomment the pinned version in favor of the git URL once
+# https://github.com/python-poetry/poetry-core/pull/257 is merged
+# and a new poetry-core 1.0.x is released
+# requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core @ git+https://github.com/python-poetry/poetry-core.git@master"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
