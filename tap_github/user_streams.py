@@ -87,6 +87,8 @@ class StarredStream(GitHubRestStream):
     state_partitioning_keys = ["username"]
     replication_key = "starred_at"
     ignore_parent_replication_key = True
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
 
     @property
     def http_headers(self) -> dict:

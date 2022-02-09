@@ -24,8 +24,9 @@ class GitHubRestStream(RESTStream):
     LOG_REQUEST_METRIC_URLS = True
 
     # GitHub is missing the "since" parameter on a few endpoints
-    # use this paramter if your stream needs to navigate data in descending order.
-    force_desc = False
+    # use this paramter if your stream needs to navigate data in descending order
+    # and try to exit early on its own.
+    missing_since_parameter = False
 
     _authenticator: Optional[GitHubTokenAuthenticator] = None
 
@@ -83,11 +84,15 @@ class GitHubRestStream(RESTStream):
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         parsed_request_url = urlparse(response.request.url)
         since = parse_qs(str(parsed_request_url.query))["since"][0]
-        try:
-            if since and (parse(results[-1][self.replication_key]) < parse(since)):
-                return None
-        except KeyError:
-            pass
+        direction = parse_qs(str(parsed_request_url.query))["since"][0]
+        if (
+            # commit_timestamp is a constructed key which does not exist in the raw response
+            self.replication_key != "commit_timestamp"
+            and since
+            and direction == "desc"
+            and (parse(results[-1][self.replication_key]) < parse(since))
+        ):
+            return None
 
         # Use header links returned by the GitHub API.
         parsed_url = urlparse(response.links["next"]["url"])
@@ -110,19 +115,23 @@ class GitHubRestStream(RESTStream):
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
-            params["direction"] = "asc" if not self.force_desc else "desc"
-        elif self.replication_key == "starred_at":
+            params["direction"] = "asc" if not self.missing_since_parameter else "desc"
+
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
+        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
+        elif self.replication_key in ["starred_at", "created_at"]:
             params["sort"] = "created"
             params["direction"] = "desc"
-        # By default, the API returns the data in descending order by creation / timestamp.
+
         # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
-        elif self.replication_key not in ["commit_timestamp", "created_at"]:
+        elif self.replication_key == "commit_timestamp":
+            params["direction"] = "desc"
+
+        else:
             self.logger.warning(
                 f"The replication key '{self.replication_key}' is not fully supported by this client yet."
             )
 
-        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
-        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
             params["since"] = since
