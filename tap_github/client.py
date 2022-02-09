@@ -82,9 +82,9 @@ class GitHubRestStream(RESTStream):
 
         # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
-        parsed_request_url = urlparse(response.request.url)
-        since = parse_qs(str(parsed_request_url.query))["since"][0]
-        direction = parse_qs(str(parsed_request_url.query))["direction"][0]
+        request_parameters = parse_qs(str(urlparse(response.request.url).query))
+        since = request_parameters["since"][0]
+        direction = request_parameters["direction"][0]
         if (
             # commit_timestamp is a constructed key which does not exist in the raw response
             self.replication_key != "commit_timestamp"
