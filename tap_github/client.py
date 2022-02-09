@@ -26,6 +26,7 @@ class GitHubRestStream(RESTStream):
     # GitHub is missing the "since" parameter on a few endpoints
     # set this parameter to True if your stream needs to navigate data in descending order
     # and try to exit early on its own.
+    # This only has effect on streams whose `replication_key` is `updated_at`.
     missing_since_parameter = False
 
     _authenticator: Optional[GitHubTokenAuthenticator] = None
