@@ -65,8 +65,6 @@ class GitHubRestStream(RESTStream):
         if "next" not in response.links.keys():
             return None
 
-        # Unfortunately the /starred, /stargazers and /events endpoints do not support
-        # the "since" parameter out of the box. So we use a workaround here to exit early.
         resp_json = response.json()
         if isinstance(resp_json, list):
             results = resp_json
@@ -77,11 +75,15 @@ class GitHubRestStream(RESTStream):
         if not results:
             return None
 
-        if self.replication_key in ["starred_at", "created_at"]:
-            parsed_request_url = urlparse(response.request.url)
-            since = parse_qs(str(parsed_request_url.query))["since"][0]
+        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
+        # the "since" parameter out of the box. So we use a workaround here to exit early.
+        parsed_request_url = urlparse(response.request.url)
+        since = parse_qs(str(parsed_request_url.query))["since"][0]
+        try:
             if since and (parse(results[-1][self.replication_key]) < parse(since)):
                 return None
+        except KeyError:
+            pass
 
         # Use header links returned by the GitHub API.
         parsed_url = urlparse(response.links["next"]["url"])
