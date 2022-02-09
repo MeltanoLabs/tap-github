@@ -84,7 +84,7 @@ class GitHubRestStream(RESTStream):
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         parsed_request_url = urlparse(response.request.url)
         since = parse_qs(str(parsed_request_url.query))["since"][0]
-        direction = parse_qs(str(parsed_request_url.query))["since"][0]
+        direction = parse_qs(str(parsed_request_url.query))["direction"][0]
         if (
             # commit_timestamp is a constructed key which does not exist in the raw response
             self.replication_key != "commit_timestamp"
