@@ -23,6 +23,10 @@ class GitHubRestStream(RESTStream):
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
+    # GitHub is missing the "since" parameter on a few endpoints
+    # use this paramter if your stream needs to navigate data in descending order.
+    force_desc = False
+
     _authenticator: Optional[GitHubTokenAuthenticator] = None
 
     @property
@@ -106,7 +110,7 @@ class GitHubRestStream(RESTStream):
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
-            params["direction"] = "asc"
+            params["direction"] = "asc" if not self.force_desc else "desc"
         elif self.replication_key == "starred_at":
             params["sort"] = "created"
             params["direction"] = "desc"

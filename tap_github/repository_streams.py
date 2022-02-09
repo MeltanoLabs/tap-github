@@ -936,6 +936,8 @@ class PullRequestsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
+    # GitHub is missing the "since" parameter on this endpoint.
+    force_desc = True
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
