@@ -136,7 +136,7 @@ class GitHubRestStream(RESTStream):
         elif self.replication_key == "commit_timestamp":
             params["direction"] = "desc"
 
-        else:
+        elif self.replication_key:
             self.logger.warning(
                 f"The replication key '{self.replication_key}' is not fully supported by this client yet."
             )
