@@ -86,8 +86,8 @@ class GitHubRestStream(RESTStream):
         # For such streams, we sort by descending dates (most recent first), and paginate
         # "back in time" until we reach records before our "since" parameter.
         request_parameters = parse_qs(str(urlparse(response.request.url).query))
-        since = request_parameters["since"][0]
-        direction = request_parameters["direction"][0]
+        since = request_parameters.get("since", {}).get(0)
+        direction = request_parameters.get("direction", {}).get(0)
         if (
             # commit_timestamp is a constructed key which does not exist in the raw response
             self.replication_key != "commit_timestamp"
