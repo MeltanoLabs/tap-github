@@ -88,6 +88,8 @@ class StarredStream(GitHubRestStream):
     state_partitioning_keys = ["username"]
     replication_key = "starred_at"
     ignore_parent_replication_key = True
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
 
     @property
     def http_headers(self) -> dict:
@@ -166,7 +168,7 @@ class UserContributedToStream(GitHubGraphqlStream):
 
     name = "user_contributed_to"
     query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"
-    primary_keys = ["username"]
+    primary_keys = ["username", "name_with_owner"]
     replication_key = None
     parent_stream_type = UserStream
     state_partitioning_keys = ["username"]
@@ -182,24 +184,25 @@ class UserContributedToStream(GitHubGraphqlStream):
               repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
                 nodes {
                   node_id: id
-                  nameWithOwner
-                  openGraphImageUrl
-                  stargazerCount
+                  name_with_owner: nameWithOwner
+                  open_graph_image_url: openGraphImageUrl
+                  stargazer_count: stargazerCount
                   owner {
                     node_id: id
                     login
                   }
                 }
-              } 
-            }    
+              }
+            }
           }
         """
 
     schema = th.PropertiesList(
         th.Property("node_id", th.StringType),
-        th.Property("nameWithOwner", th.StringType),
-        th.Property("openGraphImageUrl", th.StringType),
-        th.Property("stargazerCount", th.IntegerType),
+        th.Property("username", th.StringType),
+        th.Property("name_with_owner", th.StringType),
+        th.Property("open_graph_image_url", th.StringType),
+        th.Property("stargazer_count", th.IntegerType),
         th.Property(
             "owner",
             th.ObjectType(

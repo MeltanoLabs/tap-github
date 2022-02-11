@@ -23,6 +23,12 @@ class GitHubRestStream(RESTStream):
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
+    # GitHub is missing the "since" parameter on a few endpoints
+    # set this parameter to True if your stream needs to navigate data in descending order
+    # and try to exit early on its own.
+    # This only has effect on streams whose `replication_key` is `updated_at`.
+    missing_since_parameter = False
+
     _authenticator: Optional[GitHubTokenAuthenticator] = None
 
     @property
@@ -65,8 +71,6 @@ class GitHubRestStream(RESTStream):
         if "next" not in response.links.keys():
             return None
 
-        # Unfortunately the /starred, /stargazers and /events endpoints do not support
-        # the "since" parameter out of the box. So we use a workaround here to exit early.
         resp_json = response.json()
         if isinstance(resp_json, list):
             results = resp_json
@@ -77,11 +81,27 @@ class GitHubRestStream(RESTStream):
         if not results:
             return None
 
-        if self.replication_key in ["starred_at", "created_at"]:
-            parsed_request_url = urlparse(response.request.url)
-            since = parse_qs(str(parsed_request_url.query))["since"][0]
-            if since and (parse(results[-1][self.replication_key]) < parse(since)):
-                return None
+        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
+        # the "since" parameter out of the box. So we use a workaround here to exit early.
+        # For such streams, we sort by descending dates (most recent first), and paginate
+        # "back in time" until we reach records before our "since" parameter.
+        request_parameters = parse_qs(str(urlparse(response.request.url).query))
+        since = (
+            request_parameters["since"][0] if "since" in request_parameters else None
+        )
+        direction = (
+            request_parameters["direction"][0]
+            if "direction" in request_parameters
+            else None
+        )
+        if (
+            # commit_timestamp is a constructed key which does not exist in the raw response
+            self.replication_key != "commit_timestamp"
+            and since
+            and direction == "desc"
+            and (parse(results[-1][self.replication_key]) < parse(since))
+        ):
+            return None
 
         # Use header links returned by the GitHub API.
         parsed_url = urlparse(response.links["next"]["url"])
@@ -104,22 +124,23 @@ class GitHubRestStream(RESTStream):
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
-            params["direction"] = "asc"
-        elif self.replication_key == "starred_at":
+            params["direction"] = "desc" if self.missing_since_parameter else "asc"
+
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
+        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
+        elif self.replication_key in ["starred_at", "created_at"]:
             params["sort"] = "created"
             params["direction"] = "desc"
-        # By default, the API returns the data in descending order by creation / timestamp.
+
         # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
-        elif self.replication_key and self.replication_key not in [
-            "commit_timestamp",
-            "created_at",
-        ]:
+        elif self.replication_key == "commit_timestamp":
+            params["direction"] = "desc"
+
+        elif self.replication_key:
             self.logger.warning(
                 f"The replication key '{self.replication_key}' is not fully supported by this client yet."
             )
 
-        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
-        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
             params["since"] = since
