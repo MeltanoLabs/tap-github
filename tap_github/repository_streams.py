@@ -341,6 +341,8 @@ class EventsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -786,6 +788,8 @@ class IssueEventsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = False
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
 
     def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -936,6 +940,8 @@ class PullRequestsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
 
     def get_url_params(
         self, context: Optional[dict], next_page_token: Optional[Any]
@@ -1274,6 +1280,8 @@ class StargazersStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     replication_key = "starred_at"
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
 
     @property
     def http_headers(self) -> dict:
