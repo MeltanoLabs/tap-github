@@ -86,8 +86,14 @@ class GitHubRestStream(RESTStream):
         # For such streams, we sort by descending dates (most recent first), and paginate
         # "back in time" until we reach records before our "since" parameter.
         request_parameters = parse_qs(str(urlparse(response.request.url).query))
-        since = request_parameters["since"][0]
-        direction = request_parameters["direction"][0]
+        since = (
+            request_parameters["since"][0] if "since" in request_parameters else None
+        )
+        direction = (
+            request_parameters["direction"][0]
+            if "direction" in request_parameters
+            else None
+        )
         if (
             # commit_timestamp is a constructed key which does not exist in the raw response
             self.replication_key != "commit_timestamp"
@@ -130,7 +136,7 @@ class GitHubRestStream(RESTStream):
         elif self.replication_key == "commit_timestamp":
             params["direction"] = "desc"
 
-        else:
+        elif self.replication_key:
             self.logger.warning(
                 f"The replication key '{self.replication_key}' is not fully supported by this client yet."
             )
