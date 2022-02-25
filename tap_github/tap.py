@@ -69,6 +69,14 @@ class TapGitHub(Tap):
         th.Property("start_date", th.DateTimeType),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
+        th.Property(
+            "skip_repo_for_child_streams",
+            th.BooleanType,
+            description=(
+                "Set to true to skip API calls for the repositories "
+                "streams if it is not selected but children are"
+            ),
+        ),
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
