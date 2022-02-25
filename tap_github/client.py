@@ -87,7 +87,10 @@ class GitHubRestStream(RESTStream):
         # "back in time" until we reach records before our "since" parameter.
         request_parameters = parse_qs(str(urlparse(response.request.url).query))
         since = (
-            request_parameters["since"][0] if "since" in request_parameters else None
+            # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+            request_parameters["since"][0].replace(" ", "+")
+            if "since" in request_parameters
+            else None
         )
         direction = (
             request_parameters["direction"][0]
