@@ -187,6 +187,14 @@ class GitHubRestStream(RESTStream):
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
                 raise RetriableAPIError(msg)
+            
+            # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
+            if (
+                response.status_code == 401
+                and "unauthorized" in str(response.content).lower()
+            ):
+                raise RetriableAPIError(msg)
+
             raise FatalAPIError(msg)
 
         elif 500 <= response.status_code < 600:
