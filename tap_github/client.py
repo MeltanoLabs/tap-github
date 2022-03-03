@@ -79,9 +79,13 @@ class GitHubRestStream(RESTStream):
 
         if self.replication_key in ["starred_at", "created_at"]:
             parsed_request_url = urlparse(response.request.url)
-            since = parse_qs(str(parsed_request_url.query))["since"][0]
-            # parse_qs interprets "+" as a space, revert this to keep an aware datetime
-            since = since.replace(" ", "+")
+            try:
+                params = parse_qs(str(parsed_request_url.query))
+                since = params["since"][0]
+                # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+                since = since.replace(" ", "+")
+            except IndexError:
+                since = ""
             if since and (parse(results[-1][self.replication_key]) < parse(since)):
                 return None
 
