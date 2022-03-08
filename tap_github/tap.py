@@ -70,11 +70,11 @@ class TapGitHub(Tap):
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
         th.Property(
-            "skip_repo_for_child_streams",
+            "skip_parent_streams",
             th.BooleanType,
             description=(
-                "Set to true to skip API calls for the repositories "
-                "streams if it is not selected but children are"
+                "Set to true to skip API calls for the parent "
+                "streams (such as repositories) if it is not selected but children are"
             ),
         ),
     ).to_dict()

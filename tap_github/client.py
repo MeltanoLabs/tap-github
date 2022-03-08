@@ -86,12 +86,15 @@ class GitHubRestStream(RESTStream):
         # For such streams, we sort by descending dates (most recent first), and paginate
         # "back in time" until we reach records before our "since" parameter.
         request_parameters = parse_qs(str(urlparse(response.request.url).query))
-        since = (
-            # parse_qs interprets "+" as a space, revert this to keep an aware datetime
-            request_parameters["since"][0].replace(" ", "+")
-            if "since" in request_parameters
-            else None
-        )
+        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+        try:
+            since = (
+                request_parameters["since"][0].replace(" ", "+")
+                if "since" in request_parameters
+                else ""
+            )
+        except IndexError:
+            since = ""
         direction = (
             request_parameters["direction"][0]
             if "direction" in request_parameters
@@ -190,6 +193,14 @@ class GitHubRestStream(RESTStream):
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
                 raise RetriableAPIError(msg)
+
+            # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
+            if (
+                response.status_code == 401
+                and "unauthorized" in str(response.content).lower()
+            ):
+                raise RetriableAPIError(msg)
+
             raise FatalAPIError(msg)
 
         elif 500 <= response.status_code < 600:

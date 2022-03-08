@@ -77,15 +77,15 @@ class RepositoryStream(GitHubRestStream):
     def get_records(self, context: Optional[dict]) -> Iterable[Dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
-        if the stream is deselected and skip_repo_for_child_streams is True in config.
+        if the stream is deselected and skip_parent_streams is True in config.
         This allows running the tap with fewer API calls and preserving
         quota when only syncing a child stream. Without this,
         the API call is sent but data is discarded.
         """
         if (
             not self.selected
-            and "skip_repo_for_child_streams" in self.config
-            and self.config["skip_repo_for_child_streams"]
+            and "skip_parent_streams" in self.config
+            and self.config["skip_parent_streams"]
             and context is not None
         ):
             # build a minimal mock record so that self._sync_records
