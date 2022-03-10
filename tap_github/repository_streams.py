@@ -547,6 +547,39 @@ class LanguagesStream(GitHubRestStream):
     ).to_dict()
 
 
+class AssigneesStream(GitHubRestStream):
+    """Defines 'Assignees' stream which returns possible assignees for issues/prs following GitHub's API convention."""
+
+    name = "assignees"
+    path = "/repos/{org}/{repo}/assignees"
+    primary_keys = ["owner"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("login", th.StringType),
+        th.Property("avatar_url", th.StringType),
+        th.Property("gravatar_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.IntegerType),
+        th.Property("followers_url", th.DateTimeType),
+        th.Property("following_url", th.DateTimeType),
+        th.Property("gists_url", th.DateTimeType),
+        th.Property("starred_url", th.StringType),
+        th.Property("subscriptions_url", th.StringType),
+        th.Property("organizations_url", th.IntegerType),
+        th.Property("repos_url", th.StringType),
+        th.Property("events_url", th.StringType),
+        th.Property("received_events_url", th.StringType),
+        th.Property("type", th.StringType),
+        th.Property("site_admin", th.BooleanType)
+    ).to_dict()
+
+
 class IssuesStream(GitHubRestStream):
     """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
