@@ -552,16 +552,15 @@ class AssigneesStream(GitHubRestStream):
 
     name = "assignees"
     path = "/repos/{org}/{repo}/assignees"
-    primary_keys = ["owner"]
-    replication_key = "updated_at"
+    primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
+        th.Property("login", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
-        th.Property("login", th.StringType),
         th.Property("avatar_url", th.StringType),
         th.Property("gravatar_id", th.StringType),
         th.Property("url", th.StringType),
@@ -576,7 +575,7 @@ class AssigneesStream(GitHubRestStream):
         th.Property("events_url", th.StringType),
         th.Property("received_events_url", th.StringType),
         th.Property("type", th.StringType),
-        th.Property("site_admin", th.BooleanType)
+        th.Property("site_admin", th.BooleanType),
     ).to_dict()
 
 

@@ -20,7 +20,8 @@ from tap_github.repository_streams import (
     ReadmeStream,
     RepositoryStream,
     StargazersStream,
-    StatsContributorsStream, AssigneesStream,
+    StatsContributorsStream,
+    AssigneesStream,
 )
 from tap_github.user_streams import (
     StarredStream,
