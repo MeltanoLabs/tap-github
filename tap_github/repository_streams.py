@@ -1357,11 +1357,11 @@ class ReviewsStream(GitHubRestStream):
 
 class ReviewCommentsStream(GitHubRestStream):
     name = "review_comments"
-    path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
+    path = "/repos/{org}/{repo}/pulls/comments"
     primary_keys = ["id"]
-    parent_stream_type = PullRequestsStream
+    parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["pull_number"]
+    state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
         th.Property("url", th.StringType),
