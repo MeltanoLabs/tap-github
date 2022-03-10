@@ -22,6 +22,7 @@ from tap_github.repository_streams import (
     StargazersStream,
     StatsContributorsStream,
     AssigneesStream,
+    CollaboratorsStream,
 )
 from tap_github.user_streams import (
     StarredStream,
@@ -105,6 +106,7 @@ class TapGitHub(Tap):
                 CommunityProfileStream(tap=self),
                 ContributorsStream(tap=self),
                 EventsStream(tap=self),
+                CollaboratorsStream(tap=self),
                 AssigneesStream(tap=self),
                 IssuesStream(tap=self),
                 IssueCommentsStream(tap=self),
