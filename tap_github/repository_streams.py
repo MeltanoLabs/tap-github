@@ -1075,6 +1075,13 @@ class PullRequestsStream(GitHubRestStream):
         row["minus_one"] = row.pop("-1", None)
         return row
 
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        return {
+            "org": context["org"],
+            "repo": context["repo"],
+            "pull_number": record["number"],
+        }
+
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -1292,6 +1299,127 @@ class PullRequestsStream(GitHubRestStream):
                 ),
             ),
         ),
+    ).to_dict()
+
+
+class ReviewsStream(GitHubRestStream):
+    name = "reviews"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
+    primary_keys = ["id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["pull_number"]
+
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("body", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("pull_request_url", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property(
+                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
+                ),
+            ),
+        ),
+        th.Property("submitted_at", th.StringType),
+        th.Property("commit_id", th.StringType),
+        th.Property("author_association", th.StringType),
+    ).to_dict()
+
+
+class ReviewCommentsStream(GitHubRestStream):
+    name = "review_comments"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
+    primary_keys = ["id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["pull_number"]
+
+    schema = th.PropertiesList(
+        th.Property("url", th.StringType),
+        th.Property("pull_request_review_id", th.IntegerType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("diff_hunk", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("position", th.IntegerType),
+        th.Property("original_position", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        th.Property("original_commit_id", th.StringType),
+        th.Property("in_reply_to_id", th.IntegerType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("body", th.StringType),
+        th.Property("created_at", th.StringType),
+        th.Property("updated_at", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("pull_request_url", th.StringType),
+        th.Property("author_association", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("self", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property(
+                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
+                ),
+            ),
+        ),
+        th.Property("start_line", th.IntegerType),
+        th.Property("original_start_line", th.IntegerType),
+        th.Property("start_side", th.StringType),
+        th.Property("line", th.IntegerType),
+        th.Property("original_line", th.IntegerType),
+        th.Property("side", th.StringType),
     ).to_dict()
 
 
