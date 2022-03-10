@@ -1076,10 +1076,16 @@ class PullRequestsStream(GitHubRestStream):
         return row
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        if context:
+            return {
+                "org": context["org"],
+                "repo": context["repo"],
+                "pull_number": record["number"],
+            }
         return {
-            "org": context["org"],
-            "repo": context["repo"],
             "pull_number": record["number"],
+            "org": record["base"]["user"]["login"],
+            "repo": record["base"]["repo"]["name"],
         }
 
     schema = th.PropertiesList(
