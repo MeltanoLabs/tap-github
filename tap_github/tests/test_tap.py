@@ -10,7 +10,7 @@ from tap_github.tap import TapGitHub
 
 from .fixtures import repo_list_config
 
-repo_list_2 = ["octocat/hello-world", "MeltanoLabs/tap-github", "mapswipe/mapswipe"]
+repo_list_2 = ["MeltanoLabs/tap-github"]
 
 
 @pytest.mark.repo_list(repo_list_2)

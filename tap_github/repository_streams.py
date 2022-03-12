@@ -1077,9 +1077,7 @@ class PullRequestsStream(GitHubRestStream):
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         if context:
-            return {
-                "org": context["org"],
-                "repo": context["repo"],
+            return context | {
                 "pull_number": record["number"],
             }
         return {
