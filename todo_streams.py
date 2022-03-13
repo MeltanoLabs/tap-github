@@ -107,8 +107,8 @@ schema=th.PropertiesList(
       th.Property("verification", th.ObjectType(
         th.Property("verified", th.BooleanType),
         th.Property("reason", th.StringType),
-        "signature": null,
-        "payload": null
+        th.Property("signature",th.StringType),
+        th.Property("payload",th.StringType)
       ),),
     ),),
     th.Property("author", th.ObjectType(
@@ -155,7 +155,7 @@ schema=th.PropertiesList(
 
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType)
-    )
+    ))
   ).to_dict()
 
 
@@ -230,23 +230,23 @@ schema=th.PropertiesList(
           th.Property("received_events_url", th.StringType),
           th.Property("type", th.StringType),
           th.Property("site_admin", th.BooleanType)
-        ),),
-  ).to_dict()
+        ),))
+  )).to_dict()
 # teams
- schema=th.PropertiesList(
-    th.Property("id", th.IntegerType),
-    th.Property("node_id", th.StringType),
-    th.Property("url", th.StringType),
-    th.Property("html_url", th.StringType),
-    th.Property("name", th.StringType),
-    th.Property("slug", th.StringType),
-    th.Property("description", th.StringType),
-    th.Property("privacy", th.StringType),
-    th.Property("permission", th.StringType),
-    th.Property("members_url", th.StringType),
-    th.Property("repositories_url", th.StringType),
-    "parent": null
-  ).to_dict()
+schema=th.PropertiesList(
+   th.Property("id", th.IntegerType),
+   th.Property("node_id", th.StringType),
+   th.Property("url", th.StringType),
+   th.Property("html_url", th.StringType),
+   th.Property("name", th.StringType),
+   th.Property("slug", th.StringType),
+   th.Property("description", th.StringType),
+   th.Property("privacy", th.StringType),
+   th.Property("permission", th.StringType),
+   th.Property("members_url", th.StringType),
+   th.Property("repositories_url", th.StringType),
+   th.Property("parent",th.StringType)
+ ).to_dict()
 
 # team members
 schema=th.PropertiesList(
