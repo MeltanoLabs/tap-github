@@ -577,6 +577,7 @@ class ReleasesStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
+    replication_key = "published_at"
 
     schema = th.PropertiesList(
         th.Property("url", th.StringType),
@@ -1174,7 +1175,7 @@ class CommitsStream(GitHubRestStream):
 
 class CommitCommentsStream(GitHubRestStream):
 
-    name = "commit_comment"
+    name = "commit_comments"
     path = "/repos/{org}/{repo}/comments"
     primary_keys = ["id"]
     replication_key = "updated_at"
@@ -1923,7 +1924,9 @@ class StatsContributorsStream(GitHubRestStream):
 class ProjectsStream(GitHubRestStream):
     name = "projects"
     path = "/repos/{org}/{repo}/projects"
+    # TODO I think this can be true, but I'm not sure.
     ignore_parent_replication_key = False
+    replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
@@ -1974,6 +1977,7 @@ class ProjectColumnsStream(GitHubRestStream):
     name = "project_columns"
     path = "/projects/{project_id}/columns"
     ignore_parent_replication_key = False
+    replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectsStream
     state_partitioning_keys = ["project_id"]
@@ -1997,6 +2001,7 @@ class ProjectCardsStream(GitHubRestStream):
     name = "project_cards"
     path = "/projects/columns/{column_id}/cards"
     ignore_parent_replication_key = False
+    replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectColumnsStream
     state_partitioning_keys = ["column_id"]
