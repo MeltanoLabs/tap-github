@@ -17,9 +17,7 @@ repo_list_2 = ["MeltanoLabs/tap-github"]
 def test_validate_repo_list_config(repo_list_config):
     """Verify that the repositories list is parsed correctly"""
     repo_list_context = [
-        {"org": "octocat", "repo": "hello-world"},
-        {"org": "MeltanoLabs", "repo": "tap-github"},
-        {"org": "mapswipe", "repo": "mapswipe"},
+        {"org": repo.split("/")[0], "repo": repo.split("/")[1]} for repo in repo_list_2
     ]
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions
