@@ -25,6 +25,13 @@ from tap_github.repository_streams import (
     CollaboratorsStream,
     ReviewsStream,
     ReviewCommentsStream,
+    ProjectsStream,
+    ProjectColumnsStream,
+    ProjectCardsStream,
+    PullRequestCommits,
+    MilestonesStream,
+    CommitCommentsStream,
+    ReleasesStream,
 )
 from tap_github.user_streams import (
     StarredStream,
@@ -105,9 +112,12 @@ class TapGitHub(Tap):
             return [
                 AnonymousContributorsStream(tap=self),
                 CommitsStream(tap=self),
+                CommitCommentsStream(tap=self),
                 CommunityProfileStream(tap=self),
                 ContributorsStream(tap=self),
                 EventsStream(tap=self),
+                MilestonesStream(tap=self),
+                ReleasesStream(tap=self),
                 CollaboratorsStream(tap=self),
                 AssigneesStream(tap=self),
                 IssuesStream(tap=self),
@@ -115,6 +125,7 @@ class TapGitHub(Tap):
                 IssueEventsStream(tap=self),
                 LanguagesStream(tap=self),
                 PullRequestsStream(tap=self),
+                PullRequestCommits(tap=self),
                 ReviewsStream(tap=self),
                 ReviewCommentsStream(tap=self),
                 ReadmeHtmlStream(tap=self),
@@ -122,6 +133,9 @@ class TapGitHub(Tap):
                 RepositoryStream(tap=self),
                 StargazersStream(tap=self),
                 StatsContributorsStream(tap=self),
+                ProjectsStream(tap=self),
+                ProjectColumnsStream(tap=self),
+                ProjectCardsStream(tap=self),
             ]
 
 

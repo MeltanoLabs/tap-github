@@ -570,6 +570,99 @@ class MilestonesStream(GitHubRestStream):
     ).to_dict()
 
 
+class ReleasesStream(GitHubRestStream):
+    name = "releases"
+    path = "/repos/{org}/{repo}/releases"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("assets_url", th.StringType),
+        th.Property("upload_url", th.StringType),
+        th.Property("tarball_url", th.StringType),
+        th.Property("zipball_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("tag_name", th.StringType),
+        th.Property("target_commitish", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("draft", th.BooleanType),
+        th.Property("prerelease", th.BooleanType),
+        th.Property("created_at", th.StringType),
+        th.Property("published_at", th.StringType),
+        th.Property(
+            "author",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "assets",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType),
+                    th.Property("browser_download_url", th.StringType),
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("name", th.StringType),
+                    th.Property("label", th.StringType),
+                    th.Property("state", th.StringType),
+                    th.Property("content_type", th.StringType),
+                    th.Property("size", th.IntegerType),
+                    th.Property("download_count", th.IntegerType),
+                    th.Property("created_at", th.StringType),
+                    th.Property("updated_at", th.StringType),
+                    th.Property(
+                        "uploader",
+                        th.ObjectType(
+                            th.Property("login", th.StringType),
+                            th.Property("id", th.IntegerType),
+                            th.Property("node_id", th.StringType),
+                            th.Property("avatar_url", th.StringType),
+                            th.Property("gravatar_id", th.StringType),
+                            th.Property("url", th.StringType),
+                            th.Property("html_url", th.StringType),
+                            th.Property("followers_url", th.StringType),
+                            th.Property("following_url", th.StringType),
+                            th.Property("gists_url", th.StringType),
+                            th.Property("starred_url", th.StringType),
+                            th.Property("subscriptions_url", th.StringType),
+                            th.Property("organizations_url", th.StringType),
+                            th.Property("repos_url", th.StringType),
+                            th.Property("events_url", th.StringType),
+                            th.Property("received_events_url", th.StringType),
+                            th.Property("type", th.StringType),
+                            th.Property("site_admin", th.BooleanType),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    ).to_dict()
+
+
 class LanguagesStream(GitHubRestStream):
     name = "languages"
     path = "/repos/{org}/{repo}/languages"
@@ -1408,6 +1501,117 @@ class PullRequestsStream(GitHubRestStream):
     ).to_dict()
 
 
+class PullRequestCommits(GitHubRestStream):
+    name = "pull_request_commits"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
+    ignore_parent_replication_key = False
+    primary_keys = ["node_id"]
+    parent_stream_type = PullRequestsStream
+    state_partitioning_keys = ["pull_number"]
+
+    schema = th.PropertiesList(
+        th.Property("url", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("comments_url", th.StringType),
+        th.Property(
+            "commit",
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property(
+                    "author",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "committer",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.StringType),
+                    ),
+                ),
+                th.Property("message", th.StringType),
+                th.Property(
+                    "tree",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("sha", th.StringType),
+                    ),
+                ),
+                th.Property("comment_count", th.IntegerType),
+                th.Property(
+                    "verification",
+                    th.ObjectType(
+                        th.Property("verified", th.BooleanType),
+                        th.Property("reason", th.StringType),
+                        th.Property("signature", th.StringType),
+                        th.Property("payload", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+        th.Property(
+            "author",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "committer",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "parents",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType), th.Property("sha", th.StringType)
+                )
+            ),
+        ),
+    ).to_dict()
+
+
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
@@ -1713,4 +1917,122 @@ class StatsContributorsStream(GitHubRestStream):
         th.Property("gravatar_id", th.StringType),
         th.Property("type", th.StringType),
         th.Property("site_admin", th.BooleanType),
+    ).to_dict()
+
+
+class ProjectsStream(GitHubRestStream):
+    name = "projects"
+    path = "/repos/{org}/{repo}/projects"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        return {"project_id": record["id"]}
+
+    schema = th.PropertiesList(
+        th.Property("owner_url", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("columns_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("number", th.IntegerType),
+        th.Property("state", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("created_at", th.StringType),
+        th.Property("updated_at", th.StringType),
+    ).to_dict()
+
+
+class ProjectColumnsStream(GitHubRestStream):
+    name = "project_columns"
+    path = "/projects/{project_id}/columns"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = ProjectsStream
+    state_partitioning_keys = ["project_id"]
+
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        return {"column_id": record["id"]}
+
+    schema = th.PropertiesList(
+        th.Property("url", th.StringType),
+        th.Property("project_url", th.StringType),
+        th.Property("cards_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("created_at", th.StringType),
+        th.Property("updated_at", th.StringType),
+    ).to_dict()
+
+
+class ProjectCardsStream(GitHubRestStream):
+    name = "project_cards"
+    path = "/projects/columns/{column_id}/cards"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = ProjectColumnsStream
+    state_partitioning_keys = ["column_id"]
+
+    schema = th.PropertiesList(
+        th.Property("url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("note", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("created_at", th.StringType),
+        th.Property("updated_at", th.StringType),
+        th.Property("archived", th.BooleanType),
+        th.Property("column_url", th.StringType),
+        th.Property("content_url", th.StringType),
+        th.Property("project_url", th.StringType),
     ).to_dict()
