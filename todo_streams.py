@@ -1,10 +1,21 @@
+from typing import Optional
+
 from singer_sdk import typing as th
 
 from tap_github.client import GitHubRestStream
+from tap_github.repository_streams import PullRequestsStream, RepositoryStream
 
 
 class ProjectsStream(GitHubRestStream):
     name = "projects"
+    path = "/repos/{org}/{repo}/projects"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        return {"project_id": record["id"]}
+
     schema = th.PropertiesList(
         th.Property("owner_url", th.StringType),
         th.Property("url", th.StringType),
@@ -44,8 +55,34 @@ class ProjectsStream(GitHubRestStream):
     ).to_dict()
 
 
+class ProjectColumnsStream(GitHubRestStream):
+    name = "project_columns"
+    path = "/projects/{project_id}/columns"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = ProjectsStream
+
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        return {"column_id": record["id"]}
+
+    schema = th.PropertiesList(
+        th.Property("url", th.StringType),
+        th.Property("project_url", th.StringType),
+        th.Property("cards_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("created_at", th.StringType),
+        th.Property("updated_at", th.StringType),
+    ).to_dict()
+
+
 class ProjectCardsStream(GitHubRestStream):
     name = "project_cards"
+    path = "/projects/columns/{column_id}/cards"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = ProjectColumnsStream
     schema = th.PropertiesList(
         th.Property("url", th.StringType),
         th.Property("id", th.IntegerType),
@@ -83,22 +120,12 @@ class ProjectCardsStream(GitHubRestStream):
     ).to_dict()
 
 
-class ProjectColumnsStream(GitHubRestStream):
-    name = "project_columns"
-    schema = th.PropertiesList(
-        th.Property("url", th.StringType),
-        th.Property("project_url", th.StringType),
-        th.Property("cards_url", th.StringType),
-        th.Property("id", th.IntegerType),
-        th.Property("node_id", th.StringType),
-        th.Property("name", th.StringType),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
-    ).to_dict()
-
-
 class PrCommitsStream(GitHubRestStream):
     name = "pr_commits"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
+    ignore_parent_replication_key = False
+    primary_keys = ["node_id"]
+    parent_stream_type = PullRequestsStream
     schema = th.PropertiesList(
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType),
@@ -204,6 +231,10 @@ class PrCommitsStream(GitHubRestStream):
 
 class ReleasesStream(GitHubRestStream):
     name = "releases"
+    path = "/repos/{org}/{repo}/releases"
+    ignore_parent_replication_key = False
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
     schema = th.PropertiesList(
         th.Property("url", th.StringType),
         th.Property("html_url", th.StringType),
@@ -289,8 +320,11 @@ class ReleasesStream(GitHubRestStream):
     ).to_dict()
 
 
+# TODO not sure what the parent stream is here.
 class TeamsStream(GitHubRestStream):
     name = "teams"
+    primary_keys = ['id']
+    path = "/orgs/{org}/teams"
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
@@ -309,6 +343,8 @@ class TeamsStream(GitHubRestStream):
 
 class TeamMembersStream(GitHubRestStream):
     name = "team_members"
+    primary_keys = ['id']
+    path = "/orgs/{org}/teams/{team_slug}/members"
     schema = th.PropertiesList(
         th.Property("login", th.StringType),
         th.Property("id", th.IntegerType),
@@ -333,6 +369,7 @@ class TeamMembersStream(GitHubRestStream):
 
 class TeamRolesStream(GitHubRestStream):
     name = "team_roles"
+    path = "/orgs/{org}/teams/{team_slug}/memberships/{username}"
     schema = th.PropertiesList(
         th.Property("url", th.StringType),
         th.Property("role", th.StringType),
