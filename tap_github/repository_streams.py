@@ -563,9 +563,9 @@ class MilestonesStream(GitHubRestStream):
         ),
         th.Property("open_issues", th.IntegerType),
         th.Property("closed_issues", th.IntegerType),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
-        th.Property("closed_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("closed_at", th.DateTimeType),
         th.Property("due_on", th.StringType),
     ).to_dict()
 
@@ -594,8 +594,8 @@ class ReleasesStream(GitHubRestStream):
         th.Property("body", th.StringType),
         th.Property("draft", th.BooleanType),
         th.Property("prerelease", th.BooleanType),
-        th.Property("created_at", th.StringType),
-        th.Property("published_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("published_at", th.DateTimeType),
         th.Property(
             "author",
             th.ObjectType(
@@ -633,8 +633,8 @@ class ReleasesStream(GitHubRestStream):
                     th.Property("content_type", th.StringType),
                     th.Property("size", th.IntegerType),
                     th.Property("download_count", th.IntegerType),
-                    th.Property("created_at", th.StringType),
-                    th.Property("updated_at", th.StringType),
+                    th.Property("created_at", th.DateTimeType),
+                    th.Property("updated_at", th.DateTimeType),
                     th.Property(
                         "uploader",
                         th.ObjectType(
@@ -1216,8 +1216,8 @@ class CommitCommentsStream(GitHubRestStream):
                 th.Property("site_admin", th.BooleanType),
             ),
         ),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
     ).to_dict()
 
@@ -1660,7 +1660,7 @@ class ReviewsStream(GitHubRestStream):
                 ),
             ),
         ),
-        th.Property("submitted_at", th.StringType),
+        th.Property("submitted_at", th.DateTimeType),
         th.Property("commit_id", th.StringType),
         th.Property("author_association", th.StringType),
     ).to_dict()
@@ -1710,8 +1710,8 @@ class ReviewCommentsStream(GitHubRestStream):
             ),
         ),
         th.Property("body", th.StringType),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
         th.Property("html_url", th.StringType),
         th.Property("pull_request_url", th.StringType),
         th.Property("author_association", th.StringType),
@@ -1968,8 +1968,8 @@ class ProjectsStream(GitHubRestStream):
                 th.Property("site_admin", th.BooleanType),
             ),
         ),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
 
@@ -1992,8 +1992,8 @@ class ProjectColumnsStream(GitHubRestStream):
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("name", th.StringType),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
 
@@ -2034,8 +2034,8 @@ class ProjectCardsStream(GitHubRestStream):
                 th.Property("site_admin", th.BooleanType),
             ),
         ),
-        th.Property("created_at", th.StringType),
-        th.Property("updated_at", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
         th.Property("archived", th.BooleanType),
         th.Property("column_url", th.StringType),
         th.Property("content_url", th.StringType),
