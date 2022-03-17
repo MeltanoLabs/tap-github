@@ -5,39 +5,7 @@ from typing import List
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
 
-from tap_github.repository_streams import (
-    AnonymousContributorsStream,
-    CommitsStream,
-    CommunityProfileStream,
-    ContributorsStream,
-    EventsStream,
-    IssueCommentsStream,
-    IssueEventsStream,
-    IssuesStream,
-    LanguagesStream,
-    PullRequestsStream,
-    ReadmeHtmlStream,
-    ReadmeStream,
-    RepositoryStream,
-    StargazersStream,
-    StatsContributorsStream,
-    AssigneesStream,
-    CollaboratorsStream,
-    ReviewsStream,
-    ReviewCommentsStream,
-    ProjectsStream,
-    ProjectColumnsStream,
-    ProjectCardsStream,
-    PullRequestCommits,
-    MilestonesStream,
-    CommitCommentsStream,
-    ReleasesStream,
-)
-from tap_github.user_streams import (
-    StarredStream,
-    UserContributedToStream,
-    UserStream,
-)
+from tap_github.streams import Streams
 
 
 class TapGitHub(Tap):
@@ -92,51 +60,17 @@ class TapGitHub(Tap):
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams for each query."""
-        VALID_USER_QUERIES = {"user_usernames", "user_ids"}
-        VALID_REPO_QUERIES = {"repositories", "organizations", "searches"}
-        VALID_QUERIES = VALID_REPO_QUERIES.union(VALID_USER_QUERIES)
 
-        if len(VALID_QUERIES.intersection(self.config)) != 1:
+        if len(Streams.all_valid_queries().intersection(self.config)) != 1:
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
-                f"{VALID_QUERIES}."
+                f"{Streams.all_valid_queries()}."
             )
-        is_user_query = len(VALID_USER_QUERIES.intersection(self.config)) > 0
-        if is_user_query:
-            return [
-                StarredStream(tap=self),
-                UserContributedToStream(tap=self),
-                UserStream(tap=self),
-            ]
-        else:
-            return [
-                AnonymousContributorsStream(tap=self),
-                CommitsStream(tap=self),
-                CommitCommentsStream(tap=self),
-                CommunityProfileStream(tap=self),
-                ContributorsStream(tap=self),
-                EventsStream(tap=self),
-                MilestonesStream(tap=self),
-                ReleasesStream(tap=self),
-                CollaboratorsStream(tap=self),
-                AssigneesStream(tap=self),
-                IssuesStream(tap=self),
-                IssueCommentsStream(tap=self),
-                IssueEventsStream(tap=self),
-                LanguagesStream(tap=self),
-                PullRequestsStream(tap=self),
-                PullRequestCommits(tap=self),
-                ReviewsStream(tap=self),
-                ReviewCommentsStream(tap=self),
-                ReadmeHtmlStream(tap=self),
-                ReadmeStream(tap=self),
-                RepositoryStream(tap=self),
-                StargazersStream(tap=self),
-                StatsContributorsStream(tap=self),
-                ProjectsStream(tap=self),
-                ProjectColumnsStream(tap=self),
-                ProjectCardsStream(tap=self),
-            ]
+
+        for stream_type in Streams:
+            if len(stream_type.valid_queries.intersection(self.config)) > 0:
+                return [StreamClass(tap=self) for StreamClass in stream_type.streams]
+        raise Exception("No valid queries found")
 
 
 # CLI Execution:
