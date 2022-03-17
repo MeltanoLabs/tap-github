@@ -33,5 +33,15 @@ class OrganizationStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         th.Property("login", th.StringType),
-        # TODO
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("repos_url", th.StringType),
+        th.Property("events_url", th.StringType),
+        th.Property("hooks_url", th.StringType),
+        th.Property("issues_url", th.StringType),
+        th.Property("members_url", th.StringType),
+        th.Property("public_members_url", th.StringType),
+        th.Property("avatar_url", th.StringType),
+        th.Property("description", th.StringType),
     ).to_dict()

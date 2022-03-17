@@ -90,4 +90,4 @@ class Streams(Enum):
 
     @classmethod
     def all_valid_queries(cls):
-        return set.union(*[stream.value for stream in Streams])
+        return set.union(*[stream.valid_queries for stream in Streams])
