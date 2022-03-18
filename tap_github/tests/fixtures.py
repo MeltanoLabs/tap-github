@@ -37,38 +37,55 @@ def repo_list_config(request):
 
 
 @pytest.fixture
-def usernames_list_config(request):
+def username_list_config(request):
     """
     Get a default list of usernames or pass your own by decorating your test with
-    @pytest.mark.usernames_list(['ericboucher', 'aaronsteers'])
+    @pytest.mark.username_list(['ericboucher', 'aaronsteers'])
     """
-    marker = request.node.get_closest_marker("usernames_list")
+    marker = request.node.get_closest_marker("username_list")
     if marker is None:
-        usernames_list = ["ericboucher", "aaronsteers"]
+        username_list = ["ericboucher", "aaronsteers"]
     else:
-        usernames_list = marker.args[0]
+        username_list = marker.args[0]
 
     return {
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-        "user_usernames": usernames_list,
+        "user_usernames": username_list,
     }
 
 
 @pytest.fixture
-def user_ids_list_config(request):
+def user_id_list_config(request):
     """
     Get a default list of usernames or pass your own by decorating your test with
-    @pytest.mark.user_ids_list(['ericboucher', 'aaronsteers'])
+    @pytest.mark.user_id_list(['ericboucher', 'aaronsteers'])
     """
-    marker = request.node.get_closest_marker("user_ids_list")
+    marker = request.node.get_closest_marker("user_id_list")
     if marker is None:
-        user_ids_list = [1, 2]
+        user_id_list = [1, 2]
     else:
-        user_ids_list = marker.args[0]
+        user_id_list = marker.args[0]
 
     return {
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-        "user_ids": user_ids_list,
+        "user_ids": user_id_list,
+    }
+
+
+@pytest.fixture
+def organization_list_config(request):
+    """
+    Get a default list of usernames or pass your own by decorating your test with
+    @pytest.mark.user_id_list(['ericboucher', 'aaronsteers'])
+    """
+    marker = request.node.get_closest_marker("organization_list")
+
+    organization_list = ["MeltanoLabs"] if marker is None else marker.args[0]
+
+    return {
+        "metrics_log_level": "none",
+        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+        "organizations": organization_list,
     }

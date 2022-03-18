@@ -1,10 +1,4 @@
-import datetime
-
 import pytest
-from singer_sdk.helpers._catalog import (
-    deselect_all_streams,
-    set_catalog_stream_selected,
-)
 
 from tap_github.tap import TapGitHub
 
