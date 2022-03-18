@@ -66,11 +66,16 @@ class TapGitHub(Tap):
                 "This tap requires one and only one of the following path options: "
                 f"{Streams.all_valid_queries()}."
             )
-
+        streams = []
         for stream_type in Streams:
             if len(stream_type.valid_queries.intersection(self.config)) > 0:
-                return [StreamClass(tap=self) for StreamClass in stream_type.streams]
-        raise Exception("No valid queries found")
+                streams += [
+                    StreamClass(tap=self) for StreamClass in stream_type.streams
+                ]
+        # if streams is empty, raise exception
+        if not streams:
+            raise Exception("No valid streams found.")
+        return streams
 
 
 # CLI Execution:
