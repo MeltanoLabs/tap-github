@@ -40,8 +40,6 @@ from tap_github.user_streams import (
 
 
 class Streams(Enum):
-    valid_queries: set[str]
-    streams: list[Type[Stream]]
 
     def __init__(self, valid_queries: set[str], streams: list[Type[Stream]]):
         self.valid_queries = valid_queries
