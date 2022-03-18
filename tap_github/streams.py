@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Mapping, Any, Type
+from typing import Type, Set, List
 
 from singer_sdk.streams.core import Stream
 
@@ -40,7 +40,10 @@ from tap_github.user_streams import (
 
 
 class Streams(Enum):
-    def __init__(self, valid_queries: set[str], streams: list[Type[Stream]]):
+    valid_queries: Set[str]
+    streams: List[Type[Stream]]
+
+    def __init__(self, valid_queries: Set[str], streams: List[Type[Stream]]):
         self.valid_queries = valid_queries
         self.streams = streams
 
