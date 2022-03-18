@@ -1924,8 +1924,7 @@ class StatsContributorsStream(GitHubRestStream):
 class ProjectsStream(GitHubRestStream):
     name = "projects"
     path = "/repos/{org}/{repo}/projects"
-    # TODO I think this can be true, but I'm not sure.
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
