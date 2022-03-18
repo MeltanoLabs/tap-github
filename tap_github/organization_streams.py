@@ -78,7 +78,13 @@ class TeamsStream(GitHubRestStream):
     state_partitioning_keys = ["org"]
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        return {"org": context["org"], "team_slug": record["slug"]}
+        new_context = {"team_slug": record["slug"]}
+        if context:
+            return {
+                **context,
+                **new_context,
+            }
+        return new_context
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType),
@@ -105,11 +111,13 @@ class TeamMembersStream(GitHubRestStream):
     state_partitioning_keys = ["org", "team_slug"]
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        return {
-            "org": context["org"],
-            "team_slug": context["team_slug"],
-            "username": record["login"],
-        }
+        new_context = {"username": record["login"]}
+        if context:
+            return {
+                **context,
+                **new_context,
+            }
+        return new_context
 
     schema = th.PropertiesList(
         th.Property("login", th.StringType),
