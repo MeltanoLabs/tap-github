@@ -37,6 +37,12 @@ from tap_github.user_streams import (
     UserContributedToStream,
     UserStream,
 )
+from tap_github.organization_streams import (
+    OrganizationStream,
+    TeamsStream,
+    TeamMembersStream,
+    TeamRolesStream,
+)
 
 
 class Streams(Enum):
@@ -86,7 +92,10 @@ class Streams(Enum):
             UserStream,
         ],
     )
-    ORGANIZATIONS = ({"organizations"}, [OrganizationStream])
+    ORGANIZATIONS = (
+        {"organizations"},
+        [OrganizationStream, TeamsStream, TeamMembersStream, TeamRolesStream],
+    )
 
     @classmethod
     def all_valid_queries(cls):
