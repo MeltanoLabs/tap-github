@@ -74,7 +74,7 @@ class TapGitHub(Tap):
                 ]
         # if streams is empty, raise exception
         if not streams:
-            raise Exception("No valid streams found.")
+            raise ValueError("No valid streams found.")
         return streams
 
 

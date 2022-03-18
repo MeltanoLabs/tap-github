@@ -82,7 +82,7 @@ def organization_list_config(request):
     """
     marker = request.node.get_closest_marker("organization_list")
 
-    organization_list = ["MeltanoLabs"] if marker is None else marker.args[0]
+    organization_list = ["oviohub"] if marker is None else marker.args[0]
 
     return {
         "metrics_log_level": "none",
