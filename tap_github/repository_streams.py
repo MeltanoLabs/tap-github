@@ -1653,8 +1653,8 @@ class ReviewsStream(GitHubRestStream):
     schema = th.PropertiesList(
         # Parent keys
         th.Property("pull_number", th.IntegerType),
-        th.Property("org", th.IntegerType),
-        th.Property("repo", th.IntegerType),
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
         # Rest
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
@@ -1710,8 +1710,8 @@ class ReviewCommentsStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         # Parent keys
-        th.Property("org", th.IntegerType),
-        th.Property("repo", th.IntegerType),
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
         # Rest
         th.Property("url", th.StringType),
         th.Property("pull_request_review_id", th.IntegerType),
@@ -2028,8 +2028,8 @@ class ProjectColumnsStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         # Parent Keys
-        th.Property("repo", th.IntegerType),
-        th.Property("org", th.IntegerType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
         th.Property("project_id", th.IntegerType),
         # Rest
         th.Property("url", th.StringType),
@@ -2054,8 +2054,8 @@ class ProjectCardsStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         # Parent Keys
-        th.Property("repo", th.IntegerType),
-        th.Property("org", th.IntegerType),
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
         th.Property("project_id", th.IntegerType),
         th.Property("column_id", th.IntegerType),
         # Properties
