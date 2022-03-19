@@ -87,6 +87,9 @@ class TeamsStream(GitHubRestStream):
         return new_context
 
     schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("url", th.StringType),
@@ -120,6 +123,10 @@ class TeamMembersStream(GitHubRestStream):
         return new_context
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("team_slug", th.StringType),
+        # Rest
         th.Property("login", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
@@ -150,6 +157,11 @@ class TeamRolesStream(GitHubRestStream):
     state_partitioning_keys = ["org", "team_slug", "username"]
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("team_slug", th.StringType),
+        th.Property("username", th.StringType),
+        # Rest
         th.Property("url", th.StringType),
         th.Property("role", th.StringType),
         th.Property("state", th.StringType),

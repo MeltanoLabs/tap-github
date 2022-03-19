@@ -529,6 +529,10 @@ class MilestonesStream(GitHubRestStream):
     ignore_parent_replication_key = False
 
     schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("url", th.StringType),
         th.Property("html_url", th.StringType),
         th.Property("labels_url", th.StringType),
@@ -580,6 +584,10 @@ class ReleasesStream(GitHubRestStream):
     replication_key = "published_at"
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("url", th.StringType),
         th.Property("html_url", th.StringType),
         th.Property("assets_url", th.StringType),
@@ -701,6 +709,10 @@ class CollaboratorsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("login", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
@@ -744,6 +756,10 @@ class AssigneesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("login", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
@@ -991,6 +1007,10 @@ class IssueCommentsStream(GitHubRestStream):
         return row
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("issue_number", th.IntegerType),
@@ -1184,6 +1204,10 @@ class CommitCommentsStream(GitHubRestStream):
     ignore_parent_replication_key = False
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("html_url", th.StringType),
         th.Property("url", th.StringType),
         th.Property("id", th.IntegerType),
@@ -1511,6 +1535,11 @@ class PullRequestCommits(GitHubRestStream):
     state_partitioning_keys = ["pull_number"]
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("pull_number", th.IntegerType),
+        # Rest
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType),
         th.Property("node_id", th.StringType),
@@ -1622,6 +1651,11 @@ class ReviewsStream(GitHubRestStream):
     state_partitioning_keys = ["pull_number"]
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("pull_number", th.IntegerType),
+        th.Property("org", th.IntegerType),
+        th.Property("repo", th.IntegerType),
+        # Rest
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property(
@@ -1675,6 +1709,10 @@ class ReviewCommentsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.IntegerType),
+        th.Property("repo", th.IntegerType),
+        # Rest
         th.Property("url", th.StringType),
         th.Property("pull_request_review_id", th.IntegerType),
         th.Property("id", th.IntegerType),
@@ -1934,6 +1972,10 @@ class ProjectsStream(GitHubRestStream):
         return {"project_id": record["id"]}
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("owner_url", th.StringType),
         th.Property("url", th.StringType),
         th.Property("html_url", th.StringType),
@@ -1985,6 +2027,11 @@ class ProjectColumnsStream(GitHubRestStream):
         return {"column_id": record["id"]}
 
     schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.IntegerType),
+        th.Property("org", th.IntegerType),
+        th.Property("project_id", th.IntegerType),
+        # Rest
         th.Property("url", th.StringType),
         th.Property("project_url", th.StringType),
         th.Property("cards_url", th.StringType),
@@ -2006,6 +2053,12 @@ class ProjectCardsStream(GitHubRestStream):
     state_partitioning_keys = ["column_id"]
 
     schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.IntegerType),
+        th.Property("org", th.IntegerType),
+        th.Property("project_id", th.IntegerType),
+        th.Property("column_id", th.IntegerType),
+        # Properties
         th.Property("url", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
