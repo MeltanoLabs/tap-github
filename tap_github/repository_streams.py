@@ -389,7 +389,7 @@ class EventsStream(GitHubRestStream):
         return row
 
     schema = th.PropertiesList(
-        th.Property("id", th.IntegerType),
+        th.Property("id", th.StringType),
         th.Property("type", th.StringType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
@@ -404,14 +404,14 @@ class EventsStream(GitHubRestStream):
         th.Property(
             "target_repo",
             th.ObjectType(
-                th.Property("id", th.StringType),
+                th.Property("id", th.IntegerType),
                 th.Property("name", th.StringType),
             ),
         ),
         th.Property(
             "target_org",
             th.ObjectType(
-                th.Property("id", th.StringType),
+                th.Property("id", th.IntegerType),
                 th.Property("login", th.StringType),
             ),
         ),
