@@ -72,7 +72,7 @@ class TapGitHub(Tap):
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
-        # if streams is empty, raise exception
+
         if not streams:
             raise ValueError("No valid streams found.")
         return streams
