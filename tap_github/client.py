@@ -182,7 +182,7 @@ class GitHubRestStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{response.content} for path: {full_path}"
+                f"{response.content} (Reason: {response.reason}) for path: {full_path}"
             )
             # Retry on rate limiting
             if (
