@@ -197,10 +197,16 @@ class GitHubRestStream(RESTStream):
             # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
             if (
                 response.status_code == 401
-                and "unauthorized" in str(response.content).lower()
+                and "unauthorized" in str(response.reason).lower()
             ):
+                # if the token is invalid however, we are also told about it
+                if "bad credentials" in str(response.content).lower():
+                    raise FatalAPIError("Auth token provided is invalid")
                 raise RetriableAPIError(msg)
 
+            # all other errors are fatal
+            # Note: The API returns a 404 "Not Found" if trying to read a repo
+            # for which the token is not allowed access.
             raise FatalAPIError(msg)
 
         elif 500 <= response.status_code < 600:
