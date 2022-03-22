@@ -174,7 +174,7 @@ class GitHubRestStream(RESTStream):
         if response.status_code in self.tolerated_http_errors:
             msg = (
                 f"{response.status_code} Tolerated Status Code: "
-                f"{response.reason} for path: {full_path}"
+                f"{response.content} (Reason: {response.reason}) for path: {full_path}"
             )
             self.logger.info(msg)
             return
