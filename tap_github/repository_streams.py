@@ -526,7 +526,7 @@ class MilestonesStream(GitHubRestStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -577,7 +577,7 @@ class MilestonesStream(GitHubRestStream):
 class ReleasesStream(GitHubRestStream):
     name = "releases"
     path = "/repos/{org}/{repo}/releases"
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
@@ -705,7 +705,7 @@ class CollaboratorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/collaborators"
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
@@ -752,7 +752,7 @@ class AssigneesStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/assignees"
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
@@ -1194,14 +1194,13 @@ class CommitsStream(GitHubRestStream):
 
 
 class CommitCommentsStream(GitHubRestStream):
-
     name = "commit_comments"
     path = "/repos/{org}/{repo}/comments"
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1529,7 +1528,7 @@ class PullRequestsStream(GitHubRestStream):
 class PullRequestCommits(GitHubRestStream):
     name = "pull_request_commits"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     primary_keys = ["node_id"]
     parent_stream_type = PullRequestsStream
     state_partitioning_keys = ["pull_number"]
@@ -1647,7 +1646,7 @@ class ReviewsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
     primary_keys = ["id"]
     parent_stream_type = PullRequestsStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["pull_number"]
 
     schema = th.PropertiesList(
@@ -1705,7 +1704,7 @@ class ReviewCommentsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/pulls/comments"
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
@@ -2017,7 +2016,7 @@ class ProjectsStream(GitHubRestStream):
 class ProjectColumnsStream(GitHubRestStream):
     name = "project_columns"
     path = "/projects/{project_id}/columns"
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectsStream
@@ -2046,7 +2045,7 @@ class ProjectColumnsStream(GitHubRestStream):
 class ProjectCardsStream(GitHubRestStream):
     name = "project_cards"
     path = "/projects/columns/{column_id}/cards"
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectColumnsStream
