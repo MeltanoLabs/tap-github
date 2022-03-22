@@ -174,7 +174,7 @@ class GitHubRestStream(RESTStream):
         if response.status_code in self.tolerated_http_errors:
             msg = (
                 f"{response.status_code} Tolerated Status Code: "
-                f"{response.content} (Reason: {response.reason}) for path: {full_path}"
+                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
             )
             self.logger.info(msg)
             return
@@ -182,7 +182,7 @@ class GitHubRestStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{response.content} (Reason: {response.reason}) for path: {full_path}"
+                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
             )
             # Retry on rate limiting
             if (
@@ -211,7 +211,7 @@ class GitHubRestStream(RESTStream):
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{response.content} (Reason: {response.reason}) for path: {full_path}"
+                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
             )
             raise RetriableAPIError(msg)
 
