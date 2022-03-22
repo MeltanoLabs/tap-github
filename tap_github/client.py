@@ -182,7 +182,7 @@ class GitHubRestStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{response.reason} for path: {full_path}"
+                f"{response.content} for path: {full_path}"
             )
             # Retry on rate limiting
             if (
@@ -198,10 +198,9 @@ class GitHubRestStream(RESTStream):
             if (
                 response.status_code == 401
                 and "unauthorized" in str(response.reason).lower()
+                # if the token is invalid, we are also told about it
+                and not "bad credentials" in str(response.content).lower()
             ):
-                # if the token is invalid however, we are also told about it
-                if "bad credentials" in str(response.content).lower():
-                    raise FatalAPIError("Auth token provided is invalid")
                 raise RetriableAPIError(msg)
 
             # all other errors are fatal
