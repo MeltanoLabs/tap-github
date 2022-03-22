@@ -211,7 +211,7 @@ class GitHubRestStream(RESTStream):
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{response.reason} for path: {full_path}"
+                f"{response.content} (Reason: {response.reason}) for path: {full_path}"
             )
             raise RetriableAPIError(msg)
 
