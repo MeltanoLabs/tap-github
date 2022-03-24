@@ -1420,7 +1420,7 @@ class WorkflowsStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.workflows[*]"
 
