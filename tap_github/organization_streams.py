@@ -8,25 +8,17 @@ from tap_github.client import GitHubRestStream
 
 
 class OrganizationStream(GitHubRestStream):
+    """Defines a GitHub Organization Stream.
+    API Reference: https://docs.github.com/en/rest/reference/orgs#get-an-organization
+    """
     name = "organizations"
-
-    @property
-    def path(self) -> str:  # type: ignore
-        """Return the API endpoint path."""
-        return "/orgs/{org}"
+    path = "/orgs/{org}"
 
     @property
     def partitions(self) -> Optional[List[Dict]]:
-        """Return a list of partitions."""
         return [{"org": org} for org in self.config["organizations"]]
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        """Return a child context object from the record and optional provided context.
-
-        By default, will return context if provided and otherwise the record dict.
-        Developers may override this behavior to send specific information to child
-        streams for context.
-        """
         return {
             "org": record["login"],
         }
@@ -40,10 +32,10 @@ class OrganizationStream(GitHubRestStream):
         the API call is sent but data is discarded.
         """
         if (
-            not self.selected
-            and "skip_parent_streams" in self.config
-            and self.config["skip_parent_streams"]
-            and context is not None
+                not self.selected
+                and "skip_parent_streams" in self.config
+                and self.config["skip_parent_streams"]
+                and context is not None
         ):
             # build a minimal mock record so that self._sync_records
             # can proceed with child streams
@@ -70,6 +62,9 @@ class OrganizationStream(GitHubRestStream):
 
 
 class TeamsStream(GitHubRestStream):
+    """
+    API Reference: https://docs.github.com/en/rest/reference/teams#list-teams
+    """
     name = "teams"
     primary_keys = ["id"]
     path = "/orgs/{org}/teams"
@@ -106,6 +101,9 @@ class TeamsStream(GitHubRestStream):
 
 
 class TeamMembersStream(GitHubRestStream):
+    """
+    API Reference: https://docs.github.com/en/rest/reference/teams#list-team-members
+    """
     name = "team_members"
     primary_keys = ["id"]
     path = "/orgs/{org}/teams/{team_slug}/members"
@@ -149,6 +147,9 @@ class TeamMembersStream(GitHubRestStream):
 
 
 class TeamRolesStream(GitHubRestStream):
+    """
+    API Reference: https://docs.github.com/en/rest/reference/teams#get-team-membership-for-a-user
+    """
     name = "team_roles"
     path = "/orgs/{org}/teams/{team_slug}/memberships/{username}"
     ignore_parent_replication_key = True
