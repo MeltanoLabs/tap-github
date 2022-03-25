@@ -17,7 +17,7 @@ class RepositoryStream(GitHubRestStream):
     name = "repositories"
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -62,7 +62,7 @@ class RepositoryStream(GitHubRestStream):
             return [{"org": org} for org in self.config["organizations"]]
         return None
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
@@ -74,7 +74,7 @@ class RepositoryStream(GitHubRestStream):
             "repo": record["name"],
         }
 
-    def get_records(self, context: Optional[dict]) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -369,7 +369,7 @@ class EventsStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
-    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
         Each row emitted should be a dictionary of property names to their values.
         """
@@ -379,7 +379,7 @@ class EventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         # TODO - We should think about the best approach to handle this. An alternative would be to
         # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
         # objects to "target_". They are worth keeping, however, as they can be different from
@@ -552,15 +552,6 @@ class MilestonesStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -614,15 +605,6 @@ class ReleasesStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -793,7 +775,7 @@ class IssuesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -822,7 +804,7 @@ class IssuesStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
             # some issue bodies include control characters such as \x00
@@ -985,7 +967,7 @@ class IssueCommentsStream(GitHubRestStream):
     # we have gaps in our data
     tolerated_http_errors = [502]
 
-    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -996,7 +978,7 @@ class IssueCommentsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
         if row["body"] is not None:
             # some comment bodies include control characters such as \x00
@@ -1054,7 +1036,7 @@ class IssueEventsStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
-    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -1065,7 +1047,7 @@ class IssueEventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue"].pop("number"))
         row["issue_url"] = row["issue"].pop("url")
         return row
@@ -1111,7 +1093,7 @@ class CommitsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
         Add a timestamp top-level field to be used as state replication key.
         It's not clear from github's API docs which time (author or committer)
@@ -1226,15 +1208,6 @@ class CommitCommentsStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -1259,7 +1232,7 @@ class PullRequestsStream(GitHubRestStream):
     missing_since_parameter = True
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -1279,7 +1252,7 @@ class PullRequestsStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         if row["body"] is not None:
             # some pr bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
@@ -1292,7 +1265,7 @@ class PullRequestsStream(GitHubRestStream):
         row["minus_one"] = row.pop("-1", None)
         return row
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         if context:
             return {
                 "org": context["org"],
@@ -1531,7 +1504,7 @@ class PullRequestCommits(GitHubRestStream):
     ignore_parent_replication_key = False
     primary_keys = ["node_id"]
     parent_stream_type = PullRequestsStream
-    state_partitioning_keys = ["pull_number"]
+    state_partitioning_keys = ["pull_number", "repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1594,15 +1567,6 @@ class PullRequestCommits(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -1617,15 +1581,6 @@ class PullRequestCommits(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -1647,7 +1602,7 @@ class ReviewsStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["pull_number"]
+    state_partitioning_keys = ["pull_number", "repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1667,15 +1622,6 @@ class ReviewsStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -1733,15 +1679,6 @@ class ReviewCommentsStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -1793,15 +1730,6 @@ class ContributorsStream(GitHubRestStream):
         th.Property("gravatar_id", th.StringType),
         th.Property("url", th.StringType),
         th.Property("html_url", th.StringType),
-        th.Property("followers_url", th.StringType),
-        th.Property("following_url", th.StringType),
-        th.Property("gists_url", th.StringType),
-        th.Property("starred_url", th.StringType),
-        th.Property("subscriptions_url", th.StringType),
-        th.Property("organizations_url", th.StringType),
-        th.Property("repos_url", th.StringType),
-        th.Property("events_url", th.StringType),
-        th.Property("received_events_url", th.StringType),
         th.Property("type", th.StringType),
         th.Property("site_admin", th.BooleanType),
         th.Property("contributions", th.IntegerType),
@@ -1819,7 +1747,7 @@ class AnonymousContributorsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -1868,7 +1796,7 @@ class StargazersStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1967,7 +1895,7 @@ class ProjectsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {"project_id": record["id"]}
 
     schema = th.PropertiesList(
@@ -1995,15 +1923,6 @@ class ProjectsStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
@@ -2020,9 +1939,9 @@ class ProjectColumnsStream(GitHubRestStream):
     replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectsStream
-    state_partitioning_keys = ["project_id"]
+    state_partitioning_keys = ["project_id", "repo", "org"]
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {"column_id": record["id"]}
 
     schema = th.PropertiesList(
@@ -2049,7 +1968,7 @@ class ProjectCardsStream(GitHubRestStream):
     replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectColumnsStream
-    state_partitioning_keys = ["column_id"]
+    state_partitioning_keys = ["column_id", "project_id", "repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -2072,15 +1991,6 @@ class ProjectCardsStream(GitHubRestStream):
                 th.Property("gravatar_id", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property("followers_url", th.StringType),
-                th.Property("following_url", th.StringType),
-                th.Property("gists_url", th.StringType),
-                th.Property("starred_url", th.StringType),
-                th.Property("subscriptions_url", th.StringType),
-                th.Property("organizations_url", th.StringType),
-                th.Property("repos_url", th.StringType),
-                th.Property("events_url", th.StringType),
-                th.Property("received_events_url", th.StringType),
                 th.Property("type", th.StringType),
                 th.Property("site_admin", th.BooleanType),
             ),
