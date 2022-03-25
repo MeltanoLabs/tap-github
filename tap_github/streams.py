@@ -45,6 +45,10 @@ from tap_github.organization_streams import (
 
 
 class Streams(Enum):
+    """
+    Represents all streams our tap supports, and which queries (by username, by organization, etc.) you can use.
+    """
+
     valid_queries: Set[str]
     streams: List[Type[Stream]]
 
