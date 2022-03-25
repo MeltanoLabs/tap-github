@@ -3,7 +3,6 @@ from typing import Type, Set, List
 
 from singer_sdk.streams.core import Stream
 
-from tap_github.organization_streams import OrganizationStream
 from tap_github.repository_streams import (
     AnonymousContributorsStream,
     CommitsStream,

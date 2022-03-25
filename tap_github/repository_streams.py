@@ -1528,7 +1528,7 @@ class PullRequestsStream(GitHubRestStream):
 class PullRequestCommits(GitHubRestStream):
     name = "pull_request_commits"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
-    ignore_parent_replication_key = True
+    ignore_parent_replication_key = False
     primary_keys = ["node_id"]
     parent_stream_type = PullRequestsStream
     state_partitioning_keys = ["pull_number"]
@@ -1646,7 +1646,7 @@ class ReviewsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
     primary_keys = ["id"]
     parent_stream_type = PullRequestsStream
-    ignore_parent_replication_key = True
+    ignore_parent_replication_key = False
     state_partitioning_keys = ["pull_number"]
 
     schema = th.PropertiesList(
