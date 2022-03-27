@@ -77,8 +77,8 @@ def user_id_list_config(request):
 @pytest.fixture
 def organization_list_config(request):
     """
-    Get a default list of usernames or pass your own by decorating your test with
-    @pytest.mark.user_id_list(['ericboucher', 'aaronsteers'])
+    Get a default list of organizations or pass your own by decorating your test with
+    @pytest.mark.organization_list(['MeltanoLabs', 'oviohub'])
     """
     marker = request.node.get_closest_marker("organization_list")
 
