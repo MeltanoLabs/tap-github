@@ -4,7 +4,11 @@ from tap_github.tap import TapGitHub
 
 from .fixtures import repo_list_config
 
-repo_list_2 = ["MeltanoLabs/tap-github"]
+repo_list_2 = [
+    "MeltanoLabs/tap-github",
+    "MeltanoLabs/tap-gitlab",
+    "MeltanoLabs/target-athena",
+]
 
 
 @pytest.mark.repo_list(repo_list_2)
