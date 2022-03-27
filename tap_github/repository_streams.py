@@ -1477,7 +1477,7 @@ class PullRequestCommits(GitHubRestStream):
     ignore_parent_replication_key = False
     primary_keys = ["node_id"]
     parent_stream_type = PullRequestsStream
-    state_partitioning_keys = ["pull_number", "repo", "org"]
+    state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1575,7 +1575,7 @@ class ReviewsStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["pull_number", "repo", "org"]
+    state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1941,7 +1941,7 @@ class ProjectCardsStream(GitHubRestStream):
     replication_key = "updated_at"
     primary_keys = ["id"]
     parent_stream_type = ProjectColumnsStream
-    state_partitioning_keys = ["column_id", "project_id", "repo", "org"]
+    state_partitioning_keys = ["project_id", "repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
