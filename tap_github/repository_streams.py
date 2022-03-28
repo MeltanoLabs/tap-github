@@ -880,9 +880,14 @@ class CommitsStream(GitHubRestStream):
         is used to compare to the `since` argument that the endpoint supports.
         """
         row["commit_timestamp"] = row["commit"]["committer"]["date"]
+        # add some context info to help downstream processing
+        row["repo"] = context["repo"]
+        row["org"] = context["org"]
         return row
 
     schema = th.PropertiesList(
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
         th.Property("node_id", th.StringType),
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType),
