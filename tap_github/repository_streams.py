@@ -881,6 +881,7 @@ class CommitsStream(GitHubRestStream):
         """
         row["commit_timestamp"] = row["commit"]["committer"]["date"]
         # add some context info to help downstream processing
+        assert context is not None, "CommitsStream was called without context"
         row["repo"] = context["repo"]
         row["org"] = context["org"]
         return row
