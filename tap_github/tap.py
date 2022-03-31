@@ -21,6 +21,9 @@ from tap_github.repository_streams import (
     RepositoryStream,
     StargazersStream,
     StatsContributorsStream,
+    WorkflowsStream,
+    WorkflowRunJobsStream,
+    WorkflowRunsStream,
 )
 from tap_github.user_streams import (
     StarredStream,
@@ -69,6 +72,14 @@ class TapGitHub(Tap):
         th.Property("start_date", th.DateTimeType),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
+        th.Property(
+            "skip_parent_streams",
+            th.BooleanType,
+            description=(
+                "Set to true to skip API calls for the parent "
+                "streams (such as repositories) if it is not selected but children are"
+            ),
+        ),
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
@@ -106,6 +117,9 @@ class TapGitHub(Tap):
                 RepositoryStream(tap=self),
                 StargazersStream(tap=self),
                 StatsContributorsStream(tap=self),
+                WorkflowsStream(tap=self),
+                WorkflowRunJobsStream(tap=self),
+                WorkflowRunsStream(tap=self),
             ]
 
 
