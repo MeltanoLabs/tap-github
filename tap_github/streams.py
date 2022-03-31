@@ -30,6 +30,9 @@ from tap_github.repository_streams import (
     MilestonesStream,
     CommitCommentsStream,
     ReleasesStream,
+    WorkflowsStream,
+    WorkflowRunJobsStream,
+    WorkflowRunsStream,
 )
 from tap_github.user_streams import (
     StarredStream,
@@ -85,6 +88,9 @@ class Streams(Enum):
             ProjectsStream,
             ProjectColumnsStream,
             ProjectCardsStream,
+            WorkflowsStream,
+            WorkflowRunJobsStream,
+            WorkflowRunsStream,
         ],
     )
     USERS = (
