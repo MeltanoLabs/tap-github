@@ -173,8 +173,8 @@ class GitHubRestStream(RESTStream):
         full_path = urlparse(response.url).path
         if response.status_code in self.tolerated_http_errors:
             msg = (
-                f"{response.status_code} Tolerated Status Code: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
+                f"{response.status_code} Tolerated Status Code "
+                f"(Reason: {response.reason}) for path: {full_path}"
             )
             self.logger.info(msg)
             return
