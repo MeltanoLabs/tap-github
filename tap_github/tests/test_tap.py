@@ -1,4 +1,8 @@
+import os
+import logging
 import pytest
+
+from unittest.mock import patch
 
 from tap_github.tap import TapGitHub
 
@@ -22,6 +26,27 @@ def test_validate_repo_list_config(repo_list_config):
     assert partitions == repo_list_context
 
 
+def alternative_sync_chidren(self, child_context: dict) -> None:
+    for child_stream in self.child_streams:
+        # Use org:write access level credentials for collaborators stream
+        if child_stream.name in ["collaborators"]:
+            ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")
+            if not ORG_LEVEL_TOKEN:
+                logging.warning(
+                    'No "ORG_LEVEL_TOKEN" found. Skipping collaborators stream sync.'
+                )
+                continue
+            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+            os.environ["GITHUB_TOKEN"] = ORG_LEVEL_TOKEN
+            child_stream.sync(context=child_context)
+            os.environ["GITHUB_TOKEN"] = SAVED_GTHUB_TOKEN or ""
+            continue
+
+        # default behavior:
+        if child_stream.selected or child_stream.has_selected_descendents:
+            child_stream.sync(context=child_context)
+
+
 @pytest.mark.repo_list(repo_list_2)
 def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     """
@@ -38,8 +63,11 @@ def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     # )
     # discard previous output to stdout (potentially from other tests)
     capsys.readouterr()
-    tap2 = TapGitHub(config=repo_list_config, catalog=catalog)
-    tap2.sync_all()
+    with patch(
+        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+    ):
+        tap2 = TapGitHub(config=repo_list_config, catalog=catalog)
+        tap2.sync_all()
     captured = capsys.readouterr()
     # Verify we got the right number of records (one per repo in the list)
     assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == len(
