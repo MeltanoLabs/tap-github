@@ -37,9 +37,12 @@ def test_standard_tap_tests_for_username_list_mode(username_list_config):
     for test in tests:
         test()
 
+
 # This token needs to have read:org access for the organization listed in fixtures.py
 # Default is "MeltanoLabs"
-ORG_LEVEL_TOKEN = os.environ.get('ORG_LEVEL_TOKEN')
+ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")
+
+
 @mock.patch.dict(os.environ, {"GITHUB_TOKEN": ORG_LEVEL_TOKEN or ""})
 def test_standard_tap_tests_for_organization_list_mode(organization_list_config):
     """Run standard tap tests from the SDK."""
