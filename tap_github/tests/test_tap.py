@@ -27,6 +27,10 @@ def test_validate_repo_list_config(repo_list_config):
 
 
 def alternative_sync_chidren(self, child_context: dict) -> None:
+    """
+    Override for Stream._sync_children.
+    Enabling us to use an ORG_LEVEL_TOKEN for the collaborators sream.
+    """
     for child_stream in self.child_streams:
         # Use org:write access level credentials for collaborators stream
         if child_stream.name in ["collaborators"]:
