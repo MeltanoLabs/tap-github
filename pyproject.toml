@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tap-github"
-version = "1.0.0"
+version = "1.1.0"
 description = "`tap-github` is Singer tap for GitHub, built with the Singer SDK."
 authors = ["Meltano and Meltano Community"]
 license = "Apache 2.0"
