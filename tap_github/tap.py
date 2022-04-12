@@ -78,7 +78,7 @@ class TapGitHub(Tap):
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
 
-        if self.config["exclude"]:
+        if self.config.get("exclude"):
             streams = list(
                 filter(
                     lambda stream: (stream.name not in self.config["exclude"]), streams
