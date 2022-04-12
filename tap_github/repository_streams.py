@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
+from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubRestStream
 from tap_github.schema_objects import (
@@ -21,9 +22,12 @@ class RepositoryStream(GitHubRestStream):
     MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
+    # updated_at will be updated any time the repository object is updated,
+    # e.g. when the description or the primary language of the repository is updated.
+    replication_key = "updated_at"
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -68,7 +72,7 @@ class RepositoryStream(GitHubRestStream):
             return [{"org": org} for org in self.config["organizations"]]
         return None
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
@@ -80,7 +84,7 @@ class RepositoryStream(GitHubRestStream):
             "repo": record["name"],
         }
 
-    def get_records(self, context: Optional[dict]) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -191,7 +195,7 @@ class ReadmeStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -233,7 +237,7 @@ class ReadmeHtmlStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -270,7 +274,7 @@ class CommunityProfileStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/community/profile"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -360,11 +364,11 @@ class EventsStream(GitHubRestStream):
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
-    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
         Each row emitted should be a dictionary of property names to their values.
         """
@@ -374,7 +378,7 @@ class EventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         # TODO - We should think about the best approach to handle this. An alternative would be to
         # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
         # objects to "target_". They are worth keeping, however, as they can be different from
@@ -384,7 +388,7 @@ class EventsStream(GitHubRestStream):
         return row
 
     schema = th.PropertiesList(
-        th.Property("id", th.IntegerType),
+        th.Property("id", th.StringType),
         th.Property("type", th.StringType),
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
@@ -399,14 +403,14 @@ class EventsStream(GitHubRestStream):
         th.Property(
             "target_repo",
             th.ObjectType(
-                th.Property("id", th.StringType),
+                th.Property("id", th.IntegerType),
                 th.Property("name", th.StringType),
             ),
         ),
         th.Property(
             "target_org",
             th.ObjectType(
-                th.Property("id", th.StringType),
+                th.Property("id", th.IntegerType),
                 th.Property("login", th.StringType),
             ),
         ),
@@ -514,6 +518,132 @@ class EventsStream(GitHubRestStream):
     ).to_dict()
 
 
+class MilestonesStream(GitHubRestStream):
+    name = "milestones"
+    path = "/repos/{org}/{repo}/milestones"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    ignore_parent_replication_key = True
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("labels_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("number", th.IntegerType),
+        th.Property("state", th.StringType),
+        th.Property("title", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("open_issues", th.IntegerType),
+        th.Property("closed_issues", th.IntegerType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("closed_at", th.DateTimeType),
+        th.Property("due_on", th.StringType),
+    ).to_dict()
+
+
+class ReleasesStream(GitHubRestStream):
+    name = "releases"
+    path = "/repos/{org}/{repo}/releases"
+    ignore_parent_replication_key = True
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    replication_key = "published_at"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("assets_url", th.StringType),
+        th.Property("upload_url", th.StringType),
+        th.Property("tarball_url", th.StringType),
+        th.Property("zipball_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("tag_name", th.StringType),
+        th.Property("target_commitish", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("draft", th.BooleanType),
+        th.Property("prerelease", th.BooleanType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("published_at", th.DateTimeType),
+        th.Property(
+            "author",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "assets",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType),
+                    th.Property("browser_download_url", th.StringType),
+                    th.Property("id", th.IntegerType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("name", th.StringType),
+                    th.Property("label", th.StringType),
+                    th.Property("state", th.StringType),
+                    th.Property("content_type", th.StringType),
+                    th.Property("size", th.IntegerType),
+                    th.Property("download_count", th.IntegerType),
+                    th.Property("created_at", th.DateTimeType),
+                    th.Property("updated_at", th.DateTimeType),
+                    th.Property(
+                        "uploader",
+                        th.ObjectType(
+                            th.Property("login", th.StringType),
+                            th.Property("id", th.IntegerType),
+                            th.Property("node_id", th.StringType),
+                            th.Property("avatar_url", th.StringType),
+                            th.Property("gravatar_id", th.StringType),
+                            th.Property("url", th.StringType),
+                            th.Property("html_url", th.StringType),
+                            th.Property("type", th.StringType),
+                            th.Property("site_admin", th.BooleanType),
+                        ),
+                    ),
+                )
+            ),
+        ),
+    ).to_dict()
+
+
 class LanguagesStream(GitHubRestStream):
     name = "languages"
     path = "/repos/{org}/{repo}/languages"
@@ -542,6 +672,69 @@ class LanguagesStream(GitHubRestStream):
     ).to_dict()
 
 
+class CollaboratorsStream(GitHubRestStream):
+    name = "collaborators"
+    path = "/repos/{org}/{repo}/collaborators"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("login", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("avatar_url", th.StringType),
+        th.Property("gravatar_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("type", th.StringType),
+        th.Property("site_admin", th.BooleanType),
+        th.Property(
+            "permissions",
+            th.ObjectType(
+                th.Property("pull", th.BooleanType),
+                th.Property("triage", th.BooleanType),
+                th.Property("push", th.BooleanType),
+                th.Property("maintain", th.BooleanType),
+                th.Property("admin", th.BooleanType),
+            ),
+        ),
+        th.Property("role_name", th.StringType),
+    ).to_dict()
+
+
+class AssigneesStream(GitHubRestStream):
+    """Defines 'Assignees' stream which returns possible assignees for issues/prs following GitHub's API convention."""
+
+    name = "assignees"
+    path = "/repos/{org}/{repo}/assignees"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("login", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("avatar_url", th.StringType),
+        th.Property("gravatar_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("type", th.StringType),
+        th.Property("site_admin", th.BooleanType),
+    ).to_dict()
+
+
 class IssuesStream(GitHubRestStream):
     """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
 
@@ -550,11 +743,11 @@ class IssuesStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -583,7 +776,7 @@ class IssuesStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
             # some issue bodies include control characters such as \x00
@@ -652,12 +845,12 @@ class IssueCommentsStream(GitHubRestStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # FIXME: this allows the tap to continue on server-side timeouts but means
     # we have gaps in our data
     tolerated_http_errors = [502]
 
-    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -668,7 +861,7 @@ class IssueCommentsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
         if row["body"] is not None:
             # some comment bodies include control characters such as \x00
@@ -679,6 +872,10 @@ class IssueCommentsStream(GitHubRestStream):
         return row
 
     schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("issue_number", th.IntegerType),
@@ -706,11 +903,11 @@ class IssueEventsStream(GitHubRestStream):
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
-    def get_records(self, context: Optional[dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -721,7 +918,7 @@ class IssueEventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue"].pop("number"))
         row["issue_url"] = row["issue"].pop("url")
         return row
@@ -755,16 +952,22 @@ class CommitsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
         Add a timestamp top-level field to be used as state replication key.
         It's not clear from github's API docs which time (author or committer)
         is used to compare to the `since` argument that the endpoint supports.
         """
         row["commit_timestamp"] = row["commit"]["committer"]["date"]
+        # add some context info to help downstream processing
+        assert context is not None, "CommitsStream was called without context"
+        row["repo"] = context["repo"]
+        row["org"] = context["org"]
         return row
 
     schema = th.PropertiesList(
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
         th.Property("node_id", th.StringType),
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType),
@@ -813,6 +1016,49 @@ class CommitsStream(GitHubRestStream):
     ).to_dict()
 
 
+class CommitCommentsStream(GitHubRestStream):
+    name = "commit_comments"
+    path = "/repos/{org}/{repo}/comments"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    ignore_parent_replication_key = True
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("html_url", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("position", th.IntegerType),
+        th.Property("line", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("author_association", th.StringType),
+    ).to_dict()
+
+
 class PullRequestsStream(GitHubRestStream):
     """Defines 'PullRequests' stream."""
 
@@ -821,13 +1067,13 @@ class PullRequestsStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -847,7 +1093,7 @@ class PullRequestsStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         if row["body"] is not None:
             # some pr bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
@@ -859,6 +1105,19 @@ class PullRequestsStream(GitHubRestStream):
         row["plus_one"] = row.pop("+1", None)
         row["minus_one"] = row.pop("-1", None)
         return row
+
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+        if context:
+            return {
+                "org": context["org"],
+                "repo": context["repo"],
+                "pull_number": record["number"],
+            }
+        return {
+            "pull_number": record["number"],
+            "org": record["base"]["user"]["login"],
+            "repo": record["base"]["repo"]["name"],
+        }
 
     schema = th.PropertiesList(
         # Parent keys
@@ -956,6 +1215,216 @@ class PullRequestsStream(GitHubRestStream):
     ).to_dict()
 
 
+class PullRequestCommits(GitHubRestStream):
+    name = "pull_request_commits"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
+    ignore_parent_replication_key = False
+    primary_keys = ["node_id"]
+    parent_stream_type = PullRequestsStream
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("pull_number", th.IntegerType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("comments_url", th.StringType),
+        th.Property(
+            "commit",
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property(
+                    "author",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "committer",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.StringType),
+                    ),
+                ),
+                th.Property("message", th.StringType),
+                th.Property(
+                    "tree",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("sha", th.StringType),
+                    ),
+                ),
+                th.Property("comment_count", th.IntegerType),
+                th.Property(
+                    "verification",
+                    th.ObjectType(
+                        th.Property("verified", th.BooleanType),
+                        th.Property("reason", th.StringType),
+                        th.Property("signature", th.StringType),
+                        th.Property("payload", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+        th.Property(
+            "author",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "committer",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "parents",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType), th.Property("sha", th.StringType)
+                )
+            ),
+        ),
+    ).to_dict()
+
+
+class ReviewsStream(GitHubRestStream):
+    name = "reviews"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
+    primary_keys = ["id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("pull_number", th.IntegerType),
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        # Rest
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("body", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("pull_request_url", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property(
+                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
+                ),
+            ),
+        ),
+        th.Property("submitted_at", th.DateTimeType),
+        th.Property("commit_id", th.StringType),
+        th.Property("author_association", th.StringType),
+    ).to_dict()
+
+
+class ReviewCommentsStream(GitHubRestStream):
+    name = "review_comments"
+    path = "/repos/{org}/{repo}/pulls/comments"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("pull_request_review_id", th.IntegerType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("diff_hunk", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("position", th.IntegerType),
+        th.Property("original_position", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        th.Property("original_commit_id", th.StringType),
+        th.Property("in_reply_to_id", th.IntegerType),
+        th.Property(
+            "user",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("body", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("html_url", th.StringType),
+        th.Property("pull_request_url", th.StringType),
+        th.Property("author_association", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("self", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property(
+                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
+                ),
+            ),
+        ),
+        th.Property("start_line", th.IntegerType),
+        th.Property("original_start_line", th.IntegerType),
+        th.Property("start_side", th.StringType),
+        th.Property("line", th.IntegerType),
+        th.Property("original_line", th.IntegerType),
+        th.Property("side", th.StringType),
+    ).to_dict()
+
+
 class ContributorsStream(GitHubRestStream):
     """Defines 'Contributors' stream. Fetching User & Bot contributors."""
 
@@ -963,7 +1432,7 @@ class ContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["node_id", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
@@ -978,15 +1447,6 @@ class ContributorsStream(GitHubRestStream):
         th.Property("gravatar_id", th.StringType),
         th.Property("url", th.StringType),
         th.Property("html_url", th.StringType),
-        th.Property("followers_url", th.StringType),
-        th.Property("following_url", th.StringType),
-        th.Property("gists_url", th.StringType),
-        th.Property("starred_url", th.StringType),
-        th.Property("subscriptions_url", th.StringType),
-        th.Property("organizations_url", th.StringType),
-        th.Property("repos_url", th.StringType),
-        th.Property("events_url", th.StringType),
-        th.Property("received_events_url", th.StringType),
         th.Property("type", th.StringType),
         th.Property("site_admin", th.BooleanType),
         th.Property("contributions", th.IntegerType),
@@ -1000,11 +1460,11 @@ class AnonymousContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["email", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -1053,7 +1513,7 @@ class StargazersStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1081,7 +1541,7 @@ class StatsContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/stats/contributors"
     primary_keys = ["user_id", "week_start", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     # Note - these queries are expensive and the API might return an HTTP 202 if the response
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
@@ -1129,3 +1589,296 @@ class StatsContributorsStream(GitHubRestStream):
         th.Property("type", th.StringType),
         th.Property("site_admin", th.BooleanType),
     ).to_dict()
+
+
+class ProjectsStream(GitHubRestStream):
+    name = "projects"
+    path = "/repos/{org}/{repo}/projects"
+    ignore_parent_replication_key = True
+    replication_key = "updated_at"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+        return {"project_id": record["id"]}
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("owner_url", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("columns_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("number", th.IntegerType),
+        th.Property("state", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+    ).to_dict()
+
+
+class ProjectColumnsStream(GitHubRestStream):
+    name = "project_columns"
+    path = "/projects/{project_id}/columns"
+    ignore_parent_replication_key = True
+    replication_key = "updated_at"
+    primary_keys = ["id"]
+    parent_stream_type = ProjectsStream
+    state_partitioning_keys = ["project_id", "repo", "org"]
+
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+        return {"column_id": record["id"]}
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("project_id", th.IntegerType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("project_url", th.StringType),
+        th.Property("cards_url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+    ).to_dict()
+
+
+class ProjectCardsStream(GitHubRestStream):
+    name = "project_cards"
+    path = "/projects/columns/{column_id}/cards"
+    ignore_parent_replication_key = True
+    replication_key = "updated_at"
+    primary_keys = ["id"]
+    parent_stream_type = ProjectColumnsStream
+    state_partitioning_keys = ["project_id", "repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("project_id", th.IntegerType),
+        th.Property("column_id", th.IntegerType),
+        # Properties
+        th.Property("url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("note", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("archived", th.BooleanType),
+        th.Property("column_url", th.StringType),
+        th.Property("content_url", th.StringType),
+        th.Property("project_url", th.StringType),
+    ).to_dict()
+
+
+class WorkflowsStream(GitHubRestStream):
+    """Defines 'workflows' stream."""
+
+    MAX_PER_PAGE = 100
+
+    name = "workflows"
+    path = "/repos/{org}/{repo}/actions/workflows"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "$.workflows[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # PR keys
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("badge_url", th.StringType),
+    ).to_dict()
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows."""
+        yield from extract_jsonpath(self.records_jsonpath, input=response.json())
+
+
+class WorkflowRunsStream(GitHubRestStream):
+    """Defines 'workflow_runs' stream."""
+
+    name = "workflow_runs"
+    path = "/repos/{org}/{repo}/actions/runs"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "$.workflow_runs[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # PR keys
+        th.Property("id", th.IntegerType),
+        th.Property("name", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("head_branch", th.StringType),
+        th.Property("head_sha", th.StringType),
+        th.Property("run_number", th.IntegerType),
+        th.Property("event", th.StringType),
+        th.Property("status", th.StringType),
+        th.Property("conclusion", th.StringType),
+        th.Property("workflow_id", th.IntegerType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property(
+            "pull_requests",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("id", th.IntegerType),
+                    th.Property("number", th.IntegerType),
+                )
+            ),
+        ),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("jobs_url", th.StringType),
+        th.Property("logs_url", th.StringType),
+        th.Property("check_suite_url", th.StringType),
+        th.Property("artifacts_url", th.StringType),
+        th.Property("cancel_url", th.StringType),
+        th.Property("rerun_url", th.StringType),
+        th.Property("workflow_url", th.StringType),
+    ).to_dict()
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows."""
+        yield from extract_jsonpath(self.records_jsonpath, input=response.json())
+
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        """Return a child context object from the record and optional provided context.
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "run_id": record["id"],
+        }
+
+
+class WorkflowRunJobsStream(GitHubRestStream):
+    """Defines 'workflow_run_jobs' stream."""
+
+    MAX_PER_PAGE = 100
+
+    name = "workflow_run_jobs"
+    path = "/repos/{org}/{repo}/actions/runs/{run_id}/jobs"
+    primary_keys = ["id"]
+    parent_stream_type = WorkflowRunsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org", "run_id"]
+    records_jsonpath = "$.jobs[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # PR keys
+        th.Property("id", th.IntegerType),
+        th.Property("run_id", th.IntegerType),
+        th.Property("run_url", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("head_sha", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("status", th.StringType),
+        th.Property("conclusion", th.StringType),
+        th.Property("started_at", th.DateTimeType),
+        th.Property("completed_at", th.DateTimeType),
+        th.Property("name", th.StringType),
+        th.Property(
+            "steps",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("name", th.StringType),
+                    th.Property("status", th.StringType),
+                    th.Property("conclusion", th.StringType),
+                    th.Property("number", th.IntegerType),
+                    th.Property("started_at", th.DateTimeType),
+                    th.Property("completed_at", th.DateTimeType),
+                )
+            ),
+        ),
+        th.Property("check_run_url", th.StringType),
+        th.Property("labels", th.ArrayType(th.StringType)),
+        th.Property("runner_id", th.IntegerType),
+        th.Property("runner_name", th.StringType),
+        th.Property("runner_group_id", th.IntegerType),
+        th.Property("runner_group_name", th.StringType),
+    ).to_dict()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._schema_emitted = False
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows."""
+        yield from extract_jsonpath(self.records_jsonpath, input=response.json())
+
+    def get_url_params(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Dict[str, Any]:
+        params = super().get_url_params(context, next_page_token)
+        params["filter"] = "all"
+        return params
+
+    def _write_schema_message(self):
+        """Write out a SCHEMA message with the stream schema."""
+        if not self._schema_emitted:
+            super()._write_schema_message()
+            self._schema_emitted = True

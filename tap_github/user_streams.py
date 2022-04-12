@@ -12,6 +12,7 @@ class UserStream(GitHubRestStream):
     """Defines 'User' stream."""
 
     name = "users"
+    replication_key = "updated_at"
 
     @property
     def path(self) -> str:  # type: ignore
@@ -30,13 +31,7 @@ class UserStream(GitHubRestStream):
             return [{"id": id} for id in self.config["user_ids"]]
         return None
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
-        """Return a child context object from the record and optional provided context.
-
-        By default, will return context if provided and otherwise the record dict.
-        Developers may override this behavior to send specific information to child
-        streams for context.
-        """
+    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {
             "username": record["login"],
         }
@@ -102,7 +97,7 @@ class StarredStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
         Add a repo_id top-level field to be used as state replication key.
         """

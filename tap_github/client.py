@@ -121,7 +121,7 @@ class GitHubRestStream(RESTStream):
         return (previous_token or 1) + 1
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
@@ -173,8 +173,8 @@ class GitHubRestStream(RESTStream):
         full_path = urlparse(response.url).path
         if response.status_code in self.tolerated_http_errors:
             msg = (
-                f"{response.status_code} Tolerated Status Code: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
+                f"{response.status_code} Tolerated Status Code "
+                f"(Reason: {response.reason}) for path: {full_path}"
             )
             self.logger.info(msg)
             return
@@ -261,7 +261,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
+        self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params = context or dict()

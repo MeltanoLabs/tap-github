@@ -13,9 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      ORG_LEVEL_TOKEN: ${{secrets.ORG_LEVEL_TOKEN}}
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: ["3.10", 3.9, 3.8, 3.7]
       # run the matrix jobs one after the other so they can benefit from caching
       max-parallel: 1
 
@@ -28,7 +29,9 @@ jobs:
         path: '**/api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
-        key: api-cache-v2
+        key: api-cache-v3
+        restore-keys: |
+          api-cache-v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -37,7 +40,7 @@ jobs:
       uses: snok/install-poetry@v1
       with:
         # Version of Poetry to use
-        version: 1.1.12
+        version: 1.1.13
         virtualenvs-create: true
         virtualenvs-in-project: true
     - name: Load cached venv

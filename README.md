@@ -10,6 +10,14 @@ Build with the [Singer SDK](https://gitlab.com/meltano/singer-sdk).
 pipx install git+https://github.com/MeltanoLabs/tap-github.git
 ```
 
+Or better yet, please pin to a [release version](https://github.com/MeltanoLabs/tap-github/releases) for a stable experience:
+
+```bash
+pipx install git+https://github.com/MeltanoLabs/tap-github.git@vX.Y.Z
+```
+
+A list of release versions is available at https://github.com/MeltanoLabs/tap-github/releases
+
 ## Configuration
 
 ### Accepted Config Options
@@ -71,6 +79,7 @@ tap-github --config CONFIG --discover > ./catalog.json
 ```
 
 ## Contributing
+This project uses parent-child streams. Learn more about them [here.](https://gitlab.com/meltano/sdk/-/blob/main/docs/parent_streams.md)
 
 ### Initialize your Development Environment
 
