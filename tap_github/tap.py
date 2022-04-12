@@ -77,9 +77,13 @@ class TapGitHub(Tap):
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
-    
-        if self.config['exclude']:
-            streams = list(filter(lambda stream: (stream.name not in self.config['exclude']), streams))
+
+        if self.config["exclude"]:
+            streams = list(
+                filter(
+                    lambda stream: (stream.name not in self.config["exclude"]), streams
+                )
+            )
 
         if not streams:
             raise ValueError("No valid streams found.")
