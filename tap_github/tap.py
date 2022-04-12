@@ -56,6 +56,11 @@ class TapGitHub(Tap):
                 "streams (such as repositories) if it is not selected but children are"
             ),
         ),
+        th.Property(
+            "exclude",
+            th.ArrayType(th.StringType),
+            description="List of streams to exclude by name.",
+        ),
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
@@ -66,12 +71,15 @@ class TapGitHub(Tap):
                 "This tap requires one and only one of the following path options: "
                 f"{Streams.all_valid_queries()}."
             )
-        streams = []
+        streams: List[Stream] = []
         for stream_type in Streams:
             if len(stream_type.valid_queries.intersection(self.config)) > 0:
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
+    
+        if self.config['exclude']:
+            streams = list(filter(lambda stream: (stream.name not in self.config['exclude']), streams))
 
         if not streams:
             raise ValueError("No valid streams found.")
