@@ -73,11 +73,15 @@ class TapGitHub(Tap):
             :class:`singer_sdk.helpers._singer.Catalog`.
         """
         excluded_streams = self.config.get("exclude", [])
-        return Catalog(
-            (stream.tap_stream_id, stream._singer_catalog_entry)
-            for stream in self.streams.values()
-            if stream.tap_stream_id not in excluded_streams
-        )
+
+        def get_stream_entry(stream: Stream):
+            singer_catalog_entry = stream._singer_catalog_entry
+            singer_catalog_entry.metadata.root.selected = (
+                stream.tap_stream_id not in excluded_streams
+            )
+            return (stream.tap_stream_id, singer_catalog_entry)
+
+        return Catalog(get_stream_entry(stream) for stream in self.streams.values())
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams for each query."""

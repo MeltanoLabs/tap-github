@@ -80,7 +80,7 @@ def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     )
 
 
-def test_exclusion_config():
+def test_exclusion_config(capsys):
     """
     Discover the catalog with and without exclusion and compare.
     """
@@ -90,9 +90,13 @@ def test_exclusion_config():
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "repositories": ["mapswipe/mapswipe"],
     }
-
-    config2 = {**config1, "exclude": ["events", "readme"]}
-
     tap1 = TapGitHub(config=config1)
+
+    config2 = {**config1, "exclude": ["collaborators", "events", "readme"]}
     tap2 = TapGitHub(config=config2)
     assert tap1.catalog_dict["streams"] != tap2.catalog_dict["streams"]
+
+    tap2.sync_all()
+    captured = capsys.readouterr()
+    # Verify we got the right number of records (one per repo in the list)
+    assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == 1
