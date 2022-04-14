@@ -5,6 +5,8 @@ from typing import List
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
 
+from singer_sdk.helpers._singer import Catalog
+
 from tap_github.streams import Streams
 
 
@@ -63,6 +65,20 @@ class TapGitHub(Tap):
         ),
     ).to_dict()
 
+    @property
+    def _singer_catalog(self) -> Catalog:
+        """Return a Catalog object.
+
+        Returns:
+            :class:`singer_sdk.helpers._singer.Catalog`.
+        """
+        excluded_streams = self.config.get("exclude", [])
+        return Catalog(
+            (stream.tap_stream_id, stream._singer_catalog_entry)
+            for stream in self.streams.values()
+            if stream.tap_stream_id not in excluded_streams
+        )
+
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams for each query."""
 
@@ -77,13 +93,6 @@ class TapGitHub(Tap):
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
-
-        if self.config.get("exclude"):
-            streams = list(
-                filter(
-                    lambda stream: (stream.name not in self.config["exclude"]), streams
-                )
-            )
 
         if not streams:
             raise ValueError("No valid streams found.")

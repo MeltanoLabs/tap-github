@@ -1,3 +1,4 @@
+import datetime
 import os
 import logging
 import pytest
@@ -77,3 +78,21 @@ def test_get_a_repository_in_repo_list_mode(capsys, repo_list_config):
     assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == len(
         repo_list_2
     )
+
+
+def test_exclusion_config():
+    """
+    Discover the catalog with and without exclusion and compare.
+    """
+
+    config1 = {
+        "metrics_log_level": "none",
+        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+        "repositories": ["mapswipe/mapswipe"],
+    }
+
+    config2 = {**config1, "exclude": ["events", "readme"]}
+
+    tap1 = TapGitHub(config=config1)
+    tap2 = TapGitHub(config=config2)
+    assert tap1.catalog_dict["streams"] != tap2.catalog_dict["streams"]
