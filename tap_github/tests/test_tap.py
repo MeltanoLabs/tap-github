@@ -100,3 +100,4 @@ def test_exclusion_config(capsys):
     captured = capsys.readouterr()
     # Verify we got the right number of records (one per repo in the list)
     assert captured.out.count('{"type": "RECORD", "stream": "repositories"') == 1
+    assert captured.out.count('{"type": "RECORD", "stream": "events"') == 0
