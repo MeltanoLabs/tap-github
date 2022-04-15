@@ -88,7 +88,7 @@ def test_exclusion_config(capsys):
     config1 = {
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-        "repositories": ["mapswipe/mapswipe"],
+        "repositories": ["MeltanoLabs/tap-github"],
     }
     tap1 = TapGitHub(config=config1)
 
