@@ -7,6 +7,12 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubRestStream
+from tap_github.schema_objects import (
+    user_object,
+    label_object,
+    reactions_object,
+    milestone_object,
+)
 
 
 class RepositoryStream(GitHubRestStream):
@@ -114,18 +120,7 @@ class RepositoryStream(GitHubRestStream):
         th.Property("full_name", th.StringType),
         th.Property("description", th.StringType),
         th.Property("html_url", th.StringType),
-        th.Property(
-            "owner",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("owner", user_object),
         th.Property(
             "license",
             th.ObjectType(
@@ -171,20 +166,7 @@ class RepositoryStream(GitHubRestStream):
         th.Property("allow_rebase_merge", th.BooleanType),
         th.Property("allow_auto_merge", th.BooleanType),
         th.Property("delete_branch_on_merge", th.BooleanType),
-        th.Property(
-            "organization",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("organization", user_object),
     ).to_dict()
 
 
@@ -546,20 +528,7 @@ class MilestonesStream(GitHubRestStream):
         th.Property("state", th.StringType),
         th.Property("title", th.StringType),
         th.Property("description", th.StringType),
-        th.Property(
-            "creator",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("creator", user_object),
         th.Property("open_issues", th.IntegerType),
         th.Property("closed_issues", th.IntegerType),
         th.Property("created_at", th.DateTimeType),
@@ -599,20 +568,7 @@ class ReleasesStream(GitHubRestStream):
         th.Property("prerelease", th.BooleanType),
         th.Property("created_at", th.DateTimeType),
         th.Property("published_at", th.DateTimeType),
-        th.Property(
-            "author",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("author", user_object),
         th.Property(
             "assets",
             th.ArrayType(
@@ -629,20 +585,7 @@ class ReleasesStream(GitHubRestStream):
                     th.Property("download_count", th.IntegerType),
                     th.Property("created_at", th.DateTimeType),
                     th.Property("updated_at", th.DateTimeType),
-                    th.Property(
-                        "uploader",
-                        th.ObjectType(
-                            th.Property("login", th.StringType),
-                            th.Property("id", th.IntegerType),
-                            th.Property("node_id", th.StringType),
-                            th.Property("avatar_url", th.StringType),
-                            th.Property("gravatar_id", th.StringType),
-                            th.Property("url", th.StringType),
-                            th.Property("html_url", th.StringType),
-                            th.Property("type", th.StringType),
-                            th.Property("site_admin", th.BooleanType),
-                        ),
-                    ),
+                    th.Property("uploader", user_object),
                 )
             ),
         ),
@@ -812,107 +755,18 @@ class IssuesStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("type", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property(
             "labels",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("url", th.StringType),
-                    th.Property("name", th.StringType),
-                    th.Property("description", th.StringType),
-                    th.Property("color", th.StringType),
-                    th.Property("default", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(label_object),
         ),
-        th.Property(
-            "reactions",
-            th.ObjectType(
-                th.Property("url", th.StringType),
-                th.Property("total_count", th.IntegerType),
-                th.Property("plus_one", th.IntegerType),
-                th.Property("minus_one", th.IntegerType),
-                th.Property("laugh", th.IntegerType),
-                th.Property("hooray", th.IntegerType),
-                th.Property("confused", th.IntegerType),
-                th.Property("heart", th.IntegerType),
-                th.Property("rocket", th.IntegerType),
-                th.Property("eyes", th.IntegerType),
-            ),
-        ),
-        th.Property(
-            "assignee",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("reactions", reactions_object),
+        th.Property("assignee", user_object),
         th.Property(
             "assignees",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("login", th.StringType),
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("avatar_url", th.StringType),
-                    th.Property("gravatar_id", th.StringType),
-                    th.Property("html_url", th.StringType),
-                    th.Property("type", th.StringType),
-                    th.Property("site_admin", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(user_object),
         ),
-        th.Property(
-            "milestone",
-            th.ObjectType(
-                th.Property("html_url", th.StringType),
-                th.Property("node_id", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("number", th.IntegerType),
-                th.Property("state", th.StringType),
-                th.Property("title", th.StringType),
-                th.Property("description", th.StringType),
-                th.Property(
-                    "creator",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
-                th.Property("open_issues", th.IntegerType),
-                th.Property("closed_issues", th.IntegerType),
-                th.Property("created_at", th.DateTimeType),
-                th.Property("updated_at", th.DateTimeType),
-                th.Property("closed_at", th.DateTimeType),
-                th.Property("due_on", th.DateTimeType),
-            ),
-        ),
+        th.Property("milestone", milestone_object),
         th.Property("locked", th.BooleanType),
         th.Property(
             "pull_request",
@@ -980,19 +834,7 @@ class IssueCommentsStream(GitHubRestStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
     ).to_dict()
 
 
@@ -1040,19 +882,7 @@ class IssueEventsStream(GitHubRestStream):
         th.Property("commit_id", th.StringType),
         th.Property("commit_url", th.StringType),
         th.Property("created_at", th.DateTimeType),
-        th.Property(
-            "actor",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("actor", user_object),
     ).to_dict()
 
 
@@ -1129,32 +959,8 @@ class CommitsStream(GitHubRestStream):
                 ),
             ),
         ),
-        th.Property(
-            "author",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
-        th.Property(
-            "committer",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("author", user_object),
+        th.Property("committer", user_object),
     ).to_dict()
 
 
@@ -1181,20 +987,7 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("position", th.IntegerType),
         th.Property("line", th.IntegerType),
         th.Property("commit_id", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
@@ -1290,122 +1083,22 @@ class PullRequestsStream(GitHubRestStream):
         th.Property("review_comment_url", th.StringType),
         th.Property("comments_url", th.StringType),
         th.Property("statuses_url", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property(
             "labels",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("url", th.StringType),
-                    th.Property("name", th.StringType),
-                    th.Property("description", th.StringType),
-                    th.Property("color", th.StringType),
-                    th.Property("default", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(label_object),
         ),
-        th.Property(
-            "reactions",
-            th.ObjectType(
-                th.Property("url", th.StringType),
-                th.Property("total_count", th.IntegerType),
-                th.Property("plus_one", th.IntegerType),
-                th.Property("minus_one", th.IntegerType),
-                th.Property("laugh", th.IntegerType),
-                th.Property("hooray", th.IntegerType),
-                th.Property("confused", th.IntegerType),
-                th.Property("heart", th.IntegerType),
-                th.Property("rocket", th.IntegerType),
-                th.Property("eyes", th.IntegerType),
-            ),
-        ),
-        th.Property(
-            "assignee",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("reactions", reactions_object),
+        th.Property("assignee", user_object),
         th.Property(
             "assignees",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("login", th.StringType),
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("avatar_url", th.StringType),
-                    th.Property("gravatar_id", th.StringType),
-                    th.Property("html_url", th.StringType),
-                    th.Property("type", th.StringType),
-                    th.Property("site_admin", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(user_object),
         ),
         th.Property(
             "requested_reviewers",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("login", th.StringType),
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("avatar_url", th.StringType),
-                    th.Property("gravatar_id", th.StringType),
-                    th.Property("html_url", th.StringType),
-                    th.Property("type", th.StringType),
-                    th.Property("site_admin", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(user_object),
         ),
-        th.Property(
-            "milestone",
-            th.ObjectType(
-                th.Property("html_url", th.StringType),
-                th.Property("node_id", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("number", th.IntegerType),
-                th.Property("state", th.StringType),
-                th.Property("title", th.StringType),
-                th.Property("description", th.StringType),
-                th.Property(
-                    "creator",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
-                th.Property("open_issues", th.IntegerType),
-                th.Property("closed_issues", th.IntegerType),
-                th.Property("created_at", th.DateTimeType),
-                th.Property("updated_at", th.DateTimeType),
-                th.Property("closed_at", th.DateTimeType),
-                th.Property("due_on", th.DateTimeType),
-            ),
-        ),
+        th.Property("milestone", milestone_object),
         th.Property("locked", th.BooleanType),
         th.Property(
             "pull_request",
@@ -1422,19 +1115,7 @@ class PullRequestsStream(GitHubRestStream):
                 th.Property("label", th.StringType),
                 th.Property("ref", th.StringType),
                 th.Property("sha", th.StringType),
-                th.Property(
-                    "user",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
+                th.Property("user", user_object),
                 th.Property(
                     "repo",
                     th.ObjectType(
@@ -1453,19 +1134,7 @@ class PullRequestsStream(GitHubRestStream):
                 th.Property("label", th.StringType),
                 th.Property("ref", th.StringType),
                 th.Property("sha", th.StringType),
-                th.Property(
-                    "user",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
+                th.Property("user", user_object),
                 th.Property(
                     "repo",
                     th.ObjectType(
@@ -1540,34 +1209,8 @@ class PullRequestCommits(GitHubRestStream):
                 ),
             ),
         ),
-        th.Property(
-            "author",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
-        th.Property(
-            "committer",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("author", user_object),
+        th.Property("committer", user_object),
         th.Property(
             "parents",
             th.ArrayType(
@@ -1595,20 +1238,7 @@ class ReviewsStream(GitHubRestStream):
         # Rest
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property("body", th.StringType),
         th.Property("state", th.StringType),
         th.Property("html_url", th.StringType),
@@ -1652,20 +1282,7 @@ class ReviewCommentsStream(GitHubRestStream):
         th.Property("commit_id", th.StringType),
         th.Property("original_commit_id", th.StringType),
         th.Property("in_reply_to_id", th.IntegerType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property("body", th.StringType),
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
@@ -1793,19 +1410,7 @@ class StargazersStream(GitHubRestStream):
         th.Property("user_id", th.IntegerType),
         # Stargazer Info
         th.Property("starred_at", th.DateTimeType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
     ).to_dict()
 
 
@@ -1896,20 +1501,7 @@ class ProjectsStream(GitHubRestStream):
         th.Property("body", th.StringType),
         th.Property("number", th.IntegerType),
         th.Property("state", th.StringType),
-        th.Property(
-            "creator",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("creator", user_object),
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
@@ -1964,20 +1556,7 @@ class ProjectCardsStream(GitHubRestStream):
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("note", th.StringType),
-        th.Property(
-            "creator",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("creator", user_object),
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("archived", th.BooleanType),

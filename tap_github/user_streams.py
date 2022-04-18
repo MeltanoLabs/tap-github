@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
+from tap_github.schema_objects import user_object
 
 
 class UserStream(GitHubRestStream):
@@ -117,18 +118,7 @@ class StarredStream(GitHubRestStream):
                 th.Property("full_name", th.StringType),
                 th.Property("description", th.StringType),
                 th.Property("html_url", th.StringType),
-                th.Property(
-                    "owner",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
+                th.Property("owner", user_object),
                 th.Property(
                     "license",
                     th.ObjectType(
