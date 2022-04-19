@@ -77,7 +77,8 @@ class TapGitHub(Tap):
         def get_stream_entry(stream: Stream):
             singer_catalog_entry = stream._singer_catalog_entry
             singer_catalog_entry.metadata.root.selected = (
-                stream.tap_stream_id not in excluded_streams
+                singer_catalog_entry.metadata.root.selected
+                and (stream.tap_stream_id not in excluded_streams)
             )
             return (stream.tap_stream_id, singer_catalog_entry)
 
