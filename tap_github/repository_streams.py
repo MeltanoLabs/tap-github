@@ -7,6 +7,12 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubRestStream
+from tap_github.schema_objects import (
+    user_object,
+    label_object,
+    reactions_object,
+    milestone_object,
+)
 
 
 class RepositoryStream(GitHubRestStream):
@@ -16,6 +22,9 @@ class RepositoryStream(GitHubRestStream):
     MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
+    # updated_at will be updated any time the repository object is updated,
+    # e.g. when the description or the primary language of the repository is updated.
+    replication_key = "updated_at"
 
     def get_url_params(
         self, context: Optional[Dict], next_page_token: Optional[Any]
@@ -111,18 +120,7 @@ class RepositoryStream(GitHubRestStream):
         th.Property("full_name", th.StringType),
         th.Property("description", th.StringType),
         th.Property("html_url", th.StringType),
-        th.Property(
-            "owner",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("owner", user_object),
         th.Property(
             "license",
             th.ObjectType(
@@ -168,20 +166,7 @@ class RepositoryStream(GitHubRestStream):
         th.Property("allow_rebase_merge", th.BooleanType),
         th.Property("allow_auto_merge", th.BooleanType),
         th.Property("delete_branch_on_merge", th.BooleanType),
-        th.Property(
-            "organization",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("organization", user_object),
     ).to_dict()
 
 
@@ -197,7 +182,7 @@ class ReadmeStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -239,7 +224,7 @@ class ReadmeHtmlStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/readme"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -276,7 +261,7 @@ class CommunityProfileStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/community/profile"
     primary_keys = ["repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
@@ -366,7 +351,7 @@ class EventsStream(GitHubRestStream):
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
@@ -543,20 +528,7 @@ class MilestonesStream(GitHubRestStream):
         th.Property("state", th.StringType),
         th.Property("title", th.StringType),
         th.Property("description", th.StringType),
-        th.Property(
-            "creator",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("creator", user_object),
         th.Property("open_issues", th.IntegerType),
         th.Property("closed_issues", th.IntegerType),
         th.Property("created_at", th.DateTimeType),
@@ -596,20 +568,7 @@ class ReleasesStream(GitHubRestStream):
         th.Property("prerelease", th.BooleanType),
         th.Property("created_at", th.DateTimeType),
         th.Property("published_at", th.DateTimeType),
-        th.Property(
-            "author",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("author", user_object),
         th.Property(
             "assets",
             th.ArrayType(
@@ -626,20 +585,7 @@ class ReleasesStream(GitHubRestStream):
                     th.Property("download_count", th.IntegerType),
                     th.Property("created_at", th.DateTimeType),
                     th.Property("updated_at", th.DateTimeType),
-                    th.Property(
-                        "uploader",
-                        th.ObjectType(
-                            th.Property("login", th.StringType),
-                            th.Property("id", th.IntegerType),
-                            th.Property("node_id", th.StringType),
-                            th.Property("avatar_url", th.StringType),
-                            th.Property("gravatar_id", th.StringType),
-                            th.Property("url", th.StringType),
-                            th.Property("html_url", th.StringType),
-                            th.Property("type", th.StringType),
-                            th.Property("site_admin", th.BooleanType),
-                        ),
-                    ),
+                    th.Property("uploader", user_object),
                 )
             ),
         ),
@@ -745,7 +691,7 @@ class IssuesStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
@@ -809,107 +755,18 @@ class IssuesStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("type", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property(
             "labels",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("url", th.StringType),
-                    th.Property("name", th.StringType),
-                    th.Property("description", th.StringType),
-                    th.Property("color", th.StringType),
-                    th.Property("default", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(label_object),
         ),
-        th.Property(
-            "reactions",
-            th.ObjectType(
-                th.Property("url", th.StringType),
-                th.Property("total_count", th.IntegerType),
-                th.Property("plus_one", th.IntegerType),
-                th.Property("minus_one", th.IntegerType),
-                th.Property("laugh", th.IntegerType),
-                th.Property("hooray", th.IntegerType),
-                th.Property("confused", th.IntegerType),
-                th.Property("heart", th.IntegerType),
-                th.Property("rocket", th.IntegerType),
-                th.Property("eyes", th.IntegerType),
-            ),
-        ),
-        th.Property(
-            "assignee",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("reactions", reactions_object),
+        th.Property("assignee", user_object),
         th.Property(
             "assignees",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("login", th.StringType),
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("avatar_url", th.StringType),
-                    th.Property("gravatar_id", th.StringType),
-                    th.Property("html_url", th.StringType),
-                    th.Property("type", th.StringType),
-                    th.Property("site_admin", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(user_object),
         ),
-        th.Property(
-            "milestone",
-            th.ObjectType(
-                th.Property("html_url", th.StringType),
-                th.Property("node_id", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("number", th.IntegerType),
-                th.Property("state", th.StringType),
-                th.Property("title", th.StringType),
-                th.Property("description", th.StringType),
-                th.Property(
-                    "creator",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
-                th.Property("open_issues", th.IntegerType),
-                th.Property("closed_issues", th.IntegerType),
-                th.Property("created_at", th.DateTimeType),
-                th.Property("updated_at", th.DateTimeType),
-                th.Property("closed_at", th.DateTimeType),
-                th.Property("due_on", th.DateTimeType),
-            ),
-        ),
+        th.Property("milestone", milestone_object),
         th.Property("locked", th.BooleanType),
         th.Property(
             "pull_request",
@@ -936,7 +793,7 @@ class IssueCommentsStream(GitHubRestStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # FIXME: this allows the tap to continue on server-side timeouts but means
     # we have gaps in our data
     tolerated_http_errors = [502]
@@ -977,19 +834,7 @@ class IssueCommentsStream(GitHubRestStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
     ).to_dict()
 
 
@@ -1006,7 +851,7 @@ class IssueEventsStream(GitHubRestStream):
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
 
@@ -1037,19 +882,7 @@ class IssueEventsStream(GitHubRestStream):
         th.Property("commit_id", th.StringType),
         th.Property("commit_url", th.StringType),
         th.Property("created_at", th.DateTimeType),
-        th.Property(
-            "actor",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("actor", user_object),
     ).to_dict()
 
 
@@ -1126,32 +959,38 @@ class CommitsStream(GitHubRestStream):
                 ),
             ),
         ),
-        th.Property(
-            "author",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
-        th.Property(
-            "committer",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("author", user_object),
+        th.Property("committer", user_object),
+    ).to_dict()
+
+
+class CommitCommentsStream(GitHubRestStream):
+    name = "commit_comments"
+    path = "/repos/{org}/{repo}/comments"
+    primary_keys = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    ignore_parent_replication_key = True
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        # Rest
+        th.Property("html_url", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("position", th.IntegerType),
+        th.Property("line", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        th.Property("user", user_object),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("author_association", th.StringType),
     ).to_dict()
 
 
@@ -1206,7 +1045,7 @@ class PullRequestsStream(GitHubRestStream):
     primary_keys = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
@@ -1287,122 +1126,22 @@ class PullRequestsStream(GitHubRestStream):
         th.Property("review_comment_url", th.StringType),
         th.Property("comments_url", th.StringType),
         th.Property("statuses_url", th.StringType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
         th.Property(
             "labels",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("url", th.StringType),
-                    th.Property("name", th.StringType),
-                    th.Property("description", th.StringType),
-                    th.Property("color", th.StringType),
-                    th.Property("default", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(label_object),
         ),
-        th.Property(
-            "reactions",
-            th.ObjectType(
-                th.Property("url", th.StringType),
-                th.Property("total_count", th.IntegerType),
-                th.Property("plus_one", th.IntegerType),
-                th.Property("minus_one", th.IntegerType),
-                th.Property("laugh", th.IntegerType),
-                th.Property("hooray", th.IntegerType),
-                th.Property("confused", th.IntegerType),
-                th.Property("heart", th.IntegerType),
-                th.Property("rocket", th.IntegerType),
-                th.Property("eyes", th.IntegerType),
-            ),
-        ),
-        th.Property(
-            "assignee",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("reactions", reactions_object),
+        th.Property("assignee", user_object),
         th.Property(
             "assignees",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("login", th.StringType),
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("avatar_url", th.StringType),
-                    th.Property("gravatar_id", th.StringType),
-                    th.Property("html_url", th.StringType),
-                    th.Property("type", th.StringType),
-                    th.Property("site_admin", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(user_object),
         ),
         th.Property(
             "requested_reviewers",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("login", th.StringType),
-                    th.Property("id", th.IntegerType),
-                    th.Property("node_id", th.StringType),
-                    th.Property("avatar_url", th.StringType),
-                    th.Property("gravatar_id", th.StringType),
-                    th.Property("html_url", th.StringType),
-                    th.Property("type", th.StringType),
-                    th.Property("site_admin", th.BooleanType),
-                ),
-            ),
+            th.ArrayType(user_object),
         ),
-        th.Property(
-            "milestone",
-            th.ObjectType(
-                th.Property("html_url", th.StringType),
-                th.Property("node_id", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("number", th.IntegerType),
-                th.Property("state", th.StringType),
-                th.Property("title", th.StringType),
-                th.Property("description", th.StringType),
-                th.Property(
-                    "creator",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
-                th.Property("open_issues", th.IntegerType),
-                th.Property("closed_issues", th.IntegerType),
-                th.Property("created_at", th.DateTimeType),
-                th.Property("updated_at", th.DateTimeType),
-                th.Property("closed_at", th.DateTimeType),
-                th.Property("due_on", th.DateTimeType),
-            ),
-        ),
+        th.Property("milestone", milestone_object),
         th.Property("locked", th.BooleanType),
         th.Property(
             "pull_request",
@@ -1419,19 +1158,7 @@ class PullRequestsStream(GitHubRestStream):
                 th.Property("label", th.StringType),
                 th.Property("ref", th.StringType),
                 th.Property("sha", th.StringType),
-                th.Property(
-                    "user",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
+                th.Property("user", user_object),
                 th.Property(
                     "repo",
                     th.ObjectType(
@@ -1450,19 +1177,7 @@ class PullRequestsStream(GitHubRestStream):
                 th.Property("label", th.StringType),
                 th.Property("ref", th.StringType),
                 th.Property("sha", th.StringType),
-                th.Property(
-                    "user",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("id", th.IntegerType),
-                        th.Property("node_id", th.StringType),
-                        th.Property("avatar_url", th.StringType),
-                        th.Property("gravatar_id", th.StringType),
-                        th.Property("html_url", th.StringType),
-                        th.Property("type", th.StringType),
-                        th.Property("site_admin", th.BooleanType),
-                    ),
-                ),
+                th.Property("user", user_object),
                 th.Property(
                     "repo",
                     th.ObjectType(
@@ -1475,6 +1190,164 @@ class PullRequestsStream(GitHubRestStream):
                 ),
             ),
         ),
+    ).to_dict()
+
+
+class PullRequestCommits(GitHubRestStream):
+    name = "pull_request_commits"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
+    ignore_parent_replication_key = False
+    primary_keys = ["node_id"]
+    parent_stream_type = PullRequestsStream
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("pull_number", th.IntegerType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("comments_url", th.StringType),
+        th.Property(
+            "commit",
+            th.ObjectType(
+                th.Property("url", th.StringType),
+                th.Property(
+                    "author",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "committer",
+                    th.ObjectType(
+                        th.Property("name", th.StringType),
+                        th.Property("email", th.StringType),
+                        th.Property("date", th.StringType),
+                    ),
+                ),
+                th.Property("message", th.StringType),
+                th.Property(
+                    "tree",
+                    th.ObjectType(
+                        th.Property("url", th.StringType),
+                        th.Property("sha", th.StringType),
+                    ),
+                ),
+                th.Property("comment_count", th.IntegerType),
+                th.Property(
+                    "verification",
+                    th.ObjectType(
+                        th.Property("verified", th.BooleanType),
+                        th.Property("reason", th.StringType),
+                        th.Property("signature", th.StringType),
+                        th.Property("payload", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+        th.Property("author", user_object),
+        th.Property("committer", user_object),
+        th.Property(
+            "parents",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("url", th.StringType), th.Property("sha", th.StringType)
+                )
+            ),
+        ),
+    ).to_dict()
+
+
+class ReviewsStream(GitHubRestStream):
+    name = "reviews"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
+    primary_keys = ["id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("pull_number", th.IntegerType),
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        # Rest
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("user", user_object),
+        th.Property("body", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("pull_request_url", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property(
+                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
+                ),
+            ),
+        ),
+        th.Property("submitted_at", th.DateTimeType),
+        th.Property("commit_id", th.StringType),
+        th.Property("author_association", th.StringType),
+    ).to_dict()
+
+
+class ReviewCommentsStream(GitHubRestStream):
+    name = "review_comments"
+    path = "/repos/{org}/{repo}/pulls/comments"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        # Rest
+        th.Property("url", th.StringType),
+        th.Property("pull_request_review_id", th.IntegerType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("diff_hunk", th.StringType),
+        th.Property("path", th.StringType),
+        th.Property("position", th.IntegerType),
+        th.Property("original_position", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        th.Property("original_commit_id", th.StringType),
+        th.Property("in_reply_to_id", th.IntegerType),
+        th.Property("user", user_object),
+        th.Property("body", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("html_url", th.StringType),
+        th.Property("pull_request_url", th.StringType),
+        th.Property("author_association", th.StringType),
+        th.Property(
+            "_links",
+            th.ObjectType(
+                th.Property("self", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
+                th.Property(
+                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
+                ),
+            ),
+        ),
+        th.Property("start_line", th.IntegerType),
+        th.Property("original_start_line", th.IntegerType),
+        th.Property("start_side", th.StringType),
+        th.Property("line", th.IntegerType),
+        th.Property("original_line", th.IntegerType),
+        th.Property("side", th.StringType),
     ).to_dict()
 
 
@@ -1695,7 +1568,7 @@ class ContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["node_id", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
@@ -1723,7 +1596,7 @@ class AnonymousContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/contributors"
     primary_keys = ["email", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
@@ -1790,19 +1663,7 @@ class StargazersStream(GitHubRestStream):
         th.Property("user_id", th.IntegerType),
         # Stargazer Info
         th.Property("starred_at", th.DateTimeType),
-        th.Property(
-            "user",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("user", user_object),
     ).to_dict()
 
 
@@ -1816,7 +1677,7 @@ class StatsContributorsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/stats/contributors"
     primary_keys = ["user_id", "week_start", "repo", "org"]
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     # Note - these queries are expensive and the API might return an HTTP 202 if the response
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
@@ -1893,20 +1754,7 @@ class ProjectsStream(GitHubRestStream):
         th.Property("body", th.StringType),
         th.Property("number", th.IntegerType),
         th.Property("state", th.StringType),
-        th.Property(
-            "creator",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("creator", user_object),
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
@@ -1961,20 +1809,7 @@ class ProjectCardsStream(GitHubRestStream):
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("note", th.StringType),
-        th.Property(
-            "creator",
-            th.ObjectType(
-                th.Property("login", th.StringType),
-                th.Property("id", th.IntegerType),
-                th.Property("node_id", th.StringType),
-                th.Property("avatar_url", th.StringType),
-                th.Property("gravatar_id", th.StringType),
-                th.Property("url", th.StringType),
-                th.Property("html_url", th.StringType),
-                th.Property("type", th.StringType),
-                th.Property("site_admin", th.BooleanType),
-            ),
-        ),
+        th.Property("creator", user_object),
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("archived", th.BooleanType),
