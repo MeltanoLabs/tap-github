@@ -1,11 +1,14 @@
 """Classes to assist in authenticating to the GitHub API."""
 
 import logging
+import random
+import time
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional
 
+import jwt
 import requests
 from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
@@ -55,6 +58,54 @@ class TokenRateLimit:
         return True
 
 
+def generate_jwt_token(
+    github_app_id, github_private_key, expiration_time=600, algorithm="RS256"
+):
+    actual_time = int(time.time())
+
+    payload = {
+        "iat": actual_time, "exp": actual_time + expiration_time, "iss": github_app_id,
+    }
+    token = jwt.encode(payload, github_private_key, algorithm=algorithm).
+    
+    if isinstance(token, bytes):
+        token = token.decode("utf-8")
+
+    return token
+
+
+def generate_app_access_token(
+    self, github_app_id, github_private_key, github_installation_id=None
+):
+    jwt_token = generate_jwt_token(github_app_id, github_private_key)
+
+    headers = {"Authorization": "Bearer {}".format(jwt_token)}
+
+    if github_installation_id is None:
+        list_installations_resp = requests.get(
+            url="https://api.github.com/app/installations", headers=headers
+        )
+        list_installations_resp.raise_for_status()
+        list_installations = list_installations_resp.json()
+
+        if len(list_installations) == 0:
+            raise Exception(f"No installations found for app {github_app_id}.")
+
+        github_installation_id = random.choice(list_installations)["id"]
+
+        self.logger.warning(list_installations)
+
+    url = "https://api.github.com/app/installations/{}/access_tokens".format(
+        github_installation_id
+    )
+    resp = requests.get(url, headers=headers)
+
+    if resp.status_code != 201:
+        resp.raise_for_status()
+
+    return resp.json()["token"]
+
+
 class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
@@ -79,10 +130,23 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 available_tokens = env_tokens
         self.logger.info(f"Tap will run with {len(available_tokens)} auth tokens")
 
+        app_token = generate_app_access_token(
+            "22906",
+            "-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----",
+        )
+
+        available_tokens = available_tokens + [app_token]
+
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
 
         # Dedup tokens and create a dict of TokenRateLimit
+        # Detect org level token input and fetch actual token
+        # final_tokens = []
+
+        # TODO - separate app_token and add logic to refresh the token
+        # using generate_app_access_token.
+
         return {
             token: TokenRateLimit(token, rate_limit_buffer)
             for token in list(set(available_tokens))
