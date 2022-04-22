@@ -134,8 +134,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             # "{app_id}$${-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
             parts = environ["GITHUB_APP_PRIVATE_KEY"].split(";;")
             github_app_id = parts[0]
-            github_private_key = (parts[1:2] or [''])[0].replace('\\n', '\n')
-            github_installation_id = (parts[2:3] or [''])[0]
+            github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
+            github_installation_id = (parts[2:3] or [""])[0]
 
             if not (github_private_key):
                 self.logger.warning(
@@ -144,13 +144,13 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                         '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----"'
                     )
                 )
-    
+
             else:
                 app_token = generate_app_access_token(
                     github_app_id, github_private_key, github_installation_id or None
                 )
                 available_tokens = available_tokens + [app_token]
-    
+
         self.logger.info(f"Tap will run with {len(available_tokens)} auth tokens")
 
         # Get rate_limit_buffer
