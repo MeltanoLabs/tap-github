@@ -64,10 +64,12 @@ def generate_jwt_token(
     actual_time = int(time.time())
 
     payload = {
-        "iat": actual_time, "exp": actual_time + expiration_time, "iss": github_app_id,
+        "iat": actual_time,
+        "exp": actual_time + expiration_time,
+        "iss": github_app_id,
     }
-    token = jwt.encode(payload, github_private_key, algorithm=algorithm).
-    
+    token = jwt.encode(payload, github_private_key, algorithm=algorithm)
+
     if isinstance(token, bytes):
         token = token.decode("utf-8")
 
@@ -75,7 +77,7 @@ def generate_jwt_token(
 
 
 def generate_app_access_token(
-    self, github_app_id, github_private_key, github_installation_id=None
+    github_app_id, github_private_key, github_installation_id=None
 ):
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
@@ -93,12 +95,10 @@ def generate_app_access_token(
 
         github_installation_id = random.choice(list_installations)["id"]
 
-        self.logger.warning(list_installations)
-
     url = "https://api.github.com/app/installations/{}/access_tokens".format(
         github_installation_id
     )
-    resp = requests.get(url, headers=headers)
+    resp = requests.post(url, headers=headers)
 
     if resp.status_code != 201:
         resp.raise_for_status()
