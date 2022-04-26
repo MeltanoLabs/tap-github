@@ -1169,12 +1169,14 @@ class PullRequestsStream(GitHubRestStream):
             return {
                 "org": context["org"],
                 "repo": context["repo"],
+                "repo_id": context["repo_id"],
                 "pull_number": record["number"],
             }
         return {
             "pull_number": record["number"],
             "org": record["base"]["user"]["login"],
             "repo": record["base"]["repo"]["name"],
+            "repo_id": record["base"]["repo"]["id"],
         }
 
     schema = th.PropertiesList(
