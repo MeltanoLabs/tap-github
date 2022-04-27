@@ -77,8 +77,8 @@ def generate_jwt_token(
 
 
 def generate_app_access_token(
-    github_app_id, github_private_key, github_installation_id=None
-):
+    github_app_id: str, github_private_key: str, github_installation_id: Optional[str] = None
+) -> str:
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
     headers = {"Authorization": "Bearer {}".format(jwt_token)}
