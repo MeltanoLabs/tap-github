@@ -112,7 +112,7 @@ class RepositoryStream(GitHubRestStream):
                     )
                     continue
                 repos_with_ids.append(
-                    {"org": org, "repo": repo, "id": record[item]["databaseId"]}
+                    {"org": org, "repo": repo, "repo_id": record[item]["databaseId"]}
                 )
         self.logger.info(f"Running the tap on {len(repos_with_ids)} repositories")
         return repos_with_ids
