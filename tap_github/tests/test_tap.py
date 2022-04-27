@@ -15,7 +15,7 @@ repo_list_2 = [
 ]
 # the github repo ids that match the repo names above
 # in the same order
-repo_ids = [
+repo_list_2_ids = [
     365087920,
     416891176,
     361619143,
