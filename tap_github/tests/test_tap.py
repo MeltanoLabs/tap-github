@@ -13,13 +13,25 @@ repo_list_2 = [
     "MeltanoLabs/tap-gitlab",
     "MeltanoLabs/target-athena",
 ]
+# the github repo ids that match the repo names above
+# in the same order
+repo_ids = [
+    365087920,
+    416891176,
+    361619143,
+]
 
 
 @pytest.mark.repo_list(repo_list_2)
 def test_validate_repo_list_config(repo_list_config):
     """Verify that the repositories list is parsed correctly"""
     repo_list_context = [
-        {"org": repo.split("/")[0], "repo": repo.split("/")[1]} for repo in repo_list_2
+        {
+            "org": repo[0].split("/")[0],
+            "repo": repo[0].split("/")[1],
+            "repo_id": repo[1],
+        }
+        for repo in zip(repo_list_2, repo_ids)
     ]
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions
