@@ -442,7 +442,8 @@ class EventsStream(GitHubRestStream):
         # the parent stream, e.g. for fork/parent PR events.
         row["target_repo"] = row.pop("repo", None)
         row["target_org"] = row.pop("org", None)
-        row["repo_id"] = context["repo_id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
@@ -813,7 +814,8 @@ class IssuesStream(GitHubRestStream):
         # replace +1/-1 emojis to avoid downstream column name errors.
         row["plus_one"] = row.pop("+1", None)
         row["minus_one"] = row.pop("-1", None)
-        row["repo_id"] = context["repo_id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
@@ -890,7 +892,8 @@ class IssueCommentsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
-        row["repo_id"] = context["repo_id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
         if row["body"] is not None:
             # some comment bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
@@ -950,7 +953,8 @@ class IssueEventsStream(GitHubRestStream):
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue"].pop("number"))
         row["issue_url"] = row["issue"].pop("url")
-        row["repo_id"] = context["repo_id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
@@ -1125,7 +1129,8 @@ class PullRequestsStream(GitHubRestStream):
         # replace +1/-1 emojis to avoid downstream column name errors.
         row["plus_one"] = row.pop("+1", None)
         row["minus_one"] = row.pop("-1", None)
-        row["repo_id"] = context["repo_id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
         return row
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
@@ -1496,7 +1501,8 @@ class StargazersStream(GitHubRestStream):
         Add a user_id top-level field to be used as state replication key.
         """
         row["user_id"] = row["user"]["id"]
-        row["repo_id"] = context["repo_id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(

@@ -234,8 +234,10 @@ class GitHubRestStream(RESTStream):
 
         yield from results
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
         """Add `repo_id` by default to all streams."""
+        if context is None:
+            return row
         row["repo_id"] = context["repo_id"]
         return row
 
