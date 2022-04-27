@@ -36,7 +36,7 @@ This tap accepts the following configuration options:
   - `auth_token` - GitHub token to authenticate with.
   - `additional_auth_tokens` - List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits..
   - alternatively, you can input authentication tokens with any environment variables starting with GITHUB_TOKEN.
-  - or authenticate as a GitHub app setting a private key in GITHUB_APP_PRIVATE_KEY. Formatted as follows: `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----`
+  - or authenticate as a GitHub app setting a private key in GITHUB_APP_PRIVATE_KEY. Formatted as follows: `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----`. You can generate it from the `Private keys` section on https://github.com/organizations/:organization_name/settings/apps/:app_name. Read more about GitHub App quotas [here](https://docs.github.com/en/enterprise-server@3.3/developers/apps/building-github-apps/rate-limits-for-github-apps#server-to-server-requests).
 - Optional:
   - `user_agent`
   - `start_date`

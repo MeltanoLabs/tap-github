@@ -59,7 +59,10 @@ class TokenRateLimit:
 
 
 def generate_jwt_token(
-    github_app_id: str, github_private_key: str, expiration_time: int = 600, algorithm: str = "RS256"
+    github_app_id: str,
+    github_private_key: str,
+    expiration_time: int = 600,
+    algorithm: str = "RS256",
 ) -> str:
     actual_time = int(time.time())
 
@@ -77,11 +80,13 @@ def generate_jwt_token(
 
 
 def generate_app_access_token(
-    github_app_id: str, github_private_key: str, github_installation_id: Optional[str] = None
+    github_app_id: str,
+    github_private_key: str,
+    github_installation_id: Optional[str] = None,
 ) -> str:
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
-    headers = {"Authorization": "Bearer {}".format(jwt_token)}
+    headers = {"Authorization": f"Bearer {jwt_token}"}
 
     if github_installation_id is None:
         list_installations_resp = requests.get(
@@ -131,7 +136,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         if "GITHUB_APP_PRIVATE_KEY" in environ.keys():
             # To simplify settings, we use a single env-key formatted as follows:
-            # "{app_id}$${-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
+            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
             parts = environ["GITHUB_APP_PRIVATE_KEY"].split(";;")
             github_app_id = parts[0]
             github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
