@@ -234,6 +234,11 @@ class GitHubRestStream(RESTStream):
 
         yield from results
 
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """Add `repo_id` by default to all streams."""
+        row["repo_id"] = context["repo_id"]
+        return row
+
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""

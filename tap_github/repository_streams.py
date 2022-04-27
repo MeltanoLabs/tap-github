@@ -253,10 +253,6 @@ class ReadmeStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -317,10 +313,6 @@ class ReadmeHtmlStream(GitHubRestStream):
 
         yield {"raw_html": response.text}
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -341,10 +333,6 @@ class CommunityProfileStream(GitHubRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     tolerated_http_errors = [404]
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -598,10 +586,6 @@ class MilestonesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -635,10 +619,6 @@ class ReleasesStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     replication_key = "published_at"
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
@@ -703,10 +683,6 @@ class LanguagesStream(GitHubRestStream):
         for key, value in languages_json.items():
             yield {"language_name": key, "bytes": value}
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -726,10 +702,6 @@ class CollaboratorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -769,10 +741,6 @@ class AssigneesStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1090,10 +1058,6 @@ class CommitCommentsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -1284,10 +1248,6 @@ class PullRequestCommits(GitHubRestStream):
     parent_stream_type = PullRequestsStream
     state_partitioning_keys = ["repo", "org"]
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("org", th.StringType),
@@ -1361,10 +1321,6 @@ class ReviewsStream(GitHubRestStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("pull_number", th.IntegerType),
@@ -1401,10 +1357,6 @@ class ReviewCommentsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1459,10 +1411,6 @@ class ContributorsStream(GitHubRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -1506,10 +1454,6 @@ class AnonymousContributorsStream(GitHubRestStream):
         """Parse the response and return an iterator of anonymous contributors."""
         parsed_response = super().parse_response(response)
         return filter(lambda x: x["type"] == "Anonymous", parsed_response)
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1607,10 +1551,6 @@ class StatsContributorsStream(GitHubRestStream):
                 week_with_author["user_id"] = week_with_author.pop("id")
                 yield week_with_author
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -1643,10 +1583,6 @@ class ProjectsStream(GitHubRestStream):
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {"project_id": record["id"]}
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1682,10 +1618,6 @@ class ProjectColumnsStream(GitHubRestStream):
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {"column_id": record["id"]}
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -1712,10 +1644,6 @@ class ProjectCardsStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = ProjectColumnsStream
     state_partitioning_keys = ["project_id", "repo", "org"]
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1753,10 +1681,6 @@ class WorkflowsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.workflows[*]"
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
@@ -1791,10 +1715,6 @@ class WorkflowRunsStream(GitHubRestStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.workflow_runs[*]"
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1863,10 +1783,6 @@ class WorkflowRunJobsStream(GitHubRestStream):
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org", "run_id"]
     records_jsonpath = "$.jobs[*]"
-
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["repo_id"] = context["repo_id"]
-        return row
 
     schema = th.PropertiesList(
         # Parent keys
