@@ -59,8 +59,8 @@ class TokenRateLimit:
 
 
 def generate_jwt_token(
-    github_app_id, github_private_key, expiration_time=600, algorithm="RS256"
-):
+    github_app_id: str, github_private_key: str, expiration_time: int = 600, algorithm: str = "RS256"
+) -> str:
     actual_time = int(time.time())
 
     payload = {
