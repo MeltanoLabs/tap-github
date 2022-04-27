@@ -1588,7 +1588,12 @@ class ProjectsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
-        return {"project_id": record["id"]}
+        return {
+            "project_id": record["id"],
+            "repo_id": context["repo_id"] if context else None,
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+        }
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1622,7 +1627,12 @@ class ProjectColumnsStream(GitHubRestStream):
     state_partitioning_keys = ["project_id", "repo", "org"]
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
-        return {"column_id": record["id"]}
+        return {
+            "column_id": record["id"],
+            "repo_id": context["repo_id"] if context else None,
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+        }
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1774,6 +1784,7 @@ class WorkflowRunsStream(GitHubRestStream):
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
             "run_id": record["id"],
+            "repo_id": context["repo_id"] if context else None,
         }
 
 
