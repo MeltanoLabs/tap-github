@@ -82,10 +82,29 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
 
-        # Dedup tokens and create a dict of TokenRateLimit
+        # Dedup tokens and test them
+        filtered_tokens = []
+        for token in list(set(available_tokens)):
+            try:
+                now = datetime.now()
+                modified_since = now.strftime("%a, %d %b %Y %H:%M:%S GMT")
+                response = requests.get(
+                    url="https://api.github.com/repos/MeltanoLabs/tap-github/readme",
+                    headers={
+                        "Authorization": f"token {token}",
+                        "If-Modified-Since": modified_since,
+                    },
+                )
+                response.raise_for_status()
+                filtered_tokens.append(token)
+            except Exception as e:
+                self.logger.warning(
+                    f"One token was not used. Reason: {response.content}"
+                )
+
+        # Create a dict of TokenRateLimit
         return {
-            token: TokenRateLimit(token, rate_limit_buffer)
-            for token in list(set(available_tokens))
+            token: TokenRateLimit(token, rate_limit_buffer) for token in filtered_tokens
         }
 
     def __init__(self, stream: RESTStream) -> None:
