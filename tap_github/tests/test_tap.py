@@ -15,6 +15,12 @@ repo_list_2 = [
     # mistype the org
     "meltanolabs/target-athena",
 ]
+# the same list, but without typos, for validation
+repo_list_2_corrected = [
+    "MeltanoLabs/tap-github",
+    "MeltanoLabs/tap-gitlab",
+    "MeltanoLabs/target-athena",
+]
 # the github repo ids that match the repo names above
 # in the same order
 repo_list_2_ids = [
@@ -33,7 +39,7 @@ def test_validate_repo_list_config(repo_list_config):
             "repo": repo[0].split("/")[1],
             "repo_id": repo[1],
         }
-        for repo in zip(repo_list_2, repo_list_2_ids)
+        for repo in zip(repo_list_2_corrected, repo_list_2_ids)
     ]
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions
