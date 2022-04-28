@@ -1,7 +1,6 @@
 """Classes to assist in authenticating to the GitHub API."""
 
 import logging
-import random
 import time
 from datetime import datetime
 from os import environ
@@ -98,7 +97,7 @@ def generate_app_access_token(
         if len(list_installations) == 0:
             raise Exception(f"No installations found for app {github_app_id}.")
 
-        github_installation_id = random.choice(list_installations)["id"]
+        github_installation_id = choice(list_installations)["id"]
 
     url = "https://api.github.com/app/installations/{}/access_tokens".format(
         github_installation_id
