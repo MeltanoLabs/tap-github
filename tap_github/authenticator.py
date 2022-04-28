@@ -98,9 +98,12 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 response.raise_for_status()
                 filtered_tokens.append(token)
             except Exception as e:
-                self.logger.warning(
-                    f"One token was not used. Reason: {response.content}"
+                msg = (
+                    f"One token was not used. "
+                    f"{response.status_code} Client Error: "
+                    f"{str(response.content)} (Reason: {response.reason})"
                 )
+                self.logger.warning(msg)
 
         # Create a dict of TokenRateLimit
         return {
