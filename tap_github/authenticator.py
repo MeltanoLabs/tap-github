@@ -133,6 +133,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 available_tokens = env_tokens
 
+        # Parse App level private key and generate a token
         if "GITHUB_APP_PRIVATE_KEY" in environ.keys():
             # To simplify settings, we use a single env-key formatted as follows:
             # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
