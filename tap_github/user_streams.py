@@ -34,6 +34,7 @@ class UserStream(GitHubRestStream):
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {
             "username": record["login"],
+            "user_id": record["id"],
         }
 
     schema = th.PropertiesList(
@@ -102,12 +103,15 @@ class StarredStream(GitHubRestStream):
         Add a repo_id top-level field to be used as state replication key.
         """
         row["repo_id"] = row["repo"]["id"]
+        if context is not None:
+            row["user_id"] = context["user_id"]
         return row
 
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("username", th.StringType),
         th.Property("repo_id", th.StringType),
+        th.Property("user_id", th.IntegerType),
         # Starred Repo Info
         th.Property("starred_at", th.DateTimeType),
         th.Property(
