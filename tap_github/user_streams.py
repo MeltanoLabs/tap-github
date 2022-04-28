@@ -1,6 +1,6 @@
 """User Stream types classes for tap-github."""
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable, Any
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -26,7 +26,8 @@ class UserStream(GitHubRestStream):
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
         if "user_usernames" in self.config:
-            return [{"username": u} for u in self.config["user_usernames"]]
+            # return [{"username": u} for u in self.config["user_usernames"]]
+            return self.get_user_ids(self.config["user_usernames"])
         elif "user_ids" in self.config:
             return [{"id": id} for id in self.config["user_ids"]]
         return None
@@ -36,6 +37,91 @@ class UserStream(GitHubRestStream):
             "username": record["login"],
             "user_id": record["id"],
         }
+
+    def get_user_ids(self, user_list: List[str]) -> List[Dict[str, str]]:
+        """Enrich the list of userse with their numeric ID from github.
+
+        This helps maintain a stable id for context and bookmarks.
+        It uses the github graphql api to fetch the databaseId.
+        It also removes non-existant repos and corrects casing to ensure
+        data is correct downstream.
+        """
+        # use a temp handmade stream to reuse all the graphql setup of the tap
+        class TempStream(GitHubGraphqlStream):
+            name = "tempStream"
+            schema = th.PropertiesList(
+                th.Property("id", th.StringType),
+                th.Property("databaseId", th.IntegerType),
+            ).to_dict()
+
+            def __init__(self, tap, user_list) -> None:
+                super().__init__(tap)
+                self.user_list = user_list
+
+            @property
+            def query(self) -> str:
+                chunks = list()
+                # there is probably some limit to how many items can be requested
+                # in a single query, but it's well above 1k.
+                for i, user in enumerate(self.user_list):
+                    chunks.append(
+                        f'user{i}: user(login: "{user}") ' "{ login databaseId }"
+                    )
+                return "query {" + " ".join(chunks) + " }"
+
+        users_with_ids: list = list()
+        temp_stream = TempStream(self._tap, list(user_list))
+        # replace manually provided org/repo values by the ones obtained
+        # from github api. This guarantees that case is correct in the output data.
+        # See https://github.com/MeltanoLabs/tap-github/issues/110
+        # Also remove repos which do not exist to avoid crashing further down
+        # the line.
+        for record in temp_stream.request_records({}):
+            self.logger.error(record)
+            for item in record.keys():
+                try:
+                    username = record[item]["login"]
+                except TypeError:
+                    # one of the usernames returned `None`, which means it does
+                    # not exist, log some details, and move on to the next one
+                    invalid_username = user_list[int(item[4:])]
+                    self.logger.warn(
+                        (
+                            f"Repository not found: {invalid_username} \t"
+                            "Removing it from list"
+                        )
+                    )
+                    continue
+                users_with_ids.append(
+                    {"username": username, "user_id": record[item]["databaseId"]}
+                )
+        self.logger.info(f"Running the tap on {len(users_with_ids)} users")
+        self.logger.info(users_with_ids)
+        return users_with_ids
+
+    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
+        """
+        Override the parent method to allow skipping API calls
+        if the stream is deselected and skip_parent_streams is True in config.
+        This allows running the tap with fewer API calls and preserving
+        quota when only syncing a child stream. Without this,
+        the API call is sent but data is discarded.
+        """
+        if (
+            not self.selected
+            and "skip_parent_streams" in self.config
+            and self.config["skip_parent_streams"]
+            and context is not None
+        ):
+            # build a minimal mock record so that self._sync_records
+            # can proceed with child streams
+            # the id is fetched in `get_user_ids` above
+            yield {
+                "login": context["username"],
+                "id": context["user_id"],
+            }
+        else:
+            yield from super().get_records(context)
 
     schema = th.PropertiesList(
         th.Property("login", th.StringType),

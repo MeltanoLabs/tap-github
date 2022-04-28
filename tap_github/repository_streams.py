@@ -171,7 +171,7 @@ class RepositoryStream(GitHubRestStream):
                     "login": context["org"],
                 },
                 "name": context["repo"],
-                "id": context["id"],
+                "id": context["repo_id"],
             }
         else:
             yield from super().get_records(context)
