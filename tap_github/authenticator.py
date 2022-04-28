@@ -161,12 +161,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
 
         # Dedup tokens and create a dict of TokenRateLimit
-        # Detect org level token input and fetch actual token
-        # final_tokens = []
 
         # TODO - separate app_token and add logic to refresh the token
         # using generate_app_access_token.
-
         return {
             token: TokenRateLimit(token, rate_limit_buffer)
             for token in list(set(available_tokens))
