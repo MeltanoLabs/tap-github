@@ -99,7 +99,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 filtered_tokens.append(token)
             except Exception as e:
                 msg = (
-                    f"One token was not used. "
+                    f"A token was dismissed. "
                     f"{response.status_code} Client Error: "
                     f"{str(response.content)} (Reason: {response.reason})"
                 )
