@@ -1,11 +1,13 @@
 """Classes to assist in authenticating to the GitHub API."""
 
 import logging
+import time
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional
 
+import jwt
 import requests
 from singer_sdk.authenticators import APIAuthenticatorBase
 from singer_sdk.streams import RESTStream
@@ -55,6 +57,59 @@ class TokenRateLimit:
         return True
 
 
+def generate_jwt_token(
+    github_app_id: str,
+    github_private_key: str,
+    expiration_time: int = 600,
+    algorithm: str = "RS256",
+) -> str:
+    actual_time = int(time.time())
+
+    payload = {
+        "iat": actual_time,
+        "exp": actual_time + expiration_time,
+        "iss": github_app_id,
+    }
+    token = jwt.encode(payload, github_private_key, algorithm=algorithm)
+
+    if isinstance(token, bytes):
+        token = token.decode("utf-8")
+
+    return token
+
+
+def generate_app_access_token(
+    github_app_id: str,
+    github_private_key: str,
+    github_installation_id: Optional[str] = None,
+) -> str:
+    jwt_token = generate_jwt_token(github_app_id, github_private_key)
+
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+
+    if github_installation_id is None:
+        list_installations_resp = requests.get(
+            url="https://api.github.com/app/installations", headers=headers
+        )
+        list_installations_resp.raise_for_status()
+        list_installations = list_installations_resp.json()
+
+        if len(list_installations) == 0:
+            raise Exception(f"No installations found for app {github_app_id}.")
+
+        github_installation_id = choice(list_installations)["id"]
+
+    url = "https://api.github.com/app/installations/{}/access_tokens".format(
+        github_installation_id
+    )
+    resp = requests.post(url, headers=headers)
+
+    if resp.status_code != 201:
+        resp.raise_for_status()
+
+    return resp.json()["token"]
+
+
 class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
@@ -77,6 +132,30 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
                 )
                 available_tokens = env_tokens
+
+        # Parse App level private key and generate a token
+        if "GITHUB_APP_PRIVATE_KEY" in environ.keys():
+            # To simplify settings, we use a single env-key formatted as follows:
+            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
+            parts = environ["GITHUB_APP_PRIVATE_KEY"].split(";;")
+            github_app_id = parts[0]
+            github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
+            github_installation_id = (parts[2:3] or [""])[0]
+
+            if not (github_private_key):
+                self.logger.warning(
+                    (
+                        "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
+                        '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----"'
+                    )
+                )
+
+            else:
+                app_token = generate_app_access_token(
+                    github_app_id, github_private_key, github_installation_id or None
+                )
+                available_tokens = available_tokens + [app_token]
+
         self.logger.info(f"Tap will run with {len(available_tokens)} auth tokens")
 
         # Get rate_limit_buffer
@@ -106,6 +185,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 self.logger.warning(msg)
 
         # Create a dict of TokenRateLimit
+        # TODO - separate app_token and add logic to refresh the token
+        # using generate_app_access_token.
         return {
             token: TokenRateLimit(token, rate_limit_buffer) for token in filtered_tokens
         }

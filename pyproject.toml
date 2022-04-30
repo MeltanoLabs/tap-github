@@ -6,6 +6,7 @@ authors = ["Meltano and Meltano Community"]
 license = "Apache 2.0"
 
 [tool.poetry.dependencies]
+PyJWT = "2.3.0"
 python = "<3.11,>=3.7.2"
 requests = "^2.25.1"
 singer-sdk = "^0.4.7"
