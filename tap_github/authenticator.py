@@ -208,9 +208,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
     def get_next_auth_token(self) -> None:
         tokens_list = list(self.tokens_map.items())
+        current_token = self.active_token.token if self.active_token else ''
         shuffle(tokens_list)
         for _, token_rate_limit in tokens_list:
-            if token_rate_limit.is_valid():
+            if token_rate_limit.is_valid() and current_token != token_rate_limit.token:
                 self.active_token = token_rate_limit
                 self.logger.info(f"Switching to fresh auth token")
                 return
