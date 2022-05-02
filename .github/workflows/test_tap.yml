@@ -31,7 +31,8 @@ jobs:
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
         restore-keys: |
-          api-cache-v2
+          api-cache-v3
+          api-cache-
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
