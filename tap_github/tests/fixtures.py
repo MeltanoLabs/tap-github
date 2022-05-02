@@ -33,6 +33,7 @@ def repo_list_config(request):
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "repositories": repo_list,
+        "rate_limit_buffer": 100,
     }
 
 
@@ -52,6 +53,7 @@ def username_list_config(request):
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "user_usernames": username_list,
+        "rate_limit_buffer": 100,
     }
 
 
@@ -71,6 +73,7 @@ def user_id_list_config(request):
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "user_ids": user_id_list,
+        "rate_limit_buffer": 100,
     }
 
 
@@ -88,4 +91,5 @@ def organization_list_config(request):
         "metrics_log_level": "none",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "organizations": organization_list,
+        "rate_limit_buffer": 100,
     }
