@@ -165,18 +165,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         filtered_tokens = []
         for token in list(set(available_tokens)):
             try:
-                now = datetime.now()
-                modified_since = now.strftime("%a, %d %b %Y %H:%M:%S GMT")
                 response = requests.get(
-                    url="https://api.github.com/repos/MeltanoLabs/tap-github/readme",
+                    url="https://api.github.com/rate_limit",
                     headers={
                         "Authorization": f"token {token}",
-                        "If-Modified-Since": modified_since,
                     },
                 )
                 response.raise_for_status()
                 filtered_tokens.append(token)
-            except Exception as e:
+            except requests.exceptions.HTTPError:
                 msg = (
                     f"A token was dismissed. "
                     f"{response.status_code} Client Error: "
