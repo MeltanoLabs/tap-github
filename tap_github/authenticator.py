@@ -161,13 +161,31 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
 
-        # Dedup tokens and create a dict of TokenRateLimit
+        # Dedup tokens and test them
+        filtered_tokens = []
+        for token in list(set(available_tokens)):
+            try:
+                response = requests.get(
+                    url="https://api.github.com/rate_limit",
+                    headers={
+                        "Authorization": f"token {token}",
+                    },
+                )
+                response.raise_for_status()
+                filtered_tokens.append(token)
+            except requests.exceptions.HTTPError:
+                msg = (
+                    f"A token was dismissed. "
+                    f"{response.status_code} Client Error: "
+                    f"{str(response.content)} (Reason: {response.reason})"
+                )
+                self.logger.warning(msg)
 
+        # Create a dict of TokenRateLimit
         # TODO - separate app_token and add logic to refresh the token
         # using generate_app_access_token.
         return {
-            token: TokenRateLimit(token, rate_limit_buffer)
-            for token in list(set(available_tokens))
+            token: TokenRateLimit(token, rate_limit_buffer) for token in filtered_tokens
         }
 
     def __init__(self, stream: RESTStream) -> None:
@@ -187,9 +205,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
     def get_next_auth_token(self) -> None:
         tokens_list = list(self.tokens_map.items())
+        current_token = self.active_token.token if self.active_token else ""
         shuffle(tokens_list)
         for _, token_rate_limit in tokens_list:
-            if token_rate_limit.is_valid():
+            if token_rate_limit.is_valid() and current_token != token_rate_limit.token:
                 self.active_token = token_rate_limit
                 self.logger.info(f"Switching to fresh auth token")
                 return
