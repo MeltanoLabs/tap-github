@@ -87,7 +87,6 @@ class UserStream(GitHubRestStream):
         # Also remove repos which do not exist to avoid crashing further down
         # the line.
         for record in temp_stream.request_records({}):
-            self.logger.error(record)
             for item in record.keys():
                 try:
                     username = record[item]["login"]
@@ -95,9 +94,9 @@ class UserStream(GitHubRestStream):
                     # one of the usernames returned `None`, which means it does
                     # not exist, log some details, and move on to the next one
                     invalid_username = user_list[int(item[4:])]
-                    self.logger.warn(
+                    self.logger.debug(
                         (
-                            f"Repository not found: {invalid_username} \t"
+                            f"Username not found: {invalid_username} \t"
                             "Removing it from list"
                         )
                     )
@@ -115,7 +114,6 @@ class UserStream(GitHubRestStream):
                     raise FatalAPIError("Unexpected GitHub API error: Breaking change?")
 
         self.logger.info(f"Running the tap on {len(users_with_ids)} users")
-        self.logger.info(users_with_ids)
         return users_with_ids
 
     def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
