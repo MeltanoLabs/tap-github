@@ -94,7 +94,7 @@ class UserStream(GitHubRestStream):
                     # one of the usernames returned `None`, which means it does
                     # not exist, log some details, and move on to the next one
                     invalid_username = user_list[int(item[4:])]
-                    self.logger.debug(
+                    self.logger.info(
                         (
                             f"Username not found: {invalid_username} \t"
                             "Removing it from list"

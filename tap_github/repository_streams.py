@@ -104,7 +104,7 @@ class RepositoryStream(GitHubRestStream):
                     # one of the repos returned `None`, which means it does
                     # not exist, log some details, and move on to the next one
                     repo_full_name = "/".join(repo_list[int(item[4:])])
-                    self.logger.debug(
+                    self.logger.info(
                         (
                             f"Repository not found: {repo_full_name} \t"
                             "Removing it from list"
