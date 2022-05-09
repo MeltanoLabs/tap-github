@@ -1,8 +1,10 @@
 """User Stream types classes for tap-github."""
 
+import re
 from typing import Dict, List, Optional, Iterable, Any
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
+from singer_sdk.exceptions import FatalAPIError
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import user_object
@@ -64,20 +66,27 @@ class UserStream(GitHubRestStream):
                 # there is probably some limit to how many items can be requested
                 # in a single query, but it's well above 1k.
                 for i, user in enumerate(self.user_list):
+                    # we use the `repositoryOwner` query which is the only one that
+                    # works on both users and orgs with graphql. REST is less picky
+                    # and the /user endpoint works for all types.
                     chunks.append(
-                        f'user{i}: user(login: "{user}") ' "{ login databaseId }"
+                        f'user{i}: repositoryOwner(login: "{user}") '
+                        "{ login avatarUrl}"
                     )
                 return "query {" + " ".join(chunks) + " }"
 
         users_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(user_list))
+
+        databaseIdPattern: re.Pattern = re.compile(
+            r"https://avatars.githubusercontent.com/u/(\d+)?.*"
+        )
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
         # See https://github.com/MeltanoLabs/tap-github/issues/110
         # Also remove repos which do not exist to avoid crashing further down
         # the line.
         for record in temp_stream.request_records({}):
-            self.logger.error(record)
             for item in record.keys():
                 try:
                     username = record[item]["login"]
@@ -85,18 +94,26 @@ class UserStream(GitHubRestStream):
                     # one of the usernames returned `None`, which means it does
                     # not exist, log some details, and move on to the next one
                     invalid_username = user_list[int(item[4:])]
-                    self.logger.warn(
+                    self.logger.info(
                         (
-                            f"Repository not found: {invalid_username} \t"
+                            f"Username not found: {invalid_username} \t"
                             "Removing it from list"
                         )
                     )
                     continue
-                users_with_ids.append(
-                    {"username": username, "user_id": record[item]["databaseId"]}
-                )
+                # the databaseId (in graphql language) is not available on
+                # repositoryOwner, so we parse the avatarUrl to get it :/
+                m = databaseIdPattern.match(record[item]["avatarUrl"])
+                if m is not None:
+                    dbId = m.group(1)
+                    users_with_ids.append({"username": username, "user_id": dbId})
+                else:
+                    # If we get here, github's API is not returning what
+                    # we expected, so it's most likely a breaking change on
+                    # their end, and the tap's code needs updating
+                    raise FatalAPIError("Unexpected GitHub API error: Breaking change?")
+
         self.logger.info(f"Running the tap on {len(users_with_ids)} users")
-        self.logger.info(users_with_ids)
         return users_with_ids
 
     def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
