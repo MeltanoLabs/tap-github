@@ -275,7 +275,7 @@ class UserContributedToStream(GitHubGraphqlStream):
         return """
           query userContributedTo($username: String! $nextPageCursor_1: String) {
             user (login: $username) {
-              repositoriesContributedTo (first: 2 after: $nextPageCursor_1 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+              repositoriesContributedTo (first: 100 after: $nextPageCursor_1 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
                 pageInfo {
                   hasNextPage_1: hasNextPage
                   startCursor_1: startCursor
