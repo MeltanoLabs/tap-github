@@ -184,6 +184,7 @@ class StarredStream(GitHubRestStream):
     # "repo_id" is the starred repo's id.
     primary_keys = ["repo_id", "username"]
     parent_stream_type = UserStream
+    # TODO - change partitioning key to user_id?
     state_partitioning_keys = ["username"]
     replication_key = "starred_at"
     ignore_parent_replication_key = True
@@ -262,6 +263,8 @@ class UserContributedToStream(GitHubGraphqlStream):
     primary_keys = ["username", "name_with_owner"]
     replication_key = None
     parent_stream_type = UserStream
+    # TODO - add user_id to schema
+    # TODO - change partitioning key to user_id?
     state_partitioning_keys = ["username"]
     ignore_parent_replication_key = True
 
@@ -270,9 +273,14 @@ class UserContributedToStream(GitHubGraphqlStream):
         """Return dynamic GraphQL query."""
         # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
         return """
-          query userContributedTo($username: String!) {
+          query userContributedTo($username: String! $nextPageCursor_1: String) {
             user (login: $username) {
-              repositoriesContributedTo (first: 100 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+              repositoriesContributedTo (first: 2 after: $nextPageCursor_1 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+                pageInfo {
+                  hasNextPage_1: hasNextPage
+                  startCursor_1: startCursor
+                  endCursor_1: endCursor
+                }
                 nodes {
                   node_id: id
                   name_with_owner: nameWithOwner
