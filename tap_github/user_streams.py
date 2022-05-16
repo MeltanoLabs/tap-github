@@ -273,13 +273,13 @@ class UserContributedToStream(GitHubGraphqlStream):
         """Return dynamic GraphQL query."""
         # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
         return """
-          query userContributedTo($username: String! $nextPageCursor_1: String) {
+          query userContributedTo($username: String! $nextPageCursor_0: String) {
             user (login: $username) {
-              repositoriesContributedTo (first: 100 after: $nextPageCursor_1 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
+              repositoriesContributedTo (first: 100 after: $nextPageCursor_0 includeUserRepositories: true orderBy: {field: STARGAZERS, direction: DESC}) {
                 pageInfo {
-                  hasNextPage_1: hasNextPage
-                  startCursor_1: startCursor
-                  endCursor_1: endCursor
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
                 }
                 nodes {
                   node_id: id

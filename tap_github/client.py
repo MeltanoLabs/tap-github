@@ -310,28 +310,18 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         # Get deepest pagination item
         max_pagination_index = max(has_next_page_indices)
 
-        next_page_start_cursor_results = nested_lookup(
-            key="startCursor",
-            document=resp_json,
-            wild=True,
-            with_keys=True,
-        )
+        # We leverage previous_token to remember the pagination cursors for other indices.
+        next_page_cursors: Dict[str, str] = dict()
+        next_page_cursors.update(previous_token or {})
 
+        # Get the pagination cursor to update and increment it.
         next_page_end_cursor_results = nested_lookup(
             key=f"endCursor_{max_pagination_index}",
             document=resp_json,
-            with_keys=True,
         )
 
-        # Set all startCursor to their previous value.
-        # Then only increment the deepest one with endCursor
-        next_page_cursors = dict()
-        for (key, value) in list(next_page_start_cursor_results.items()) + list(
-            next_page_end_cursor_results.items()
-        ):
-            pagination_index = int(str(key).split("_")[1])
-            next_page_key = f"nextPageCursor_{pagination_index}"
-            next_page_cursors[next_page_key] = value[0]
+        next_page_key = f"nextPageCursor_{pagination_index}"
+        next_page_cursors[next_page_key] = next_page_end_cursor_results[0]
 
         return next_page_cursors
 
