@@ -280,7 +280,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         X should be an integer between 0 and 9, increasing with query depth.
 
-        Warning - we recommend to avoid using deep pagination.
+        Warning - we recommend to avoid using deep (nested) pagination.
         """
 
         resp_json = response.json()
