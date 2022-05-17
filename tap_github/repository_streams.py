@@ -6,6 +6,9 @@ import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
+from dateutil.parser import parse
+from urllib.parse import parse_qs, urlparse
+
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
     user_object,
@@ -1495,6 +1498,59 @@ class StargazersStream(GitHubRestStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
+
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """Return a token for identifying next page or None if no more pages.
+
+        /stargazers does not have "since" or "direction" parameters. If a since parameter is passed,
+        we manually paginate backwards and try to exit early.
+
+        WARNING - This does not work for repositories with too many stars like facebook/react.
+        See https://github.com/MeltanoLabs/tap-github/issues/120
+        """
+        # Leverage header links returned by the GitHub API.
+        if not ("next" in response.links.keys() or "prev" in response.links.keys()):
+            return None
+
+        results = response.json()
+        request_parameters = parse_qs(str(urlparse(response.request.url).query))
+
+        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+        try:
+            since = (
+                request_parameters["since"][0].replace(" ", "+")
+                if "since" in request_parameters
+                else ""
+            )
+        except IndexError:
+            since = ""
+
+        # if "since" is present, paginate backwards.
+        next_page_key = "prev" if since else "next"
+
+        # start with the last page
+        if (previous_token or 1) == 1 and "last" in response.links.keys():
+            next_page_key = "last"
+        # if possible, exit early
+        elif not results or len(results) < self.MAX_PER_PAGE:
+            return None
+        elif since and (parse(results[-1][self.replication_key]) < parse(since)):
+            return None
+
+        # Use header links returned by the GitHub API.
+        parsed_url = urlparse(response.links[next_page_key]["url"])
+        captured_page_value_list = parse_qs(parsed_url.query).get("page")
+        next_page_string = (
+            captured_page_value_list[0] if captured_page_value_list else None
+        )
+        if next_page_string and next_page_string.isdigit():
+            print(next_page_key)
+            print(int(next_page_string))
+            return int(next_page_string)
+
+        return (previous_token or 1) + 1
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """

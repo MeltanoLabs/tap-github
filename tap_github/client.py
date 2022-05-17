@@ -77,11 +77,11 @@ class GitHubRestStream(RESTStream):
         else:
             results = resp_json.get("items")
 
-        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.
+        # Exit early if the response has no items. ? Maybe duplicative of the "next" link check.
         if not results:
             return None
 
-        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
+        # Unfortunately endpoints such as /starred, /events and /pulls do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         # For such streams, we sort by descending dates (most recent first), and paginate
         # "back in time" until we reach records before our "since" parameter.
@@ -132,7 +132,7 @@ class GitHubRestStream(RESTStream):
             params["sort"] = "updated"
             params["direction"] = "desc" if self.missing_since_parameter else "asc"
 
-        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
+        # Unfortunately the /starred (starred_at) and /events (created_at) endpoints do not support
         # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
         elif self.replication_key in ["starred_at", "created_at"]:
             params["sort"] = "created"
