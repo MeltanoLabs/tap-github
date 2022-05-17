@@ -33,6 +33,11 @@ class TapGitHub(Tap):
             description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",
         ),
         th.Property(
+            "throttle_requests",
+            th.BooleanType,
+            description="Throttle API requests within a stream at one per second following the GitHub API documentation.",
+        ),
+        th.Property(
             "searches",
             th.ArrayType(
                 th.ObjectType(

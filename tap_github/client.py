@@ -1,5 +1,6 @@
 """REST client handling, including GitHubStream base class."""
 
+import time
 from typing import Any, Dict, Iterable, List, Optional, cast
 
 import requests
@@ -127,6 +128,9 @@ class GitHubRestStream(RESTStream):
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
             params["page"] = next_page_token
+
+        if next_page_token and self._config.get("throttle_requests", False):
+            time.sleep(1)
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
