@@ -1517,6 +1517,65 @@ class StargazersStream(GitHubRestStream):
     ).to_dict()
 
 
+class StargazersGraphqlStream(GitHubGraphqlStream):
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+
+    name = "stargazers"
+    query_jsonpath = "$.data.repositoryStargazers.repository.[*]"
+    primary_keys = ["user_id", "repo_id"]
+    replication_key = "starred_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo_id"]
+    # The parent repository object changes if the number of stargazers changes.
+    ignore_parent_replication_key = False
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row["user_id"] = row["user"]["id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        return """
+          query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) { 
+            repository(name: $repo: owner: $org after: $nextPageCursor_0) { 
+              stargazers(first: 100 orderBy: {field: STARRED_AT direction: DESC}) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                edges {
+                  node {
+                    user_node_id: id
+                    user_id: databaseId
+                    login: username
+                  }
+                  starredAt
+                }
+              }
+            }
+          }
+        """
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("user_id", th.IntegerType),
+        # Stargazer Info
+        th.Property("starred_at", th.DateTimeType),
+        th.Property("user", user_object),
+    ).to_dict()
+
+
 class StatsContributorsStream(GitHubRestStream):
     """
     Defines 'StatsContributors' stream. Fetching contributors activity.
