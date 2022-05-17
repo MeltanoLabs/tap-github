@@ -295,7 +295,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             with_keys=True,
         )
 
-        has_next_page_indices: list[int] = []
+        has_next_page_indices: List[int] = []
         # Iterate over all the items and filter items with hasNextPage = True.
         for (key, value) in next_page_results.items():
             # Check if key is even then add pair to new dictionary
