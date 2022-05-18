@@ -64,6 +64,6 @@ jobs:
         retry_on: error
         max_attempts: 2  
         retry_wait_seconds: 3600
-        timeout_minutes: 70
+        timeout_minutes: 80
         command: |
           poetry run pytest --capture=no
