@@ -59,5 +59,10 @@ jobs:
       run: |
         poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
-      run: |
-        poetry run pytest --capture=no
+      uses: nick-fields/retry@v2.7.0
+      with:
+        timeout_seconds: 3600
+        max_attempts: 2
+        retry_on: error
+        command: |
+          poetry run pytest --capture=no
