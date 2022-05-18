@@ -1953,3 +1953,114 @@ class WorkflowRunJobsStream(GitHubRestStream):
         if not self._schema_emitted:
             super()._write_schema_message()
             self._schema_emitted = True
+
+
+class DependencyStream(GitHubGraphqlStream):
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+
+    name = "dependencies"
+    query_jsonpath = (
+        "$.data.repository.dependencyGraphManifests.nodes.[*].dependencies.nodes.[*]"
+    )
+    primary_keys = ["dependency_repo_id", "repo_id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo_id"]
+    ignore_parent_replication_key = True
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use the preview for Repository.dependencyGraphManifests.
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.hawkgirl-preview+json"
+        return headers
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        print(row)
+        row["dependency_repo_id"] = (
+            row["dependency"]["id"] if row["dependency"] else None
+        )
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        return """
+          query repositoryDependencies($repo: String! $org: String! $nextPageCursor_0: String $nextPageCursor_1: String) {
+            repository(name: $repo owner: $org) {
+              dependencyGraphManifests (first: 10 withDependencies: true after: $nextPageCursor_0) {
+                totalCount
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  filename
+                  dependenciesCount
+                  dependencies (first: 50 after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
+                    nodes {
+                      dependency: repository {
+                        node_id: id
+                        id: databaseId
+                        name_with_owner: nameWithOwner
+                        url
+                        owner {
+                          node_id: id
+                          login
+                        }
+                      }
+                      package_manager: packageManager
+                      package_name: packageName
+                      requirements
+                      has_dependencies: hasDependencies
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+        """
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Dependency Info
+        th.Property("dependency_repo_id", th.IntegerType),
+        th.Property("package_name", th.StringType),
+        th.Property("package_manager", th.StringType),
+        th.Property("requirements", th.StringType),
+        th.Property("has_dependencies", th.BooleanType),
+        th.Property(
+            "dependency",
+            th.ObjectType(
+                th.Property("node_id", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("name_with_owner", th.StringType),
+                th.Property("url", th.IntegerType),
+                th.Property(
+                    "owner",
+                    th.ObjectType(
+                        th.Property("node_id", th.StringType),
+                        th.Property("login", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+    ).to_dict()
