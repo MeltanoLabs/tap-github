@@ -16,6 +16,7 @@ singer-sdk = "^0.4.7"
 types-simplejson = "^3.17.2"
 types-python-dateutil = "^2.8.6"
 nested-lookup = "^0.2.23"
+bs4 = "^0.0.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"
