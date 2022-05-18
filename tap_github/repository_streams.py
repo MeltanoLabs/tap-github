@@ -1533,13 +1533,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         """
         Add a user_id top-level field to be used as state replication key.
         """
-        processed_row: Dict[str, Any] = dict()
-        processed_row.update(row['node'])
-        processed_row['starred_at'] = row['starred_at']
+        row["user_id"] = row["user"]["user_id"]
         if context is not None:
-            processed_row["repo_id"] = context["repo_id"]
-        return processed_row
-
+            row["repo_id"] = context["repo_id"]
+        return row
 
     @property
     def query(self) -> str:
@@ -1555,10 +1552,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
                   endCursor_0: endCursor
                 }
                 edges {
-                  node {
-                    user_node_id: id
-                    user_id: databaseId
-                    username: login
+                  user: node {
+                    node_id: id
+                    id: databaseId
+                    login
                     avatar_url: avatarUrl
                   }
                   starred_at: starredAt
@@ -1575,10 +1572,8 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         th.Property("repo_id", th.IntegerType),
         # Stargazer Info
         th.Property("user_id", th.IntegerType),
-        th.Property("user_node_id", th.IntegerType),
         th.Property("starred_at", th.DateTimeType),
-        th.Property("username", th.StringType),
-        th.Property("avatar_url", th.StringType),
+        th.Property("user", user_object),
     ).to_dict()
 
 
