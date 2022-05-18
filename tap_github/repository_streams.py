@@ -1533,7 +1533,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         """
         Add a user_id top-level field to be used as state replication key.
         """
-        row["user_id"] = row["user"]["user_id"]
+        row["user_id"] = row["user"]["id"]
         if context is not None:
             row["repo_id"] = context["repo_id"]
         return row
