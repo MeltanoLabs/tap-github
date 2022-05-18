@@ -1546,8 +1546,6 @@ class StargazersStream(GitHubRestStream):
             captured_page_value_list[0] if captured_page_value_list else None
         )
         if next_page_string and next_page_string.isdigit():
-            print(next_page_key)
-            print(int(next_page_string))
             return int(next_page_string)
 
         return (previous_token or 1) + 1
