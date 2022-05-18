@@ -1530,7 +1530,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
-    ignore_parent_replication_key = True
+    ignore_parent_replication_key = False
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
