@@ -1587,6 +1587,9 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
                     id: databaseId
                     login
                     avatar_url: avatarUrl
+                    html_url: url
+                    type: __typename
+                    site_admin: isSiteAdmin
                   }
                   starred_at: starredAt
                 }
