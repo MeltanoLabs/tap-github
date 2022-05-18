@@ -1,5 +1,6 @@
 """REST client handling, including GitHubStream base class."""
 
+from curses.ascii import isdigit
 import time
 from typing import Any, Dict, Iterable, List, Optional, cast
 
@@ -129,8 +130,8 @@ class GitHubRestStream(RESTStream):
         if next_page_token:
             params["page"] = next_page_token
 
-        if next_page_token and self._config.get("throttle_requests", False):
-            time.sleep(1)
+        if next_page_token and self._config.get("throttle_requests_ms", 0):
+            time.sleep(self._config.get("throttle_requests_ms", 0) / 1000.0)
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"

@@ -44,7 +44,7 @@ This tap accepts the following configuration options:
   - `stream_maps`
   - `stream_maps_config`
   - `rate_limit_buffer` - A buffer to avoid consuming all query points for the auth_token at hand. Defaults to 1000.",
-  - `throttle_requests` - Throttle API requests within a stream at one per second following the GitHub API documentation.",
+  - `throttle_requests_ms` - Throttle API requests within a stream to avoid hitting secondary rate limits. Time in ms.",
 
 Note that modes 1-3 are `repository` modes and 4-5 are `user` modes and will not run the same set of streams.
 

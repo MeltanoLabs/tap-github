@@ -34,8 +34,8 @@ class TapGitHub(Tap):
         ),
         th.Property(
             "throttle_requests",
-            th.BooleanType,
-            description="Throttle API requests within a stream at one per second following the GitHub API documentation.",
+            th.IntegerType,
+            description="Throttle API requests within a stream to avoid hitting secondary rate limits. Time in ms.",
         ),
         th.Property(
             "searches",
