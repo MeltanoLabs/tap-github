@@ -61,14 +61,20 @@ class TapGitHub(Tap):
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams for each query."""
 
-        if len(Streams.all_valid_queries().intersection(self.config)) != 1:
+        # If the config is empty, assume we are running --help or --capabilities.
+        if (
+            self.config
+            and len(Streams.all_valid_queries().intersection(self.config)) != 1
+        ):
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
                 f"{Streams.all_valid_queries()}."
             )
         streams = []
         for stream_type in Streams:
-            if len(stream_type.valid_queries.intersection(self.config)) > 0:
+            if (not self.config) or len(
+                stream_type.valid_queries.intersection(self.config)
+            ) > 0:
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
