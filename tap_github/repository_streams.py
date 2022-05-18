@@ -6,6 +6,9 @@ import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
+from dateutil.parser import parse
+from urllib.parse import parse_qs, urlparse
+
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
     user_object,
@@ -1537,6 +1540,33 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         if context is not None:
             row["repo_id"] = context["repo_id"]
         return row
+
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """
+        Exit early if a since parameter is provided.
+        """
+        request_parameters = parse_qs(str(urlparse(response.request.url).query))
+
+        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+        try:
+            since = (
+                request_parameters["since"][0].replace(" ", "+")
+                if "since" in request_parameters
+                else ""
+            )
+        except IndexError:
+            since = ""
+
+        # If since parameter is present, try to exit early by looking at the last "starred_at".
+        # Noting that we are traversing in DESCENDING order by STARRED_AT.
+        if since:
+            results = extract_jsonpath(self.query_jsonpath, input=response.json())
+            *_, last = results
+            if parse(last["starred_at"]) < parse(since):
+                return None
+        return super().get_next_page_token(response, previous_token)
 
     @property
     def query(self) -> str:
