@@ -61,7 +61,6 @@ jobs:
     - name: Test with pytest
       uses: nick-fields/retry@v2.7.0
       with:
-        retry_on: error
         max_attempts: 2  
         retry_wait_seconds: 3600
         timeout_minutes: 80
