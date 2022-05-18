@@ -2,16 +2,33 @@
 
 from typing import List
 
+import os
+import logging
+
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
+from singer_sdk.helpers._classproperty import classproperty
 
 from tap_github.streams import Streams
+
+LOGLEVEL = os.environ.get("LOGLEVEL", "WARN").upper()
 
 
 class TapGitHub(Tap):
     """GitHub tap class."""
 
     name = "tap-github"
+
+    @classproperty
+    def logger(cls) -> logging.Logger:
+        """Get logger.
+
+        Returns:
+            Logger with local LOGLEVEL.
+        """
+        logger = logging.getLogger(cls.name)
+        logger.setLevel(LOGLEVEL)
+        return logger
 
     config_jsonschema = th.PropertiesList(
         th.Property("user_agent", th.StringType),
