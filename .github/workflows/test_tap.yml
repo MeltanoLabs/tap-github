@@ -59,9 +59,13 @@ jobs:
       run: |
         poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
-      uses: nick-fields/retry@v2.7.0
-      with:
-        max_attempts: 2  
-        retry_wait_seconds: 3600
-        timeout_minutes: 10
-        command: poetry run pytest --capture=no
+      id: test_pytest
+      continue-on-error: true 
+      run: |
+        poetry run pytest --capture=no
+    - name: Test with pytest (run 2)
+      id: retry_test_pytest
+      if: steps.test_pytest.outcome=='failure'         # check the step outcome, wait and retry
+      run: |
+        sleep 60m
+        poetry run pytest --capture=no
