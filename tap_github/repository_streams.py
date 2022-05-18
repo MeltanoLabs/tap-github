@@ -1521,31 +1521,34 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
 
     name = "stargazers"
-    query_jsonpath = "$.data.repositoryStargazers.repository.[*]"
+    query_jsonpath = "$.data.repository.stargazers.edges.[*]"
     primary_keys = ["user_id", "repo_id"]
     replication_key = "starred_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
-        row["user_id"] = row["user"]["id"]
+        processed_row: Dict[str, Any] = dict()
+        processed_row.update(row['node'])
+        processed_row['starred_at'] = row['starred_at']
         if context is not None:
-            row["repo_id"] = context["repo_id"]
-        return row
+            processed_row["repo_id"] = context["repo_id"]
+        return processed_row
+
 
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
         # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
         return """
-          query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) { 
-            repository(name: $repo: owner: $org after: $nextPageCursor_0) { 
-              stargazers(first: 100 orderBy: {field: STARRED_AT direction: DESC}) {
+          query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) {
+            repository(name: $repo owner: $org) { 
+              stargazers(first: 100 orderBy: {field: STARRED_AT direction: DESC} after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
@@ -1555,9 +1558,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
                   node {
                     user_node_id: id
                     user_id: databaseId
-                    login: username
+                    username: login
+                    avatar_url: avatarUrl
                   }
-                  starredAt
+                  starred_at: starredAt
                 }
               }
             }
@@ -1569,10 +1573,12 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
         th.Property("repo_id", th.IntegerType),
-        th.Property("user_id", th.IntegerType),
         # Stargazer Info
+        th.Property("user_id", th.IntegerType),
+        th.Property("user_node_id", th.IntegerType),
         th.Property("starred_at", th.DateTimeType),
-        th.Property("user", user_object),
+        th.Property("username", th.StringType),
+        th.Property("avatar_url", th.StringType),
     ).to_dict()
 
 
