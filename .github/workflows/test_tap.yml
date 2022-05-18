@@ -26,13 +26,11 @@ jobs:
       uses: actions/cache@v2.1.7
       with:
         # must match the path in tests/__init__.py
-        path: '**/api_calls_tests_cache.sqlite'
+        path: 'api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
-        restore-keys: |
-          api-cache-v3
-          api-cache-
+        restore-keys: api-cache-v3
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
