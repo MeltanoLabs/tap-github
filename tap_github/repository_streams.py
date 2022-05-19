@@ -1981,7 +1981,6 @@ class DependencyStream(GitHubGraphqlStream):
         """
         Add a dependency_repo_id top-level field to be used as primary key.
         """
-        print(row)
         row["dependency_repo_id"] = (
             row["dependency"]["id"] if row["dependency"] else None
         )
