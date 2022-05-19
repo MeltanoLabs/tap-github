@@ -1494,7 +1494,6 @@ class StargazersStream(GitHubGraphqlStream):
         """
         row["user_id"] = row["user"]["id"]
         if context is not None:
-            print(context)
             row["repo_id"] = context["repo_id"]
             row["repo"] = context["repo"]
             row["org"] = context["org"]
