@@ -4,7 +4,7 @@ import sys
 import pytest
 from ..utils.filter_stdout import FilterStdOutput
 
-# Filter out singer output duing tests
+# Filter out singer output during tests
 sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')  # type: ignore
 
 
