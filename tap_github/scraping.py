@@ -6,7 +6,7 @@ import requests
 import time
 
 
-def scrape_dependents(response: requests.Response, verbose=False):
+def scrape_dependents(response: requests.Response, verbose: bool = False) -> Iterable[dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(response.content, "html.parser")
