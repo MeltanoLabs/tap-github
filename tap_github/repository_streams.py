@@ -1988,7 +1988,7 @@ class DependentsStream(GitHubRestStream):
         )
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Get the scraped the response and return an iterator of result rows."""
+        """Get the response for the first page and scrape results, potentially iterating through pages."""
         yield from scrape_dependents(response)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
