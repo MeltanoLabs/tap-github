@@ -16,6 +16,7 @@ from tap_github.schema_objects import (
     reactions_object,
     milestone_object,
 )
+from tap_github.scraping import scrape_dependents
 
 
 class RepositoryStream(GitHubRestStream):
@@ -1968,3 +1969,54 @@ class WorkflowRunJobsStream(GitHubRestStream):
         if not self._schema_emitted:
             super()._write_schema_message()
             self._schema_emitted = True
+
+
+class DependentsStream(GitHubRestStream):
+    """Defines 'dependents' stream."""
+
+    name = "dependents"
+    path = "/{org}/{repo}/network/dependents"
+    primary_keys = ["repo_id", "dependent_name_with_owner"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo_id"]
+
+    @property
+    def url_base(self) -> str:
+        return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL).replace(
+            "api.", ""
+        )
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Get the scraped the response and return an iterator of result rows."""
+        yield from scrape_dependents(response)
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        new_row = {"dependent": row}
+        if context is not None:
+            new_row["repo_id"] = context["repo_id"]
+        return new_row
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Mock a web browser user-agent.
+        """
+        return {"User-agent": "Mozilla/5.0"}
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Dependent keys
+        th.Property(
+            "dependent",
+            th.ObjectType(
+                th.Property("name_with_owner", th.StringType),
+                th.Property("stars", th.IntegerType),
+                th.Property("forks", th.IntegerType),
+            ),
+        ),
+    ).to_dict()
