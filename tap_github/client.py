@@ -243,6 +243,13 @@ class GitHubRestStream(RESTStream):
             row["repo_id"] = context["repo_id"]
         return row
 
+    def backoff_handler(self, details: dict) -> None:
+        """Handle retriable error by swapping auth token."""
+        self.logger.info("Retrying request with different token")
+        prepared_request = details["args"][0]
+        self.authenticator.get_next_auth_token()
+        prepared_request.headers.update(self.authenticator.auth_headers or {})
+
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
