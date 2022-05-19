@@ -26,7 +26,7 @@ def scrape_dependents(response: requests.Response, verbose=False):
         yield from _scrape_dependents(f"https://github.com/{link}", verbose=verbose)
 
 
-def _scrape_dependents(url, verbose=False):
+def _scrape_dependents(url: str, verbose: bool = False) -> Iterable[dict[str, Any]]:
     # Optional dependency:
     from bs4 import BeautifulSoup
 
