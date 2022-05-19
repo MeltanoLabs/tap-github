@@ -1979,7 +1979,7 @@ class DependencyStream(GitHubGraphqlStream):
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """
-        Add a user_id top-level field to be used as state replication key.
+        Add a dependency_repo_id top-level field to be used as primary key.
         """
         print(row)
         row["dependency_repo_id"] = (
