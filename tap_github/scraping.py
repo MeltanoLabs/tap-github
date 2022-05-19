@@ -2,17 +2,24 @@
 
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
+import logging
+from urllib.parse import urlparse
 import requests
 import time
 
+from typing import Any, Iterable, Optional
+
 
 def scrape_dependents(
-    response: requests.Response, verbose: bool = False
+    response: requests.Response, logger: Optional[logging.Logger] = None
 ) -> Iterable[dict[str, Any]]:
     from bs4 import BeautifulSoup
 
+    logger = logger or logging.getLogger("scraping")
+
     soup = BeautifulSoup(response.content, "html.parser")
     # Navigate through Package toggle if present
+    base_url = urlparse(response.url).hostname or "github.com"
     options = soup.find_all("a", class_="select-menu-item")
     links = []
     if len(options) > 0:
@@ -21,21 +28,21 @@ def scrape_dependents(
     else:
         links.append(response.url)
 
-    if verbose:
-        print(links)
+    logger.debug(links)
 
     for link in links:
-        yield from _scrape_dependents(f"https://github.com/{link}", verbose=verbose)
+        yield from _scrape_dependents(f"https://{base_url}/{link}", logger)
 
 
-def _scrape_dependents(url: str, verbose: bool = False) -> Iterable[dict[str, Any]]:
+def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, Any]]:
     # Optional dependency:
     from bs4 import BeautifulSoup
 
+    s = requests.Session()
+
     while url:
-        if verbose:
-            print(url)
-        response = requests.get(url)
+        logger.debug(url)
+        response = s.get(url)
         soup = BeautifulSoup(response.content, "html.parser")
 
         repo_names = [
@@ -61,8 +68,7 @@ def _scrape_dependents(url: str, verbose: bool = False) -> Iterable[dict[str, An
             for name, s, f in zip(repo_names, stars, forks)
         ]
 
-        if verbose:
-            print(repos)
+        logger.debug(repos)
 
         yield from repos
 
@@ -75,4 +81,4 @@ def _scrape_dependents(url: str, verbose: bool = False) -> Iterable[dict[str, An
             url = next_link["href"]
             time.sleep(1)
         else:
-            url = None
+            url = ""
