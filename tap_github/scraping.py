@@ -3,16 +3,16 @@
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
 import logging
-from urllib.parse import urlparse
 import requests
 import time
 
-from typing import Any, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
+from urllib.parse import urlparse
 
 
 def scrape_dependents(
     response: requests.Response, logger: Optional[logging.Logger] = None
-) -> Iterable[dict[str, Any]]:
+) -> Iterable[Dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")
@@ -34,7 +34,7 @@ def scrape_dependents(
         yield from _scrape_dependents(f"https://{base_url}/{link}", logger)
 
 
-def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, Any]]:
+def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, Any]]:
     # Optional dependency:
     from bs4 import BeautifulSoup
     from bs4 import Tag
