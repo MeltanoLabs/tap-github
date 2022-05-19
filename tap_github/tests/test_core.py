@@ -3,7 +3,9 @@ import os
 import logging
 
 from unittest import mock
+from unittest.mock import patch
 
+from .fixtures import alternative_sync_chidren
 from singer_sdk.testing import get_standard_tap_tests
 
 from tap_github.tap import TapGitHub
@@ -27,8 +29,11 @@ def test_standard_tap_tests_for_search_mode(search_config):
 def test_standard_tap_tests_for_repo_list_mode(repo_list_config):
     """Run standard tap tests from the SDK."""
     tests = get_standard_tap_tests(TapGitHub, config=repo_list_config)
-    for test in tests:
-        test()
+    with patch(
+        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+    ):
+        for test in tests:
+            test()
 
 
 def test_standard_tap_tests_for_username_list_mode(username_list_config):
