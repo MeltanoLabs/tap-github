@@ -1533,10 +1533,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 
     name = "stargazers"
     query_jsonpath = "$.data.repository.stargazers.edges.[*]"
-    primary_keys = ["user_id", "repo_id"]
+    primary_keys = ["user_id", "repo", "org"]
     replication_key = "starred_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys = ["repo", "org"]
     # The parent repository object changes if the number of stargazers changes.
     ignore_parent_replication_key = False
 
@@ -1554,7 +1554,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         """
         row["user_id"] = row["user"]["id"]
         if context is not None:
+            print(context)
             row["repo_id"] = context["repo_id"]
+            row["repo"] = context["repo"]
+            row["org"] = context["org"]
         return row
 
     def get_next_page_token(
