@@ -1476,15 +1476,59 @@ class AnonymousContributorsStream(GitHubRestStream):
     ).to_dict()
 
 
-class StargazersStream(GitHubGraphqlStream):
-    """Defines 'Stargazers' stream."""
+class StargazersStream(GitHubRestStream):
+    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
+
+    name = "stargazers"
+    path = "/repos/{org}/{repo}/stargazers"
+    primary_keys = ["user_id", "repo", "org"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo", "org"]
+    replication_key = "starred_at"
+    # GitHub is missing the "since" parameter on this endpoint.
+    missing_since_parameter = True
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use an endpoint which includes starred_at property:
+        https://docs.github.com/en/rest/reference/activity#custom-media-types-for-starring
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.star+json"
+        return headers
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row["user_id"] = row["user"]["id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("user_id", th.IntegerType),
+        # Stargazer Info
+        th.Property("starred_at", th.DateTimeType),
+        th.Property("user", user_object),
+    ).to_dict()
+
+
+class StargazersGraphqlStream(GitHubGraphqlStream):
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
 
     name = "stargazers"
     query_jsonpath = "$.data.repository.stargazers.edges.[*]"
-    primary_keys = ["user_id", "repo", "org"]
+    primary_keys = ["user_id", "repo_id"]
     replication_key = "starred_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
     ignore_parent_replication_key = False
 
@@ -1495,8 +1539,6 @@ class StargazersStream(GitHubGraphqlStream):
         row["user_id"] = row["user"]["id"]
         if context is not None:
             row["repo_id"] = context["repo_id"]
-            row["repo"] = context["repo"]
-            row["org"] = context["org"]
         return row
 
     def get_next_page_token(
