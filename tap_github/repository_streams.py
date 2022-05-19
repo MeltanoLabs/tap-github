@@ -1955,8 +1955,8 @@ class WorkflowRunJobsStream(GitHubRestStream):
             self._schema_emitted = True
 
 
-class DependencyStream(GitHubGraphqlStream):
-    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+class DependenciesStream(GitHubGraphqlStream):
+    """Defines 'DependenciesStream' stream."""
 
     name = "dependencies"
     query_jsonpath = (
