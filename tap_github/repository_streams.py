@@ -1492,7 +1492,7 @@ class StargazersStream(GitHubRestStream):
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
-            "This stream is deprecated. Please use the Graphql version instead 'stargazers'."
+            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."
         )
 
     @property
@@ -1543,8 +1543,8 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
-            "This stream might conflict with previous implementation of 'stargazer'. "
-            "Looking for the older version, use 'stargazers_rest'."
+            "This stream 'stargazers' might conflict with previous implementation. "
+            "Looking for the older version? Use 'stargazers_rest'."
         )
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
