@@ -6,6 +6,9 @@ import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
+from dateutil.parser import parse
+from urllib.parse import parse_qs, urlparse
+
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
     user_object,
@@ -1476,7 +1479,7 @@ class AnonymousContributorsStream(GitHubRestStream):
 class StargazersStream(GitHubRestStream):
     """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
 
-    name = "stargazers"
+    name = "stargazers_rest"
     path = "/repos/{org}/{repo}/stargazers"
     primary_keys = ["user_id", "repo", "org"]
     parent_stream_type = RepositoryStream
@@ -1484,6 +1487,13 @@ class StargazersStream(GitHubRestStream):
     replication_key = "starred_at"
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO - remove warning with next release.
+        self.logger.warning(
+            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."
+        )
 
     @property
     def http_headers(self) -> dict:
@@ -1512,6 +1522,104 @@ class StargazersStream(GitHubRestStream):
         th.Property("repo_id", th.IntegerType),
         th.Property("user_id", th.IntegerType),
         # Stargazer Info
+        th.Property("starred_at", th.DateTimeType),
+        th.Property("user", user_object),
+    ).to_dict()
+
+
+class StargazersGraphqlStream(GitHubGraphqlStream):
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+
+    name = "stargazers"
+    query_jsonpath = "$.data.repository.stargazers.edges.[*]"
+    primary_keys = ["user_id", "repo_id"]
+    replication_key = "starred_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo_id"]
+    # The parent repository object changes if the number of stargazers changes.
+    ignore_parent_replication_key = False
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO - remove warning with next release.
+        self.logger.warning(
+            "This stream 'stargazers' might conflict with previous implementation. "
+            "Looking for the older version? Use 'stargazers_rest'."
+        )
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row["user_id"] = row["user"]["id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """
+        Exit early if a since parameter is provided.
+        """
+        request_parameters = parse_qs(str(urlparse(response.request.url).query))
+
+        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+        try:
+            since = (
+                request_parameters["since"][0].replace(" ", "+")
+                if "since" in request_parameters
+                else ""
+            )
+        except IndexError:
+            since = ""
+
+        # If since parameter is present, try to exit early by looking at the last "starred_at".
+        # Noting that we are traversing in DESCENDING order by STARRED_AT.
+        if since:
+            results = extract_jsonpath(self.query_jsonpath, input=response.json())
+            *_, last = results
+            if parse(last["starred_at"]) < parse(since):
+                return None
+        return super().get_next_page_token(response, previous_token)
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        return """
+          query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) {
+            repository(name: $repo owner: $org) { 
+              stargazers(first: 100 orderBy: {field: STARRED_AT direction: DESC} after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                edges {
+                  user: node {
+                    node_id: id
+                    id: databaseId
+                    login
+                    avatar_url: avatarUrl
+                    html_url: url
+                    type: __typename
+                    site_admin: isSiteAdmin
+                  }
+                  starred_at: starredAt
+                }
+              }
+            }
+          }
+        """
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Stargazer Info
+        th.Property("user_id", th.IntegerType),
         th.Property("starred_at", th.DateTimeType),
         th.Property("user", user_object),
     ).to_dict()
