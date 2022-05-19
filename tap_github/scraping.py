@@ -37,6 +37,7 @@ def scrape_dependents(
 def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, Any]]:
     # Optional dependency:
     from bs4 import BeautifulSoup
+    from bs4 import Tag
 
     s = requests.Session()
 
@@ -46,7 +47,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, A
         soup = BeautifulSoup(response.content, "html.parser")
 
         repo_names = [
-            a["href"].lstrip("/")
+            (a["href"] if not isinstance(a["href"], list) else a["href"][0]).lstrip("/")
             for a in soup.select("a[data-hovercard-type=repository]")
         ]
         stars = [
@@ -74,11 +75,14 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, A
 
         # next page?
         try:
-            next_link = soup.select(".paginate-container")[0].find("a", text="Next")
+            next_link: Tag = soup.select(".paginate-container")[0].find_all(
+                "a", text="Next"
+            )[0]
         except IndexError:
             break
         if next_link is not None:
-            url = next_link["href"]
+            href = next_link["href"]
+            url = str(href if not isinstance(href, list) else href[0])
             time.sleep(1)
         else:
             url = ""
