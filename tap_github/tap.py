@@ -24,11 +24,7 @@ class TapGitHub(Tap):
         Returns:
             Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
         """
-        LOGLEVEL = (
-            os.environ.get("LOGLEVEL", "").upper()
-            or cls.config.get("log_level", "").upper()
-            or "WARN"
-        )
+        LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
         assert (
             LOGLEVEL in logging._levelToName.values()
         ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
@@ -39,7 +35,6 @@ class TapGitHub(Tap):
     config_jsonschema = th.PropertiesList(
         th.Property("user_agent", th.StringType),
         th.Property("metrics_log_level", th.StringType),
-        th.Property("log_level", th.StringType),
         # Authentication options
         th.Property(
             "auth_token",
