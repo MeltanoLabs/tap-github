@@ -2,8 +2,12 @@
 
 from typing import List
 
+import os
+import logging
+
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
+from singer_sdk.helpers._classproperty import classproperty
 
 from tap_github.streams import Streams
 
@@ -12,6 +16,22 @@ class TapGitHub(Tap):
     """GitHub tap class."""
 
     name = "tap-github"
+
+    @classproperty
+    def logger(cls) -> logging.Logger:
+        """Get logger.
+
+        Returns:
+            Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
+        """
+
+        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()
+        assert (
+            LOGLEVEL in logging._levelToName.values()
+        ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
+        logger = logging.getLogger(cls.name)
+        logger.setLevel(LOGLEVEL)
+        return logger
 
     config_jsonschema = th.PropertiesList(
         th.Property("user_agent", th.StringType),
@@ -66,14 +86,20 @@ class TapGitHub(Tap):
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams for each query."""
 
-        if len(Streams.all_valid_queries().intersection(self.config)) != 1:
+        # If the config is empty, assume we are running --help or --capabilities.
+        if (
+            self.config
+            and len(Streams.all_valid_queries().intersection(self.config)) != 1
+        ):
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
                 f"{Streams.all_valid_queries()}."
             )
         streams = []
         for stream_type in Streams:
-            if len(stream_type.valid_queries.intersection(self.config)) > 0:
+            if (not self.config) or len(
+                stream_type.valid_queries.intersection(self.config)
+            ) > 0:
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]

@@ -156,8 +156,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 available_tokens = available_tokens + [app_token]
 
-        self.logger.info(f"Tap will run with {len(available_tokens)} auth tokens")
-
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
 
@@ -180,6 +178,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     f"{str(response.content)} (Reason: {response.reason})"
                 )
                 self.logger.warning(msg)
+
+        self.logger.info(f"Tap will run with {len(filtered_tokens)} auth tokens")
 
         # Create a dict of TokenRateLimit
         # TODO - separate app_token and add logic to refresh the token

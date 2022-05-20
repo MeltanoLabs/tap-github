@@ -15,6 +15,7 @@ singer-sdk = "^0.4.7"
 # singer-sdk = {git = "https://gitlab.com/meltano/singer-sdk.git", rev = "97-hierarchical-streams"}
 types-simplejson = "^3.17.2"
 types-python-dateutil = "^2.8.6"
+nested-lookup = "^0.2.23"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"

@@ -4,11 +4,14 @@ from curses.ascii import isdigit
 import time
 from typing import Any, Dict, Iterable, List, Optional, cast
 
+import collections
+import re
 import requests
-import simplejson
 
 from dateutil.parser import parse
 from urllib.parse import parse_qs, urlparse
+
+from nested_lookup import nested_lookup
 
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
@@ -271,10 +274,73 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         resp_json = response.json()
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """
+        Return a dict of cursors for identifying next page or None if no more pages.
+
+        Note - pagination requires the Graphql query to have nextPageCursor_X parameters
+        with the assosciated hasNextPage_X, startCursor_X and endCursor_X.
+
+        X should be an integer between 0 and 9, increasing with query depth.
+
+        Warning - we recommend to avoid using deep (nested) pagination.
+        """
+
+        resp_json = response.json()
+
+        # Find if results contains "hasNextPage_X" flags and if any are True.
+        # If so, set nextPageCursor_X to endCursor_X for X max.
+
+        next_page_results = nested_lookup(
+            key="hasNextPage_",
+            document=resp_json,
+            wild=True,
+            with_keys=True,
+        )
+
+        has_next_page_indices: List[int] = []
+        # Iterate over all the items and filter items with hasNextPage = True.
+        for (key, value) in next_page_results.items():
+            # Check if key is even then add pair to new dictionary
+            if any(value):
+                pagination_index = int(str(key).split("_")[1])
+                has_next_page_indices.append(pagination_index)
+
+        # Check if any "hasNextPage" is True. Otherwise, exit early.
+        if not len(has_next_page_indices) > 0:
+            return None
+
+        # Get deepest pagination item
+        max_pagination_index = max(has_next_page_indices)
+
+        # We leverage previous_token to remember the pagination cursors for other indices.
+        next_page_cursors: Dict[str, str] = dict()
+        next_page_cursors.update(previous_token or {})
+
+        # Get the pagination cursor to update and increment it.
+        next_page_end_cursor_results = nested_lookup(
+            key=f"endCursor_{max_pagination_index}",
+            document=resp_json,
+        )
+
+        next_page_key = f"nextPageCursor_{pagination_index}"
+        next_page_cursors[next_page_key] = next_page_end_cursor_results[0]
+
+        return next_page_cursors
+
     def get_url_params(
         self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params = context or dict()
         params["per_page"] = self.MAX_PER_PAGE
+        if next_page_token:
+            params.update(next_page_token)
+
+        since = self.get_starting_timestamp(context)
+        if self.replication_key and since:
+            params["since"] = str(since)
+
         return params
