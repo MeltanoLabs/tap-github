@@ -1,4 +1,7 @@
+import contextlib
+import io
 import re
+import sys
 
 
 class FilterStdOutput(object):
@@ -27,3 +30,11 @@ class FilterStdOutput(object):
 
     def flush(self):
         self.stream.flush()
+
+
+@contextlib.contextmanager
+def nostdout():
+    save_stdout = sys.stdout
+    sys.stdout = io.BytesIO()
+    yield
+    sys.stdout = save_stdout

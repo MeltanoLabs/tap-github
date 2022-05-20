@@ -24,12 +24,18 @@ class TapGitHub(Tap):
         Returns:
             Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
         """
+
+        class NoParsingFilter(logging.Filter):
+            def filter(self, record):
+                return not " was present in the " in record.getMessage()
+
         LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
         assert (
             LOGLEVEL in logging._levelToName.values()
         ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
         logger = logging.getLogger(cls.name)
         logger.setLevel(LOGLEVEL)
+        logger.addFilter(NoParsingFilter())
         return logger
 
     config_jsonschema = th.PropertiesList(
