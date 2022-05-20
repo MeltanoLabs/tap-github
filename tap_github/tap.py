@@ -25,7 +25,7 @@ class TapGitHub(Tap):
             Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
         """
 
-        LOGLEVEL = os.environ.get("LOGLEVEL", "WARNING").upper()
+        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()
         assert (
             LOGLEVEL in logging._levelToName.values()
         ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"

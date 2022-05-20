@@ -72,4 +72,4 @@ jobs:
       if: steps.test_pytest.outcome=='failure'         # check the step outcome, wait and retry
       run: |
         sleep 60m
-        poetry run pytest --capture=no
+        LOGLEVEL=WARNING poetry run pytest --capture=no
