@@ -340,4 +340,9 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)
+
+        since = self.get_starting_timestamp(context)
+        if self.replication_key and since:
+            params["since"] = str(since)
+
         return params
