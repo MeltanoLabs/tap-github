@@ -2,19 +2,20 @@ import contextlib
 import io
 import re
 import sys
+from typing import Pattern, TextIO, Union
 
 
 class FilterStdOutput(object):
     """Filter out stdout/sterr given a regex pattern."""
 
-    def __init__(self, stream, re_pattern):
+    def __init__(self, stream: TextIO, re_pattern: Union[str, Pattern]):
         self.stream = stream
         self.pattern = (
             re.compile(re_pattern) if isinstance(re_pattern, str) else re_pattern
         )
         self.triggered = False
 
-    def __getattr__(self, attr_name):
+    def __getattr__(self, attr_name: str):
         return getattr(self.stream, attr_name)
 
     def write(self, data):
