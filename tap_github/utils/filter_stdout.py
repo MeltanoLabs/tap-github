@@ -35,6 +35,6 @@ class FilterStdOutput(object):
 @contextlib.contextmanager
 def nostdout():
     save_stdout = sys.stdout
-    sys.stdout = io.BytesIO()
+    sys.stdout = io.StringIO()
     yield
     sys.stdout = save_stdout
