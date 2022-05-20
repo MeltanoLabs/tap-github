@@ -11,8 +11,6 @@ from singer_sdk.helpers._classproperty import classproperty
 
 from tap_github.streams import Streams
 
-LOGLEVEL = os.environ.get("LOGLEVEL", "WARN").upper()
-
 
 class TapGitHub(Tap):
     """GitHub tap class."""
@@ -24,8 +22,16 @@ class TapGitHub(Tap):
         """Get logger.
 
         Returns:
-            Logger with local LOGLEVEL.
+            Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
         """
+        LOGLEVEL = (
+            os.environ.get("LOGLEVEL", "").upper()
+            or cls.config.get("log_level", "").upper()
+            or "WARN"
+        )
+        assert (
+            LOGLEVEL in logging._levelToName.values()
+        ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
         logger = logging.getLogger(cls.name)
         logger.setLevel(LOGLEVEL)
         return logger
@@ -33,6 +39,7 @@ class TapGitHub(Tap):
     config_jsonschema = th.PropertiesList(
         th.Property("user_agent", th.StringType),
         th.Property("metrics_log_level", th.StringType),
+        th.Property("log_level", th.StringType),
         # Authentication options
         th.Property(
             "auth_token",
