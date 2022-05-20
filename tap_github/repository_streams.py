@@ -1479,7 +1479,7 @@ class AnonymousContributorsStream(GitHubRestStream):
 class StargazersStream(GitHubRestStream):
     """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
 
-    name = "stargazers"
+    name = "stargazers_rest"
     path = "/repos/{org}/{repo}/stargazers"
     primary_keys = ["user_id", "repo", "org"]
     parent_stream_type = RepositoryStream
@@ -1487,6 +1487,13 @@ class StargazersStream(GitHubRestStream):
     replication_key = "starred_at"
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO - remove warning with next release.
+        self.logger.warning(
+            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."
+        )
 
     @property
     def http_headers(self) -> dict:
@@ -1531,6 +1538,14 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     state_partitioning_keys = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
     ignore_parent_replication_key = False
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO - remove warning with next release.
+        self.logger.warning(
+            "This stream 'stargazers' might conflict with previous implementation. "
+            "Looking for the older version? Use 'stargazers_rest'."
+        )
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """

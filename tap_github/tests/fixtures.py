@@ -1,8 +1,13 @@
 import os
 import logging
 import datetime
+import sys
 
 import pytest
+from ..utils.filter_stdout import FilterStdOutput
+
+# Filter out singer output during tests
+sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')  # type: ignore
 
 
 @pytest.fixture
@@ -100,7 +105,7 @@ def organization_list_config(request):
 def alternative_sync_chidren(self, child_context: dict) -> None:
     """
     Override for Stream._sync_children.
-    Enabling us to use an ORG_LEVEL_TOKEN for the collaborators sream.
+    Enabling us to use an ORG_LEVEL_TOKEN for the collaborators stream.
     """
     for child_stream in self.child_streams:
         # Use org:write access level credentials for collaborators stream
