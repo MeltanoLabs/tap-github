@@ -66,10 +66,10 @@ jobs:
       id: test_pytest
       continue-on-error: true
       run: |
-        LOGLEVEL=INFO poetry run pytest --capture=no
+        LOGLEVEL=WARNING poetry run pytest --capture=no
     - name: Test with pytest (run 2)
       id: retry_test_pytest
       if: steps.test_pytest.outcome=='failure'         # check the step outcome, wait and retry
       run: |
         sleep 60m
-        LOGLEVEL=INFO poetry run pytest --capture=no
+        LOGLEVEL=WARNING poetry run pytest --capture=no
