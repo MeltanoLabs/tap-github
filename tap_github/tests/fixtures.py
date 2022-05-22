@@ -102,7 +102,7 @@ def organization_list_config(request):
     }
 
 
-def alternative_sync_chidren(self, child_context: dict) -> None:
+def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) -> None:
     """
     Override for Stream._sync_children.
     Enabling us to use an ORG_LEVEL_TOKEN for the collaborators stream.
@@ -111,7 +111,7 @@ def alternative_sync_chidren(self, child_context: dict) -> None:
         # Use org:write access level credentials for collaborators stream
         if child_stream.name in ["collaborators"]:
             ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")
-            if not ORG_LEVEL_TOKEN:
+            if not ORG_LEVEL_TOKEN or no_sync:
                 logging.warning(
                     'No "ORG_LEVEL_TOKEN" found. Skipping collaborators stream sync.'
                 )
