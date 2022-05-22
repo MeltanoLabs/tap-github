@@ -52,9 +52,7 @@ class GitHubRestStream(RESTStream):
     def http_headers(self) -> Dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
-        if "user_agent" in self.config:
-            headers["User-Agent"] = cast(str, self.config.get("user_agent"))
-
+        headers["User-Agent"] = cast(str, self.config.get("user_agent", "tap-github"))
         return headers
 
     def get_next_page_token(
