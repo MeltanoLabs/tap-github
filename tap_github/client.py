@@ -1,16 +1,13 @@
 """REST client handling, including GitHubStream base class."""
 
-from typing import Any, Dict, Iterable, List, Optional, cast
-
 import collections
 import re
-import requests
-
-from dateutil.parser import parse
+from typing import Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
+import requests
+from dateutil.parser import parse
 from nested_lookup import nested_lookup
-
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.streams import GraphQLStream, RESTStream

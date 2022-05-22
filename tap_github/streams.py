@@ -1,8 +1,14 @@
 from enum import Enum
-from typing import Type, Set, List
+from typing import List, Set, Type
 
 from singer_sdk.streams.core import Stream
 
+from tap_github.organization_streams import (
+    OrganizationStream,
+    TeamMembersStream,
+    TeamRolesStream,
+    TeamsStream,
+)
 from tap_github.repository_streams import (
     AnonymousContributorsStream,
     AssigneesStream,
@@ -36,17 +42,7 @@ from tap_github.repository_streams import (
     WorkflowRunsStream,
     WorkflowsStream,
 )
-from tap_github.user_streams import (
-    StarredStream,
-    UserContributedToStream,
-    UserStream,
-)
-from tap_github.organization_streams import (
-    OrganizationStream,
-    TeamMembersStream,
-    TeamRolesStream,
-    TeamsStream,
-)
+from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 
 
 class Streams(Enum):

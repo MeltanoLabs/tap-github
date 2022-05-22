@@ -1,20 +1,19 @@
 """Repository Stream types classes for tap-github."""
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import parse_qs, urlparse
 
 import requests
+from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
-from dateutil.parser import parse
-from urllib.parse import parse_qs, urlparse
-
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
-    user_object,
     label_object,
-    reactions_object,
     milestone_object,
+    reactions_object,
+    user_object,
 )
 
 
