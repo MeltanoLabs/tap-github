@@ -3,11 +3,11 @@
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
 import logging
-import requests
 import time
-
 from typing import Any, Dict, Iterable, Optional
 from urllib.parse import urlparse
+
+import requests
 
 
 def scrape_dependents(
@@ -36,8 +36,7 @@ def scrape_dependents(
 
 def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, Any]]:
     # Optional dependency:
-    from bs4 import BeautifulSoup
-    from bs4 import Tag
+    from bs4 import BeautifulSoup, Tag
 
     s = requests.Session()
 
