@@ -9,7 +9,7 @@ license = "Apache 2.0"
 PyJWT = "2.3.0"
 python = "<3.11,>=3.7.2"
 requests = "^2.25.1"
-singer-sdk = "^0.4.7"
+singer-sdk = "^0.4.9"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
 # singer-sdk = {git = "https://gitlab.com/meltano/singer-sdk.git", rev = "97-hierarchical-streams"}

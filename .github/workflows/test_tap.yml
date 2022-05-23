@@ -64,7 +64,7 @@ jobs:
         poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
       id: test_pytest
-      continue-on-error: true 
+      continue-on-error: true
       run: |
         LOGLEVEL=WARNING poetry run pytest --capture=no
     - name: Test with pytest (run 2)
