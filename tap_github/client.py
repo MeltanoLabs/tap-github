@@ -1,7 +1,9 @@
 """REST client handling, including GitHubStream base class."""
 
 import collections
+import inspect
 import re
+from types import FrameType
 from typing import Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
@@ -190,7 +192,7 @@ class GitHubRestStream(RESTStream):
                 # Update token
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
-                raise RetriableAPIError(msg)
+                raise RetriableAPIError(msg, response)
 
             # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
             if (
@@ -198,7 +200,7 @@ class GitHubRestStream(RESTStream):
                 # if the token is invalid, we are also told about it
                 and not "bad credentials" in str(response.content).lower()
             ):
-                raise RetriableAPIError(msg)
+                raise RetriableAPIError(msg, response)
 
             # all other errors are fatal
             # Note: The API returns a 404 "Not Found" if trying to read a repo
@@ -210,7 +212,7 @@ class GitHubRestStream(RESTStream):
                 f"{response.status_code} Server Error: "
                 f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
             )
-            raise RetriableAPIError(msg)
+            raise RetriableAPIError(msg, response)
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
@@ -237,6 +239,24 @@ class GitHubRestStream(RESTStream):
         if context is not None and "repo_id" in context:
             row["repo_id"] = context["repo_id"]
         return row
+
+    def backoff_handler(self, details: dict) -> None:
+        """Handle retriable error by swapping auth token."""
+        self.logger.info("Retrying request with different token")
+        # use python introspection to obtain the error object
+        # FIXME: replace this once https://github.com/litl/backoff/issues/158
+        # is fixed
+        exc = cast(
+            FrameType,
+            cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_back,
+        ).f_locals["e"]
+        if exc.response.status_code == 403 and "rate limit exceeded" in str(
+            exc.response.content
+        ):
+            # we hit a rate limit, rotate token
+            prepared_request = details["args"][0]
+            self.authenticator.get_next_auth_token()
+            prepared_request.headers.update(self.authenticator.auth_headers or {})
 
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):

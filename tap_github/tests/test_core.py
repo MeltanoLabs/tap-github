@@ -22,9 +22,12 @@ from .fixtures import (
 def test_standard_tap_tests_for_search_mode(search_config):
     """Run standard tap tests from the SDK."""
     tests = get_standard_tap_tests(TapGitHub, config=search_config)
-    with nostdout():
-        for test in tests:
-            test()
+    with patch(
+        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+    ):
+        with nostdout():
+            for test in tests:
+                test()
 
 
 def test_standard_tap_tests_for_repo_list_mode(repo_list_config):
