@@ -1993,6 +1993,9 @@ class DependentsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         new_row = {"dependent": row}
+        # we extract dependent_name_with_owner to be able to use it safely as a primary key,
+        # regardless of the target used.
+        new_row["dependent_name_with_owner"] = row["name_with_owner"]
         if context is not None:
             new_row["repo_id"] = context["repo_id"]
         return new_row
@@ -2011,6 +2014,7 @@ class DependentsStream(GitHubRestStream):
         th.Property("org", th.StringType),
         th.Property("repo_id", th.IntegerType),
         # Dependent keys
+        th.Property("dependent_name_with_owner", th.StringType),
         th.Property(
             "dependent",
             th.ObjectType(
