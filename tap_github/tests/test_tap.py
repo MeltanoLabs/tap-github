@@ -1,12 +1,12 @@
-import os
 import logging
-import pytest
+import os
 from typing import Optional
-
 from unittest.mock import patch
 
-from singer_sdk.helpers._singer import Catalog
+import pytest
 from singer_sdk.helpers import _catalog as cat_helpers
+from singer_sdk.helpers._singer import Catalog
+
 from tap_github.tap import TapGitHub
 
 from .fixtures import alternative_sync_chidren, repo_list_config, username_list_config

@@ -1,22 +1,20 @@
 """Tests standard tap features using the built-in SDK tests library."""
-import os
 import logging
-
+import os
 from unittest import mock
 from unittest.mock import patch
 
-from tap_github.utils.filter_stdout import nostdout
-
-from .fixtures import alternative_sync_chidren
 from singer_sdk.testing import get_standard_tap_tests
 
 from tap_github.tap import TapGitHub
+from tap_github.utils.filter_stdout import nostdout
 
 from .fixtures import (
+    alternative_sync_chidren,
+    organization_list_config,
     repo_list_config,
     search_config,
     username_list_config,
-    organization_list_config,
 )
 
 

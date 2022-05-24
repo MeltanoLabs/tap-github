@@ -1,9 +1,10 @@
-import os
-import logging
 import datetime
+import logging
+import os
 import sys
 
 import pytest
+
 from ..utils.filter_stdout import FilterStdOutput
 
 # Filter out singer output during tests
