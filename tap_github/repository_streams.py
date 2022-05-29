@@ -1418,6 +1418,7 @@ class ContributorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [204]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1447,6 +1448,7 @@ class AnonymousContributorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [204]
 
     def get_url_params(
         self, context: Optional[Dict], next_page_token: Optional[Any]
@@ -1639,7 +1641,7 @@ class StatsContributorsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     # Note - these queries are expensive and the API might return an HTTP 202 if the response
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
-    tolerated_http_errors = [202]
+    tolerated_http_errors = [202, 204]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of flattened contributor activity."""
