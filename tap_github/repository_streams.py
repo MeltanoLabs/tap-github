@@ -1259,6 +1259,7 @@ class PullRequestCommits(GitHubRestStream):
         th.Property("repo", th.StringType),
         th.Property("repo_id", th.IntegerType),
         th.Property("pull_number", th.IntegerType),
+
         # Rest
         th.Property("url", th.StringType),
         th.Property("sha", th.StringType),
@@ -1316,6 +1317,12 @@ class PullRequestCommits(GitHubRestStream):
             ),
         ),
     ).to_dict()
+
+    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            row["pull_number"] = context["pull_number"]
+        return row
 
 
 class ReviewsStream(GitHubRestStream):
