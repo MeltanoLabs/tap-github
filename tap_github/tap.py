@@ -85,5 +85,6 @@ class TapGitHub(Tap):
 
 
 # CLI Execution:
+if __name__ == "__main__":
+    TapGitHub.cli()
 
-cli = TapGitHub.cli
