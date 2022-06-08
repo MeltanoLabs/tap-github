@@ -363,3 +363,14 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             params["since"] = str(since)
 
         return params
+
+    def calculate_api_request_cost(
+        self,
+        request: requests.PreparedRequest,
+        response: requests.Response,
+        context: Optional[dict],
+    ) -> dict[str, int]:
+        """Return the cost of the last graphql API call."""
+        costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())
+        cost = next(costgen)
+        return {"rest": 0, "graphql": int(cost), "search": 0}

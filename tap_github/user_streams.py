@@ -293,6 +293,9 @@ class UserContributedToStream(GitHubGraphqlStream):
                 }
               }
             }
+            rateLimit {
+              cost
+            }
           }
         """
 
