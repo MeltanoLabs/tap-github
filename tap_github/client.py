@@ -258,6 +258,15 @@ class GitHubRestStream(RESTStream):
             self.authenticator.get_next_auth_token()
             prepared_request.headers.update(self.authenticator.auth_headers or {})
 
+    def calculate_api_request_cost(
+        self,
+        request: requests.PreparedRequest,
+        response: requests.Response,
+        context: Optional[dict],
+    ) -> dict[str, int]:
+        """Return the cost of the last REST API call."""
+        return {"rest": 1, "graphql": 0, "search": 0}
+
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""

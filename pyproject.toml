@@ -9,10 +9,10 @@ license = "Apache 2.0"
 PyJWT = "2.4.0"
 python = "<3.11,>=3.7.2"
 requests = "^2.25.1"
-singer-sdk = "^0.4.9"
+# singer-sdk = "^0.4.9"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-# singer-sdk = {git = "https://gitlab.com/meltano/singer-sdk.git", rev = "97-hierarchical-streams"}
+singer-sdk = {git = "https://github.com/oviohub/meltano-sdk.git", rev = "8e505a074c1bca31bdc7bb3e2c8102fe95bcbe05"}
 types-simplejson = "^3.17.2"
 types-python-dateutil = "^2.8.6"
 nested-lookup = "^0.2.23"
