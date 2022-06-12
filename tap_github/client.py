@@ -263,7 +263,7 @@ class GitHubRestStream(RESTStream):
         request: requests.PreparedRequest,
         response: requests.Response,
         context: Optional[dict],
-    ) -> dict[str, int]:
+    ) -> Dict[str, int]:
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
 
@@ -369,7 +369,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         request: requests.PreparedRequest,
         response: requests.Response,
         context: Optional[dict],
-    ) -> dict[str, int]:
+    ) -> Dict[str, int]:
         """Return the cost of the last graphql API call."""
         costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())
         cost = next(costgen)
