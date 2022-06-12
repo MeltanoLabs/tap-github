@@ -88,6 +88,8 @@ class UserStream(GitHubRestStream):
         # the line.
         for record in temp_stream.request_records({}):
             for item in record.keys():
+                if item == "rateLimit":
+                    continue
                 try:
                     username = record[item]["login"]
                 except TypeError:
