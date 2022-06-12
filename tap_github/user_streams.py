@@ -73,7 +73,7 @@ class UserStream(GitHubRestStream):
                         f'user{i}: repositoryOwner(login: "{user}") '
                         "{ login avatarUrl}"
                     )
-                return "query {" + " ".join(chunks) + " }"
+                return "query {" + " ".join(chunks) + " rateLimit { cost } }"
 
         users_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(user_list))
