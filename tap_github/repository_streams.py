@@ -1,18 +1,21 @@
 """Repository Stream types classes for tap-github."""
 
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import parse_qs, urlparse
 
 import requests
+from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
-    user_object,
     label_object,
-    reactions_object,
     milestone_object,
+    reactions_object,
+    user_object,
 )
+from tap_github.scraping import scrape_dependents
 
 
 class RepositoryStream(GitHubRestStream):
@@ -1422,6 +1425,7 @@ class ContributorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [204]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1451,6 +1455,7 @@ class AnonymousContributorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [204]
 
     def get_url_params(
         self, context: Optional[Dict], next_page_token: Optional[Any]
@@ -1483,7 +1488,7 @@ class AnonymousContributorsStream(GitHubRestStream):
 class StargazersStream(GitHubRestStream):
     """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
 
-    name = "stargazers"
+    name = "stargazers_rest"
     path = "/repos/{org}/{repo}/stargazers"
     primary_keys = ["user_id", "repo", "org"]
     parent_stream_type = RepositoryStream
@@ -1491,6 +1496,13 @@ class StargazersStream(GitHubRestStream):
     replication_key = "starred_at"
     # GitHub is missing the "since" parameter on this endpoint.
     missing_since_parameter = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO - remove warning with next release.
+        self.logger.warning(
+            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."
+        )
 
     @property
     def http_headers(self) -> dict:
@@ -1524,6 +1536,104 @@ class StargazersStream(GitHubRestStream):
     ).to_dict()
 
 
+class StargazersGraphqlStream(GitHubGraphqlStream):
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+
+    name = "stargazers"
+    query_jsonpath = "$.data.repository.stargazers.edges.[*]"
+    primary_keys = ["user_id", "repo_id"]
+    replication_key = "starred_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo_id"]
+    # The parent repository object changes if the number of stargazers changes.
+    ignore_parent_replication_key = False
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TODO - remove warning with next release.
+        self.logger.warning(
+            "This stream 'stargazers' might conflict with previous implementation. "
+            "Looking for the older version? Use 'stargazers_rest'."
+        )
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row["user_id"] = row["user"]["id"]
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    def get_next_page_token(
+        self, response: requests.Response, previous_token: Optional[Any]
+    ) -> Optional[Any]:
+        """
+        Exit early if a since parameter is provided.
+        """
+        request_parameters = parse_qs(str(urlparse(response.request.url).query))
+
+        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+        try:
+            since = (
+                request_parameters["since"][0].replace(" ", "+")
+                if "since" in request_parameters
+                else ""
+            )
+        except IndexError:
+            since = ""
+
+        # If since parameter is present, try to exit early by looking at the last "starred_at".
+        # Noting that we are traversing in DESCENDING order by STARRED_AT.
+        if since:
+            results = extract_jsonpath(self.query_jsonpath, input=response.json())
+            *_, last = results
+            if parse(last["starred_at"]) < parse(since):
+                return None
+        return super().get_next_page_token(response, previous_token)
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        return """
+          query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) {
+            repository(name: $repo owner: $org) { 
+              stargazers(first: 100 orderBy: {field: STARRED_AT direction: DESC} after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                edges {
+                  user: node {
+                    node_id: id
+                    id: databaseId
+                    login
+                    avatar_url: avatarUrl
+                    html_url: url
+                    type: __typename
+                    site_admin: isSiteAdmin
+                  }
+                  starred_at: starredAt
+                }
+              }
+            }
+          }
+        """
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Stargazer Info
+        th.Property("user_id", th.IntegerType),
+        th.Property("starred_at", th.DateTimeType),
+        th.Property("user", user_object),
+    ).to_dict()
+
+
 class StatsContributorsStream(GitHubRestStream):
     """
     Defines 'StatsContributors' stream. Fetching contributors activity.
@@ -1538,7 +1648,7 @@ class StatsContributorsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     # Note - these queries are expensive and the API might return an HTTP 202 if the response
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
-    tolerated_http_errors = [202]
+    tolerated_http_errors = [202, 204]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of flattened contributor activity."""
@@ -1867,3 +1977,168 @@ class WorkflowRunJobsStream(GitHubRestStream):
         if not self._schema_emitted:
             super()._write_schema_message()
             self._schema_emitted = True
+
+
+class DependentsStream(GitHubRestStream):
+    """Defines 'dependents' stream."""
+
+    name = "dependents"
+    path = "/{org}/{repo}/network/dependents"
+    primary_keys = ["repo_id", "dependent_name_with_owner"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo_id"]
+
+    @property
+    def url_base(self) -> str:
+        return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL).replace(
+            "api.", ""
+        )
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Get the response for the first page and scrape results, potentially iterating through pages."""
+        yield from scrape_dependents(response, self.logger)
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        new_row = {"dependent": row}
+        # we extract dependent_name_with_owner to be able to use it safely as a primary key,
+        # regardless of the target used.
+        new_row["dependent_name_with_owner"] = row["name_with_owner"]
+        if context is not None:
+            new_row["repo_id"] = context["repo_id"]
+        return new_row
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Mock a web browser user-agent.
+        """
+        return {"User-agent": "Mozilla/5.0"}
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Dependent keys
+        th.Property("dependent_name_with_owner", th.StringType),
+        th.Property(
+            "dependent",
+            th.ObjectType(
+                th.Property("name_with_owner", th.StringType),
+                th.Property("stars", th.IntegerType),
+                th.Property("forks", th.IntegerType),
+            ),
+        ),
+    ).to_dict()
+
+
+class DependenciesStream(GitHubGraphqlStream):
+    """Defines 'DependenciesStream' stream."""
+
+    name = "dependencies"
+    query_jsonpath = (
+        "$.data.repository.dependencyGraphManifests.nodes.[*].dependencies.nodes.[*]"
+    )
+    primary_keys = ["dependency_repo_id", "repo_id"]
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys = ["repo_id"]
+    ignore_parent_replication_key = True
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Overridden to use the preview for Repository.dependencyGraphManifests.
+        """
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.hawkgirl-preview+json"
+        return headers
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        """
+        Add a dependency_repo_id top-level field to be used as primary key.
+        """
+        row["dependency_repo_id"] = (
+            row["dependency"]["id"] if row["dependency"] else None
+        )
+        if context is not None:
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        return """
+          query repositoryDependencies($repo: String! $org: String! $nextPageCursor_0: String $nextPageCursor_1: String) {
+            repository(name: $repo owner: $org) {
+              dependencyGraphManifests (first: 10 withDependencies: true after: $nextPageCursor_0) {
+                totalCount
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  filename
+                  dependenciesCount
+                  dependencies (first: 50 after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
+                    nodes {
+                      dependency: repository {
+                        node_id: id
+                        id: databaseId
+                        name_with_owner: nameWithOwner
+                        url
+                        owner {
+                          node_id: id
+                          login
+                        }
+                      }
+                      package_manager: packageManager
+                      package_name: packageName
+                      requirements
+                      has_dependencies: hasDependencies
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+        """
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Dependency Info
+        th.Property("dependency_repo_id", th.IntegerType),
+        th.Property("package_name", th.StringType),
+        th.Property("package_manager", th.StringType),
+        th.Property("requirements", th.StringType),
+        th.Property("has_dependencies", th.BooleanType),
+        th.Property(
+            "dependency",
+            th.ObjectType(
+                th.Property("node_id", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("name_with_owner", th.StringType),
+                th.Property("url", th.IntegerType),
+                th.Property(
+                    "owner",
+                    th.ObjectType(
+                        th.Property("node_id", th.StringType),
+                        th.Property("login", th.StringType),
+                    ),
+                ),
+            ),
+        ),
+    ).to_dict()

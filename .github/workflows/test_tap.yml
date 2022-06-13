@@ -1,11 +1,15 @@
 name: Test tap-github
 
 on:
-  # Run on all pull requests and on pushes to master.
+  # Run on all pull requests and on pushes to main.
   pull_request:
   push:
     branches:
-      - master
+      - main
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:
@@ -26,13 +30,11 @@ jobs:
       uses: actions/cache@v2.1.7
       with:
         # must match the path in tests/__init__.py
-        path: '**/api_calls_tests_cache.sqlite'
+        path: 'api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
-        restore-keys: |
-          api-cache-v3
-          api-cache-
+        restore-keys: api-cache-v3
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -54,12 +56,21 @@ jobs:
       run: |
         poetry install
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-    - name: Check formatting with black
+    - name: Check formatting with black and isort
       run: |
         poetry run black --check .
+        poetry run isort --check .
     - name: Check typing annotations with mypy
       run: |
         poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
+      id: test_pytest
+      continue-on-error: true
       run: |
-        poetry run pytest --capture=no
+        LOGLEVEL=WARNING poetry run pytest --capture=no
+    - name: Test with pytest (run 2)
+      id: retry_test_pytest
+      if: steps.test_pytest.outcome=='failure'         # check the step outcome, wait and retry
+      run: |
+        sleep 60m
+        LOGLEVEL=WARNING poetry run pytest --capture=no

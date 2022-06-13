@@ -1,15 +1,15 @@
-import os
 import logging
-import pytest
+import os
 from typing import Optional
-
 from unittest.mock import patch
 
-from singer_sdk.helpers._singer import Catalog
+import pytest
 from singer_sdk.helpers import _catalog as cat_helpers
+from singer_sdk.helpers._singer import Catalog
+
 from tap_github.tap import TapGitHub
 
-from .fixtures import repo_list_config, username_list_config
+from .fixtures import alternative_sync_chidren, repo_list_config, username_list_config
 
 repo_list_2 = [
     "MeltanoLabs/tap-github",
@@ -47,31 +47,6 @@ def test_validate_repo_list_config(repo_list_config):
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions
     assert partitions == repo_list_context
-
-
-def alternative_sync_chidren(self, child_context: dict) -> None:
-    """
-    Override for Stream._sync_children.
-    Enabling us to use an ORG_LEVEL_TOKEN for the collaborators sream.
-    """
-    for child_stream in self.child_streams:
-        # Use org:write access level credentials for collaborators stream
-        if child_stream.name in ["collaborators"]:
-            ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")
-            if not ORG_LEVEL_TOKEN:
-                logging.warning(
-                    'No "ORG_LEVEL_TOKEN" found. Skipping collaborators stream sync.'
-                )
-                continue
-            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-            os.environ["GITHUB_TOKEN"] = ORG_LEVEL_TOKEN
-            child_stream.sync(context=child_context)
-            os.environ["GITHUB_TOKEN"] = SAVED_GTHUB_TOKEN or ""
-            continue
-
-        # default behavior:
-        if child_stream.selected or child_stream.has_selected_descendents:
-            child_stream.sync(context=child_context)
 
 
 def run_tap_with_config(capsys, config_obj: dict, skip_stream: Optional[str]) -> str:

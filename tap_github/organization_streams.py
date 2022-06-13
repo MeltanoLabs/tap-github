@@ -1,6 +1,6 @@
 """User Stream types classes for tap-github."""
 
-from typing import Dict, List, Optional, Iterable, Any
+from typing import Any, Dict, Iterable, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -98,7 +98,22 @@ class TeamsStream(GitHubRestStream):
         th.Property("permission", th.StringType),
         th.Property("members_url", th.StringType),
         th.Property("repositories_url", th.StringType),
-        th.Property("parent", th.StringType),
+        th.Property(
+            "parent",
+            th.ObjectType(
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("name", th.StringType),
+                th.Property("slug", th.StringType),
+                th.Property("description", th.StringType),
+                th.Property("privacy", th.StringType),
+                th.Property("permission", th.StringType),
+                th.Property("members_url", th.StringType),
+                th.Property("repositories_url", th.StringType),
+            ),
+        ),
     ).to_dict()
 
 

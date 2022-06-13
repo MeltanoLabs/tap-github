@@ -1,7 +1,7 @@
 """User Stream types classes for tap-github."""
 
 import re
-from typing import Dict, List, Optional, Iterable, Any
+from typing import Any, Dict, Iterable, List, Optional
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -256,7 +256,7 @@ class StarredStream(GitHubRestStream):
 
 
 class UserContributedToStream(GitHubGraphqlStream):
-    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+    """Defines 'UserContributedToStream' stream."""
 
     name = "user_contributed_to"
     query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"

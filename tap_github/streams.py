@@ -1,50 +1,48 @@
 from enum import Enum
-from typing import Type, Set, List
+from typing import List, Set, Type
 
 from singer_sdk.streams.core import Stream
 
+from tap_github.organization_streams import (
+    OrganizationStream,
+    TeamMembersStream,
+    TeamRolesStream,
+    TeamsStream,
+)
 from tap_github.repository_streams import (
     AnonymousContributorsStream,
+    AssigneesStream,
+    CollaboratorsStream,
+    CommitCommentsStream,
     CommitsStream,
     CommunityProfileStream,
     ContributorsStream,
+    DependenciesStream,
+    DependentsStream,
     EventsStream,
     IssueCommentsStream,
     IssueEventsStream,
     IssuesStream,
     LanguagesStream,
+    MilestonesStream,
+    ProjectCardsStream,
+    ProjectColumnsStream,
+    ProjectsStream,
+    PullRequestCommits,
     PullRequestsStream,
     ReadmeHtmlStream,
     ReadmeStream,
+    ReleasesStream,
     RepositoryStream,
+    ReviewCommentsStream,
+    ReviewsStream,
     StargazersStream,
     StatsContributorsStream,
-    AssigneesStream,
-    CollaboratorsStream,
-    ReviewsStream,
-    ReviewCommentsStream,
-    ProjectsStream,
-    ProjectColumnsStream,
-    ProjectCardsStream,
-    PullRequestCommits,
-    MilestonesStream,
-    CommitCommentsStream,
-    ReleasesStream,
-    WorkflowsStream,
     WorkflowRunJobsStream,
     WorkflowRunsStream,
+    WorkflowsStream,
 )
-from tap_github.user_streams import (
-    StarredStream,
-    UserContributedToStream,
-    UserStream,
-)
-from tap_github.organization_streams import (
-    OrganizationStream,
-    TeamsStream,
-    TeamMembersStream,
-    TeamRolesStream,
-)
+from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 
 
 class Streams(Enum):
@@ -63,34 +61,36 @@ class Streams(Enum):
         {"repositories", "organizations", "searches"},
         [
             AnonymousContributorsStream,
-            CommitsStream,
+            AssigneesStream,
+            CollaboratorsStream,
             CommitCommentsStream,
+            CommitsStream,
             CommunityProfileStream,
             ContributorsStream,
+            DependenciesStream,
+            DependentsStream,
             EventsStream,
-            MilestonesStream,
-            ReleasesStream,
-            CollaboratorsStream,
-            AssigneesStream,
-            IssuesStream,
             IssueCommentsStream,
             IssueEventsStream,
+            IssuesStream,
             LanguagesStream,
-            PullRequestsStream,
+            MilestonesStream,
+            ProjectCardsStream,
+            ProjectColumnsStream,
+            ProjectsStream,
             PullRequestCommits,
-            ReviewsStream,
-            ReviewCommentsStream,
+            PullRequestsStream,
             ReadmeHtmlStream,
             ReadmeStream,
+            ReleasesStream,
             RepositoryStream,
+            ReviewCommentsStream,
+            ReviewsStream,
             StargazersStream,
             StatsContributorsStream,
-            ProjectsStream,
-            ProjectColumnsStream,
-            ProjectCardsStream,
-            WorkflowsStream,
             WorkflowRunJobsStream,
             WorkflowRunsStream,
+            WorkflowsStream,
         ],
     )
     USERS = (
@@ -103,7 +103,7 @@ class Streams(Enum):
     )
     ORGANIZATIONS = (
         {"organizations"},
-        [OrganizationStream, TeamsStream, TeamMembersStream, TeamRolesStream],
+        [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
     )
 
     @classmethod
