@@ -12,7 +12,7 @@ requests = "^2.25.1"
 # singer-sdk = "^0.4.9"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = {git = "https://github.com/oviohub/meltano-sdk.git", rev = "8e505a074c1bca31bdc7bb3e2c8102fe95bcbe05"}
+singer-sdk = {git = "https://github.com/oviohub/meltano-sdk.git", rev = "040a8383f3994f47d5a324da81e2cb7b559ee23c"}
 types-simplejson = "^3.17.2"
 types-python-dateutil = "^2.8.6"
 nested-lookup = "^0.2.23"

@@ -258,7 +258,7 @@ class GitHubRestStream(RESTStream):
             self.authenticator.get_next_auth_token()
             prepared_request.headers.update(self.authenticator.auth_headers or {})
 
-    def calculate_api_request_cost(
+    def calculate_sync_cost(
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
@@ -364,7 +364,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         return params
 
-    def calculate_api_request_cost(
+    def calculate_sync_cost(
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
