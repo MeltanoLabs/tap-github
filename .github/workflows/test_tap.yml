@@ -34,7 +34,6 @@ jobs:
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
-        restore-keys: api-cache-v3
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -51,7 +50,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: .venv
-        key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}
+        key: venv-2-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         poetry install
