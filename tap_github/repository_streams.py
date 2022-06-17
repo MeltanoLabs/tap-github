@@ -954,10 +954,17 @@ class IssueEventsStream(GitHubRestStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-        row["issue_number"] = int(row["issue"].pop("number"))
-        row["issue_url"] = row["issue"].pop("url")
+
+        if "issue" in row.keys():
+            row["issue_number"] = int(row["issue"].pop("number"))
+            row["issue_url"] = row["issue"].pop("url")
+        else:
+            self.logger.debug(
+                f"No issue assosciated with event {row['id']} - {row['event']}."
+            )
         if context is not None:
             row["repo_id"] = context["repo_id"]
+
         return row
 
     schema = th.PropertiesList(
