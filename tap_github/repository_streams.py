@@ -954,7 +954,6 @@ class IssueEventsStream(GitHubRestStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
-
         if "issue" in row.keys():
             row["issue_number"] = int(row["issue"].pop("number"))
             row["issue_url"] = row["issue"].pop("url")
