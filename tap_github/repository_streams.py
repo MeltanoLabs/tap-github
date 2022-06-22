@@ -891,7 +891,16 @@ class IssueCommentsStream(GitHubRestStream):
             self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
             return []
 
-        return super().get_records(context)
+        # Getting issue comments is sometimes too expensive on large repos and results server errors.
+        # To avoid crashing the tap completely, we wrap the get_records in a try/except.
+        try:
+            return super().get_records(context)
+        except ValueError:
+            self.logger.warning(
+                f"A server error occured getting issue comments for {context}."
+            )
+
+        return []
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
