@@ -891,7 +891,7 @@ class IssueCommentsStream(GitHubRestStream):
             self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
             return []
 
-        # Getting issue comments is sometimes too expensive on large repos and results server errors.
+        # Getting issue comments is sometimes too expensive on large repos and results in server errors.
         # To avoid crashing the tap completely, we wrap the get_records in a try/except.
         try:
             return super().get_records(context)
