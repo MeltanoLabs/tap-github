@@ -884,6 +884,10 @@ class IssueCommentsStream(GitHubRestStream):
     # we have gaps in our data
     tolerated_http_errors = [502]
 
+    # GitHub is not missing the "since" parameter on this endpoint.
+    # But it is too expensive on large repos and results in a lot of server errors.
+    missing_since_parameter = True
+
     def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
