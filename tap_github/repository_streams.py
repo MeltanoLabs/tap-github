@@ -1,5 +1,6 @@
 """Repository Stream types classes for tap-github."""
 
+import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
@@ -902,6 +903,37 @@ class IssueCommentsStream(GitHubRestStream):
                 )
                 return []
             raise err
+
+    def _request(
+        self, prepared_request: requests.PreparedRequest, context: Optional[dict]
+    ) -> requests.Response:
+        """Override the parent class method with some hacky tooling to get around
+        github's server-side error.
+        See https://github.com/MeltanoLabs/tap-github/issues/128
+        """
+        try:
+            return super()._request(prepared_request, context)
+        except requests.exceptions.ChunkedEncodingError:
+            self.logger.error(
+                f"A server error occured getting issue comments for {context}."
+                f" (ChunkedEncodingError)"
+            )
+            # build a fake response so the rest of the tap thinks everything
+            # worked as expected
+            fake_response = requests.Response()
+            fake_response.status_code = 200
+            fake_response.headers = {  # type: ignore
+                "X-RateLimit-Limit": 5000,
+                "X-RateLimit-Remaining": 4999,
+                "X-RateLimit-Reset": int(time.time()),
+                "X-RateLimit-Used": 1,
+            }
+
+            def fake_json():
+                return []
+
+            fake_response.json = fake_json  # type: ignore
+            return fake_response
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
