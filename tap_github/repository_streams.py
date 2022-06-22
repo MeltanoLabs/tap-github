@@ -901,6 +901,7 @@ class IssueCommentsStream(GitHubRestStream):
                     f"A server error occured getting issue comments for {context}."
                 )
                 return []
+            raise err
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
