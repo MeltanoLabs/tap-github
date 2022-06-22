@@ -84,13 +84,13 @@ class GitHubRestStream(RESTStream):
         # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         # For such streams, we sort by descending dates (most recent first), and paginate
-        # "back in time" until we reach records before our "since" parameter.
+        # "back in time" until we reach records before our "fake_since" parameter.
         request_parameters = parse_qs(str(urlparse(response.request.url).query))
         # parse_qs interprets "+" as a space, revert this to keep an aware datetime
         try:
             since = (
-                request_parameters["since"][0].replace(" ", "+")
-                if "since" in request_parameters
+                request_parameters["fake_since"][0].replace(" ", "+")
+                if "fake_since" in request_parameters
                 else ""
             )
         except IndexError:
@@ -100,12 +100,18 @@ class GitHubRestStream(RESTStream):
             if "direction" in request_parameters
             else None
         )
+
+        # commit_timestamp is a constructed key which does not exist in the raw response
+        replication_date = (
+            results[-1][self.replication_key]
+            if self.replication_key != "commit_timestamp"
+            else results[-1]["commit"]["committer"]["date"]
+        )
         if (
-            # commit_timestamp is a constructed key which does not exist in the raw response
             self.replication_key != "commit_timestamp"
             and since
             and direction == "desc"
-            and (parse(results[-1][self.replication_key]) < parse(since))
+            and (parse(replication_date) < parse(since))
         ):
             return None
 
@@ -148,8 +154,9 @@ class GitHubRestStream(RESTStream):
             )
 
         since = self.get_starting_timestamp(context)
+        since_key = "since" if not self.missing_since_parameter else "fake_since"
         if self.replication_key and since:
-            params["since"] = since
+            params[since_key] = since
         return params
 
     def validate_response(self, response: requests.Response) -> None:
