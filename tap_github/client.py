@@ -258,6 +258,15 @@ class GitHubRestStream(RESTStream):
             self.authenticator.get_next_auth_token()
             prepared_request.headers.update(self.authenticator.auth_headers or {})
 
+    def calculate_sync_cost(
+        self,
+        request: requests.PreparedRequest,
+        response: requests.Response,
+        context: Optional[dict],
+    ) -> Dict[str, int]:
+        """Return the cost of the last REST API call."""
+        return {"rest": 1, "graphql": 0, "search": 0}
+
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
@@ -354,3 +363,14 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             params["since"] = str(since)
 
         return params
+
+    def calculate_sync_cost(
+        self,
+        request: requests.PreparedRequest,
+        response: requests.Response,
+        context: Optional[dict],
+    ) -> Dict[str, int]:
+        """Return the cost of the last graphql API call."""
+        costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())
+        cost = next(costgen)
+        return {"rest": 0, "graphql": int(cost), "search": 0}
