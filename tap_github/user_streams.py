@@ -73,7 +73,7 @@ class UserStream(GitHubRestStream):
                         f'user{i}: repositoryOwner(login: "{user}") '
                         "{ login avatarUrl}"
                     )
-                return "query {" + " ".join(chunks) + " }"
+                return "query {" + " ".join(chunks) + " rateLimit { cost } }"
 
         users_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(user_list))
@@ -88,6 +88,8 @@ class UserStream(GitHubRestStream):
         # the line.
         for record in temp_stream.request_records({}):
             for item in record.keys():
+                if item == "rateLimit":
+                    continue
                 try:
                     username = record[item]["login"]
                 except TypeError:
@@ -292,6 +294,9 @@ class UserContributedToStream(GitHubGraphqlStream):
                   }
                 }
               }
+            }
+            rateLimit {
+              cost
             }
           }
         """

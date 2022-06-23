@@ -91,7 +91,7 @@ class RepositoryStream(GitHubRestStream):
                         f'repo{i}: repository(name: "{repo[1]}", owner: "{repo[0]}") '
                         "{ nameWithOwner databaseId }"
                     )
-                return "query {" + " ".join(chunks) + " }"
+                return "query {" + " ".join(chunks) + " rateLimit { cost } }"
 
         repos_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(repo_list))
@@ -102,6 +102,8 @@ class RepositoryStream(GitHubRestStream):
         # the line.
         for record in temp_stream.request_records({}):
             for item in record.keys():
+                if item == "rateLimit":
+                    continue
                 try:
                     org, repo = record[item]["nameWithOwner"].split("/")
                 except TypeError:
@@ -1660,6 +1662,9 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
                 }
               }
             }
+            rateLimit {
+              cost
+            }
           }
         """
 
@@ -2150,6 +2155,9 @@ class DependenciesStream(GitHubGraphqlStream):
                   }
                 }
               }
+            }
+            rateLimit {
+              cost
             }
           }
 
