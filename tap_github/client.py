@@ -29,7 +29,7 @@ class GitHubRestStream(RESTStream):
     # set this parameter to True if your stream needs to navigate data in descending order
     # and try to exit early on its own.
     # This only has effect on streams whose `replication_key` is `updated_at`.
-    missing_since_parameter = False
+    use_fake_since_parameter = False
 
     _authenticator: Optional[GitHubTokenAuthenticator] = None
 
@@ -136,7 +136,7 @@ class GitHubRestStream(RESTStream):
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
-            params["direction"] = "desc" if self.missing_since_parameter else "asc"
+            params["direction"] = "desc" if self.use_fake_since_parameter else "asc"
 
         # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
         # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
@@ -154,7 +154,7 @@ class GitHubRestStream(RESTStream):
             )
 
         since = self.get_starting_timestamp(context)
-        since_key = "since" if not self.missing_since_parameter else "fake_since"
+        since_key = "since" if not self.use_fake_since_parameter else "fake_since"
         if self.replication_key and since:
             params[since_key] = since
         return params
