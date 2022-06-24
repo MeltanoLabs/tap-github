@@ -101,22 +101,20 @@ class GitHubRestStream(RESTStream):
             else None
         )
 
-        # commit_timestamp is a constructed key which does not exist in the raw response
-        replication_date = None
         if self.replication_key:
+            # commit_timestamp is a constructed key which does not exist in the raw response
             replication_date = (
                 results[-1][self.replication_key]
                 if self.replication_key != "commit_timestamp"
                 else results[-1]["commit"]["committer"]["date"]
             )
-
-        if (
-            self.replication_key
-            and since
-            and direction == "desc"
-            and (parse(replication_date) < parse(since))
-        ):
-            return None
+            # exit early if the replication_date is before our since parameter
+            if (
+                since
+                and direction == "desc"
+                and (parse(replication_date) < parse(since))
+            ):
+                return None
 
         # Use header links returned by the GitHub API.
         parsed_url = urlparse(response.links["next"]["url"])
