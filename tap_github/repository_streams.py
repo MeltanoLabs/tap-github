@@ -428,7 +428,7 @@ class EventsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
-    missing_since_parameter = True
+    use_fake_since_parameter = True
 
     def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -884,6 +884,10 @@ class IssueCommentsStream(GitHubRestStream):
     # we have gaps in our data
     tolerated_http_errors = [502]
 
+    # GitHub is not missing the "since" parameter on this endpoint.
+    # But it is too expensive on large repos and results in a lot of server errors.
+    use_fake_since_parameter = True
+
     def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
@@ -942,7 +946,7 @@ class IssueEventsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
-    missing_since_parameter = True
+    use_fake_since_parameter = True
 
     def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -1106,7 +1110,7 @@ class PullRequestsStream(GitHubRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     # GitHub is missing the "since" parameter on this endpoint.
-    missing_since_parameter = True
+    use_fake_since_parameter = True
 
     def get_url_params(
         self, context: Optional[Dict], next_page_token: Optional[Any]
@@ -1496,7 +1500,7 @@ class StargazersStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     replication_key = "starred_at"
     # GitHub is missing the "since" parameter on this endpoint.
-    missing_since_parameter = True
+    use_fake_since_parameter = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
