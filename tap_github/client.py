@@ -102,13 +102,16 @@ class GitHubRestStream(RESTStream):
         )
 
         # commit_timestamp is a constructed key which does not exist in the raw response
-        replication_date = (
-            results[-1][self.replication_key]
-            if self.replication_key != "commit_timestamp"
-            else results[-1]["commit"]["committer"]["date"]
-        )
+        replication_date = None
+        if self.replication_key:
+            replication_date = (
+                results[-1][self.replication_key]
+                if self.replication_key != "commit_timestamp"
+                else results[-1]["commit"]["committer"]["date"]
+            )
+
         if (
-            self.replication_key != "commit_timestamp"
+            self.replication_key
             and since
             and direction == "desc"
             and (parse(replication_date) < parse(since))
