@@ -85,23 +85,24 @@ class GitHubRestStream(RESTStream):
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         # For such streams, we sort by descending dates (most recent first), and paginate
         # "back in time" until we reach records before our "fake_since" parameter.
-        request_parameters = parse_qs(str(urlparse(response.request.url).query))
-        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
-        try:
-            since = (
-                request_parameters["fake_since"][0].replace(" ", "+")
-                if "fake_since" in request_parameters
-                else ""
-            )
-        except IndexError:
-            since = ""
-        direction = (
-            request_parameters["direction"][0]
-            if "direction" in request_parameters
-            else None
-        )
+        if self.replication_key and self.use_fake_since_parameter:
+            request_parameters = parse_qs(str(urlparse(response.request.url).query))
+            # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+            try:
+                since = (
+                    request_parameters["fake_since"][0].replace(" ", "+")
+                    if "fake_since" in request_parameters
+                    else ""
+                )
+            except IndexError:
+                return None
 
-        if self.replication_key:
+            direction = (
+                request_parameters["direction"][0]
+                if "direction" in request_parameters
+                else None
+            )
+
             # commit_timestamp is a constructed key which does not exist in the raw response
             replication_date = (
                 results[-1][self.replication_key]
