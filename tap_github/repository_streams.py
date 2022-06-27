@@ -1001,6 +1001,8 @@ class CommitsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
+    # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+    use_fake_since_parameter = True
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         """

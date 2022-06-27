@@ -54,6 +54,32 @@ class GitHubRestStream(RESTStream):
         headers["User-Agent"] = cast(str, self.config.get("user_agent", "tap-github"))
         return headers
 
+    def get_records(self, context: Optional[dict]) -> Iterable[Dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+
+        Each row emitted should be a dictionary of property names to their values.
+
+        Args:
+            context: Stream partition or context dictionary.
+
+        Yields:
+            One item per (possibly processed) record in the API.
+        """
+        yield from super().get_records(context)
+
+        # Important - Update state for streams in descending order
+        if self.use_fake_since_parameter:
+            state = self.get_context_state(context)
+            if set(["replication_key_signpost", "replication_key"]).issubset(
+                state.keys()
+            ):
+                record: Dict = {}
+                record[state["replication_key"]] = state["replication_key_signpost"]
+                self._increment_stream_state(
+                    latest_record=record,
+                    context=context,
+                )
+
     def get_next_page_token(
         self, response: requests.Response, previous_token: Optional[Any]
     ) -> Optional[Any]:
