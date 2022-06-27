@@ -3,6 +3,7 @@
 import collections
 import inspect
 import re
+import time
 from types import FrameType
 from typing import Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
@@ -201,6 +202,15 @@ class GitHubRestStream(RESTStream):
                 # Update token
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
+                raise RetriableAPIError(msg, response)
+
+            # Retry on secondary rate limit
+            if (
+                response.status_code == 403
+                and "secondary rate limit" in str(response.content).lower()
+            ):
+                # Wait a minuteand retry
+                time.sleep(61)
                 raise RetriableAPIError(msg, response)
 
             # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
