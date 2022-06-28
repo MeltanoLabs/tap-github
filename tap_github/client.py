@@ -2,6 +2,7 @@
 
 import collections
 import inspect
+import random
 import re
 import time
 from types import FrameType
@@ -209,8 +210,8 @@ class GitHubRestStream(RESTStream):
                 response.status_code == 403
                 and "secondary rate limit" in str(response.content).lower()
             ):
-                # Wait a minuteand retry
-                time.sleep(61)
+                # Wait about a minute and retry
+                time.sleep(60 + 30 * random.random())
                 raise RetriableAPIError(msg, response)
 
             # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
