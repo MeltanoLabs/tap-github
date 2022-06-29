@@ -2022,7 +2022,7 @@ class DependentsStream(GitHubRestStream):
 
         Mock a web browser user-agent.
         """
-        return {"User-agent": "Mozilla/5.0"}
+        return {"User-Agent": "Mozilla/5.0"}
 
     schema = th.PropertiesList(
         # Parent keys
