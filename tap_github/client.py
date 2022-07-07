@@ -2,7 +2,9 @@
 
 import collections
 import inspect
+import random
 import re
+import time
 from types import FrameType
 from typing import Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
@@ -29,7 +31,7 @@ class GitHubRestStream(RESTStream):
     # set this parameter to True if your stream needs to navigate data in descending order
     # and try to exit early on its own.
     # This only has effect on streams whose `replication_key` is `updated_at`.
-    missing_since_parameter = False
+    use_fake_since_parameter = False
 
     _authenticator: Optional[GitHubTokenAuthenticator] = None
 
@@ -84,30 +86,38 @@ class GitHubRestStream(RESTStream):
         # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
         # the "since" parameter out of the box. So we use a workaround here to exit early.
         # For such streams, we sort by descending dates (most recent first), and paginate
-        # "back in time" until we reach records before our "since" parameter.
-        request_parameters = parse_qs(str(urlparse(response.request.url).query))
-        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
-        try:
-            since = (
-                request_parameters["since"][0].replace(" ", "+")
-                if "since" in request_parameters
-                else ""
+        # "back in time" until we reach records before our "fake_since" parameter.
+        if self.replication_key and self.use_fake_since_parameter:
+            request_parameters = parse_qs(str(urlparse(response.request.url).query))
+            # parse_qs interprets "+" as a space, revert this to keep an aware datetime
+            try:
+                since = (
+                    request_parameters["fake_since"][0].replace(" ", "+")
+                    if "fake_since" in request_parameters
+                    else ""
+                )
+            except IndexError:
+                return None
+
+            direction = (
+                request_parameters["direction"][0]
+                if "direction" in request_parameters
+                else None
             )
-        except IndexError:
-            since = ""
-        direction = (
-            request_parameters["direction"][0]
-            if "direction" in request_parameters
-            else None
-        )
-        if (
+
             # commit_timestamp is a constructed key which does not exist in the raw response
-            self.replication_key != "commit_timestamp"
-            and since
-            and direction == "desc"
-            and (parse(results[-1][self.replication_key]) < parse(since))
-        ):
-            return None
+            replication_date = (
+                results[-1][self.replication_key]
+                if self.replication_key != "commit_timestamp"
+                else results[-1]["commit"]["committer"]["date"]
+            )
+            # exit early if the replication_date is before our since parameter
+            if (
+                since
+                and direction == "desc"
+                and (parse(replication_date) < parse(since))
+            ):
+                return None
 
         # Use header links returned by the GitHub API.
         parsed_url = urlparse(response.links["next"]["url"])
@@ -130,7 +140,7 @@ class GitHubRestStream(RESTStream):
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
-            params["direction"] = "desc" if self.missing_since_parameter else "asc"
+            params["direction"] = "desc" if self.use_fake_since_parameter else "asc"
 
         # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
         # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
@@ -148,8 +158,9 @@ class GitHubRestStream(RESTStream):
             )
 
         since = self.get_starting_timestamp(context)
+        since_key = "since" if not self.use_fake_since_parameter else "fake_since"
         if self.replication_key and since:
-            params["since"] = since
+            params[since_key] = since
         return params
 
     def validate_response(self, response: requests.Response) -> None:
@@ -192,6 +203,15 @@ class GitHubRestStream(RESTStream):
                 # Update token
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
+                raise RetriableAPIError(msg, response)
+
+            # Retry on secondary rate limit
+            if (
+                response.status_code == 403
+                and "secondary rate limit" in str(response.content).lower()
+            ):
+                # Wait about a minute and retry
+                time.sleep(60 + 30 * random.random())
                 raise RetriableAPIError(msg, response)
 
             # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
