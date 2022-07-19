@@ -1,15 +1,21 @@
-import logging
-import os
+import json
 from typing import Optional
 from unittest.mock import patch
 
 import pytest
+import requests_mock
+from freezegun import freeze_time
 from singer_sdk.helpers import _catalog as cat_helpers
 from singer_sdk.helpers._singer import Catalog
 
 from tap_github.tap import TapGitHub
 
-from .fixtures import alternative_sync_chidren, repo_list_config, username_list_config
+from .fixtures import (
+    alternative_sync_chidren,
+    mock_commits_response,
+    repo_list_config,
+    username_list_config,
+)
 
 repo_list_2 = [
     "MeltanoLabs/tap-github",
@@ -124,3 +130,55 @@ def test_get_a_user_in_user_usernames_mode(
     assert '{"username": "aaronsteers"' in captured_out
     assert '{"username": "aaRONsTeeRS"' not in captured_out
     assert '{"username": "EricBoucher"' not in captured_out
+
+
+@pytest.mark.repo_list(["MeltanoLabs/tap-github"])
+def test_replication_key_for_desc_streams(
+    repo_list_config: dict, mock_commits_response
+):
+    """Verify that the stream correctly saves bookmarks for streams
+    that are ordered in descending order.
+    """
+    # instantiate a tap for the commits stream, with 1 single repo
+    tap1 = TapGitHub(config=repo_list_config)
+    tap1.run_discovery()
+    catalog = Catalog.from_dict(tap1.catalog_dict)
+    cat_helpers.deselect_all_streams(catalog)
+    cat_helpers.set_catalog_stream_selected(
+        catalog=catalog,
+        stream_name="commits",
+        selected=True,
+    )
+    tap2 = TapGitHub(config=repo_list_config, catalog=catalog.to_dict())
+    # set pagination to 3 records/page (to reduce fixture size)
+    for _, stream in tap2.streams.items():
+        stream.MAX_PER_PAGE = 3  # type: ignore
+
+    # mock all calls to the commits endpoint (this test should just use 1)
+    mocked_url = "https://api.github.com/repos/MeltanoLabs/tap-github/commits"
+
+    # pretend that the date is 2022-07-01T14:00:00 (just after the latest expected
+    # commit in the repo (in the mock))
+    with freeze_time("2022-07-01 14:00:00"):
+        # non-mocked calls are forwarded to the actual server
+        with requests_mock.Mocker(real_http=True) as m:
+            m.get(mocked_url, json=mock_commits_response)
+            # sync the stream, which will return the mocked response
+            # that contains 3 records
+            tap2.sync_all()
+
+        # get the final state for the commits stream
+        s = "not found"
+        for name, stream in tap2.streams.items():
+            if name == "commits":
+                s = stream.stream_state
+        # the bookmark should be the timestamp of the latest commit
+        assert s == {
+            "partitions": [
+                {
+                    "context": {"org": "MeltanoLabs", "repo": "tap-github"},
+                    "replication_key": "commit_timestamp",
+                    "replication_key_value": "2022-07-01T13:47:56Z",
+                }
+            ]
+        }

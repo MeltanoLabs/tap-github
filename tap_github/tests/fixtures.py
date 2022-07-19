@@ -128,3 +128,94 @@ def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) ->
         # default behavior:
         if child_stream.selected or child_stream.has_selected_descendents:
             child_stream.sync(context=child_context)
+
+
+@pytest.fixture
+def mock_commits_response():
+    """
+    Return a fixed API response for the commits stream.
+    Used to test descending streams and bookmarks interaction.
+    This mock is trimmed down a fair bit from the actual response to save space.
+    """
+    return [
+        {
+            "sha": "1a984f582592fc5979d78bb0151707deefadde6f",
+            "node_id": "C_kwDOFcLMsNoAKDFhOTg0ZjU4MjU5MmZjNTk3OWQ3OGJiMDE1MTcwN2RlZWZhZGRlNmY",
+            "commit": {
+                "author": {
+                    "date": "2022-07-01T13:47:56Z",
+                },
+                "committer": {
+                    "name": "GitHub",
+                    "email": "noreply@github.com",
+                    "date": "2022-07-01T13:47:56Z",
+                },
+                "message": "Wait and retry on secondary limits (#153)",
+                "tree": {
+                    "sha": "d3b0aa136fff77eaf84684dd25116f59fba2c2e6",
+                },
+                "verification": {
+                    "verified": True,
+                },
+            },
+            "author": {},
+            "committer": {},
+            "parents": [
+                {
+                    "sha": "14ed2b3401a73ea25bfb5206acba836a0e7a8683",
+                }
+            ],
+        },
+        {
+            "sha": "14ed2b3401a73ea25bfb5206acba836a0e7a8683",
+            "node_id": "C_kwDOFcLMsNoAKDE0ZWQyYjM0MDFhNzNlYTI1YmZiNTIwNmFjYmE4MzZhMGU3YTg2ODM",
+            "commit": {
+                "author": {},
+                "committer": {
+                    "name": "GitHub",
+                    "email": "noreply@github.com",
+                    "date": "2022-06-24T20:18:19Z",
+                },
+                "message": "Update sdk to fix bug in api costs hook (#151)",
+            },
+            "author": {},
+            "committer": {
+                "login": "web-flow",
+                "id": 19864447,
+                "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+            },
+            "parents": [
+                {
+                    "sha": "16d6d7a91f520bb33e3590daf90fc9c699bc92a8",
+                }
+            ],
+        },
+        {
+            "sha": "16d6d7a91f520bb33e3590daf90fc9c699bc92a8",
+            "node_id": "C_kwDOFcLMsNoAKDE2ZDZkN2E5MWY1MjBiYjMzZTM1OTBkYWY5MGZjOWM2OTliYzkyYTg",
+            "commit": {
+                "author": {
+                    "date": "2022-06-24T19:28:46Z",
+                },
+                "committer": {
+                    "name": "GitHub",
+                    "email": "noreply@github.com",
+                    "date": "2022-06-24T19:28:46Z",
+                },
+                "message": "Bypass since parameter in issue_comments to avoid server errors (#150)",
+                "tree": {
+                    "sha": "5140a94f7436dbf230133c83410155b57b787739",
+                },
+                "verification": {
+                    "verified": True,
+                },
+            },
+            "author": {},
+            "committer": {},
+            "parents": [
+                {
+                    "sha": "438a2346cf91612dad553d7cdd6b9ebd27a7e1d4",
+                }
+            ],
+        },
+    ]
