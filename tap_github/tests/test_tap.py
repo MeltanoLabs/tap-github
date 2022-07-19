@@ -168,7 +168,7 @@ def test_replication_key_for_desc_streams(
             tap2.sync_all()
 
         # get the final state for the commits stream
-        s = "not found"
+        s = None
         for name, stream in tap2.streams.items():
             if name == "commits":
                 s = stream.stream_state
