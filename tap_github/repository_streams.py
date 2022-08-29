@@ -1988,7 +1988,10 @@ class WorkflowRunJobsStream(GitHubRestStream):
 
 
 class DependentsStream(GitHubRestStream):
-    """Defines 'dependents' stream."""
+    """Defines 'dependents' stream.
+
+    This stream scrapes the website instead of using the API.
+    """
 
     name = "dependents"
     path = "/{org}/{repo}/network/dependents"
