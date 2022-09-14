@@ -25,7 +25,7 @@ A list of release versions is available at https://github.com/MeltanoLabs/tap-gi
 This tap accepts the following configuration options:
 
 - Required: One and only one of the following modes:
-  1. `repositories`: an array of strings containing the github repos to be included
+  1. `repositories`: an array of strings containing the github repos to be included. The repo URL prefix should be excluded (e.g. MeltanoLabs/tap-github).
   2. `organizations`: an array of strings containing the github organizations to be included
   3. `searches`: an array of search descriptor objects with the following properties:
      - `name`: a human readable name for the search query
