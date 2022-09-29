@@ -9,10 +9,9 @@ license = "Apache 2.0"
 PyJWT = "2.4.0"
 python = "<3.11,>=3.7.2"
 requests = "^2.25.1"
-# singer-sdk = "^0.4.9"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = "^0.9.0"
+singer-sdk = ">=0.11.1"
 types-simplejson = "^3.17.2"
 types-python-dateutil = "^2.8.6"
 nested-lookup = "^0.2.23"
