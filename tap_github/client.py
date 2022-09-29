@@ -6,7 +6,7 @@ import random
 import re
 import time
 from types import FrameType
-from typing import Any, Dict, Iterable, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
