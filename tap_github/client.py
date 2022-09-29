@@ -16,6 +16,9 @@ from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.streams import GraphQLStream, RESTStream
 
+if TYPE_CHECKING:
+    from backoff.types import Details
+
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 
@@ -260,7 +263,7 @@ class GitHubRestStream(RESTStream):
             row["repo_id"] = context["repo_id"]
         return row
 
-    def backoff_handler(self, details: dict) -> None:
+    def backoff_handler(self, details: Details) -> None:
         """Handle retriable error by swapping auth token."""
         self.logger.info("Retrying request with different token")
         # use python introspection to obtain the error object
