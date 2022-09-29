@@ -10,14 +10,12 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
+from backoff.types import Details
 from dateutil.parser import parse
 from nested_lookup import nested_lookup
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.streams import GraphQLStream, RESTStream
-
-if TYPE_CHECKING:
-    from backoff.types import Details
 
 from tap_github.authenticator import GitHubTokenAuthenticator
 
