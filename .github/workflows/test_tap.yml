@@ -7,7 +7,7 @@ on:
     branches:
       - main
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -53,6 +53,7 @@ jobs:
         key: venv-3-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}
     - name: Install dependencies
       run: |
+        poetry run pip install --upgrade setuptools
         poetry install
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
     - name: Check formatting with black and isort
