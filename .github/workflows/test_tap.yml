@@ -7,7 +7,7 @@ on:
     branches:
       - main
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -42,7 +42,7 @@ jobs:
       uses: snok/install-poetry@v1
       with:
         # Version of Poetry to use
-        version: 1.1.13
+        version: 1.2.1
         virtualenvs-create: true
         virtualenvs-in-project: true
     - name: Load cached venv
