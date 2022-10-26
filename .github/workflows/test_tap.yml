@@ -20,7 +20,7 @@ jobs:
       ORG_LEVEL_TOKEN: ${{secrets.ORG_LEVEL_TOKEN}}
     strategy:
       matrix:
-        python-version: ["3.10", 3.9, 3.8, 3.7]
+        python-version: [3.11, "3.10", 3.9, 3.8, 3.7]
       # run the matrix jobs one after the other so they can benefit from caching
       max-parallel: 1
 
