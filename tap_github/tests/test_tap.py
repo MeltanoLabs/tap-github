@@ -5,8 +5,8 @@ from unittest.mock import patch
 import pytest
 import requests_mock
 from freezegun import freeze_time
+from singer_sdk._singerlib import Catalog
 from singer_sdk.helpers import _catalog as cat_helpers
-from singer_sdk.helpers._singer import Catalog
 
 from tap_github.tap import TapGitHub
 
