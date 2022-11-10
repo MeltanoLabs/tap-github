@@ -3,7 +3,32 @@ name = "tap-github"
 version = "1.1.1"
 description = "`tap-github` is Singer tap for GitHub, built with the Singer SDK."
 authors = ["Meltano and Meltano Community"]
+homepage = "https://github.com/MeltanoLabs/tap-github"
+repository = "https://github.com/MeltanoLabs/tap-github"
 license = "Apache 2.0"
+keywords = [
+    "Meltano",
+    "Singer",
+    "Meltano SDK",
+    "Singer SDK",
+    "ELT",
+    "Github",
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Typing :: Typed",
+]
+
+[tool.poetry.urls]
+"Issue Tracker" = "https://github.com/MeltanoLabs/tap-github/issues"
 
 [tool.poetry.dependencies]
 PyJWT = "2.4.0"
