@@ -2079,10 +2079,11 @@ class DependenciesStream(GitHubGraphqlStream):
     def query(self) -> str:
         """Return dynamic GraphQL query."""
         # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        # Due to GrapQl nested-pagination limitations, we loop through the top level dependencyGraphManifests one by one.
         return """
           query repositoryDependencies($repo: String! $org: String! $nextPageCursor_0: String $nextPageCursor_1: String) {
             repository(name: $repo owner: $org) {
-              dependencyGraphManifests (first: 10 withDependencies: true after: $nextPageCursor_0) {
+              dependencyGraphManifests (first: 1 withDependencies: true after: $nextPageCursor_0) {
                 totalCount
                 pageInfo {
                   hasNextPage_0: hasNextPage
