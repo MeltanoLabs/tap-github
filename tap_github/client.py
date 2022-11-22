@@ -365,8 +365,11 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             document=resp_json,
         )
 
-        next_page_key = f"nextPageCursor_{pagination_index}"
-        next_page_cursors[next_page_key] = next_page_end_cursor_results[0]
+        next_page_key = f"nextPageCursor_{max_pagination_index}"
+        next_page_cursor = next(
+            cursor for cursor in next_page_end_cursor_results if cursor is not None
+        )
+        next_page_cursors[next_page_key] = next_page_cursor
 
         return next_page_cursors
 
