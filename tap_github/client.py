@@ -7,10 +7,11 @@ import random
 import re
 import time
 from types import FrameType
-from typing import Any, Dict, Iterable, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
+from backoff.types import Details
 from dateutil.parser import parse
 from nested_lookup import nested_lookup
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
@@ -264,7 +265,7 @@ class GitHubRestStream(RESTStream):
             row["repo_id"] = context["repo_id"]
         return row
 
-    def backoff_handler(self, details: dict) -> None:
+    def backoff_handler(self, details: Details) -> None:
         """Handle retriable error by swapping auth token."""
         self.logger.info("Retrying request with different token")
         # use python introspection to obtain the error object
@@ -358,9 +359,14 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         # Get deepest pagination item
         max_pagination_index = max(has_next_page_indices)
 
-        # We leverage previous_token to remember the pagination cursors for other indices.
+        # We leverage previous_token to remember the pagination cursors
+        # for indices below max_pagination_index.
         next_page_cursors: Dict[str, str] = dict()
-        next_page_cursors.update(previous_token or {})
+        for (key, value) in (previous_token or {}).items():
+            # Only keep pagination info for indices below max_pagination_index.
+            pagination_index = int(str(key).split("_")[1])
+            if pagination_index < max_pagination_index:
+                next_page_cursors[key] = value
 
         # Get the pagination cursor to update and increment it.
         next_page_end_cursor_results = nested_lookup(
@@ -368,8 +374,11 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             document=resp_json,
         )
 
-        next_page_key = f"nextPageCursor_{pagination_index}"
-        next_page_cursors[next_page_key] = next_page_end_cursor_results[0]
+        next_page_key = f"nextPageCursor_{max_pagination_index}"
+        next_page_cursor = next(
+            cursor for cursor in next_page_end_cursor_results if cursor is not None
+        )
+        next_page_cursors[next_page_key] = next_page_cursor
 
         return next_page_cursors
 
@@ -377,7 +386,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context or dict()
+        params = context.copy() if context else dict()
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)
