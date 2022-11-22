@@ -1,5 +1,7 @@
-import logging
+import datetime
+import json
 import os
+import re
 from typing import Optional
 from unittest.mock import patch
 
@@ -97,6 +99,43 @@ def test_get_a_repository_in_repo_list_mode(
     # check that the tap corrects invalid case in config input
     assert '"repo": "Tap-GitLab"' not in captured_out
     assert '"org": "meltanolabs"' not in captured_out
+
+
+@pytest.mark.repo_list(["MeltanoLabs/tap-github"])
+def test_last_state_message_is_valid(capsys, repo_list_config):
+    """
+    Validate that the last state message is not a temporary one and contains the
+    expected values for a stream with overridden state partitioning keys.
+    Run this on a single repo to avoid having to filter messages too much.
+    """
+    repo_list_config["skip_parent_streams"] = True
+    captured_out = run_tap_with_config(capsys, repo_list_config, "repositories")
+    # capture the messages we're interested in
+    state_messages = re.findall(r'{"type": "STATE", "value":.*}', captured_out)
+    issue_comments_records = re.findall(
+        r'{"type": "RECORD", "stream": "issue_comments",.*}', captured_out
+    )
+    assert state_messages is not None
+    last_state_msg = state_messages[-1]
+
+    # make sure we don't have a temporary state message at the very end
+    assert "progress_markers" not in last_state_msg
+
+    last_state = json.loads(last_state_msg)
+    last_state_updated_at = datetime.datetime.fromisoformat(
+        last_state["value"]["bookmarks"]["issue_comments"]["partitions"][0][
+            "replication_key_value"
+        ]
+    )
+    latest_updated_at = max(
+        map(
+            lambda record: datetime.datetime.fromisoformat(
+                json.loads(record)["record"]["updated_at"]
+            ),
+            issue_comments_records,
+        )
+    )
+    assert last_state_updated_at == latest_updated_at
 
 
 # case is incorrect on purpose, so we can check that the tap corrects it
