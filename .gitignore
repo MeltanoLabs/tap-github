@@ -59,7 +59,6 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-api_calls_tests_cache.sqlite
 
 # Translations
 *.mo

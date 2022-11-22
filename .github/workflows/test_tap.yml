@@ -27,10 +27,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Cache github API responses
-      uses: actions/cache@v2.1.7
+      uses: actions/cache@v3
       with:
         # must match the path in tests/__init__.py
-        path: 'api_calls_tests_cache.sqlite'
+        path: '.cache/api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
@@ -47,7 +47,7 @@ jobs:
         virtualenvs-in-project: true
     - name: Load cached venv
       id: cached-poetry-dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: .venv
         key: venv-3-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}

@@ -8,7 +8,7 @@ import requests_cache
 # To clear the cache, just delete the sqlite db file at api_calls_tests_cache.sqlite
 # in the root of this repository
 requests_cache.install_cache(
-    "api_calls_tests_cache",
+    ".cache/api_calls_tests_cache",
     backend="sqlite",
     # make sure that API keys don't end up being cached
     # Also ignore user-agent so that various versions of request
