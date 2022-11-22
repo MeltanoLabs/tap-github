@@ -30,7 +30,7 @@ jobs:
       uses: actions/cache@v3
       with:
         # must match the path in tests/__init__.py
-        path: 'api_calls_tests_cache.sqlite'
+        path: '.cache/api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
