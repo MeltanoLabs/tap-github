@@ -382,7 +382,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self, context: Optional[Dict], next_page_token: Optional[Any]
     ) -> Dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context.copy() or dict()
+        params = context.copy() if context else dict()
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)
