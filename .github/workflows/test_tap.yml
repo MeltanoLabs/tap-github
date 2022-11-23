@@ -7,7 +7,7 @@ on:
     branches:
       - main
 
-concurrency: 
+concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -20,34 +20,34 @@ jobs:
       ORG_LEVEL_TOKEN: ${{secrets.ORG_LEVEL_TOKEN}}
     strategy:
       matrix:
-        python-version: ["3.10", 3.9, 3.8, 3.7]
+        python-version: [3.11, "3.10", 3.9, 3.8, 3.7]
       # run the matrix jobs one after the other so they can benefit from caching
       max-parallel: 1
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Cache github API responses
-      uses: actions/cache@v2.1.7
+      uses: actions/cache@v3
       with:
         # must match the path in tests/__init__.py
-        path: 'api_calls_tests_cache.sqlite'
+        path: '.cache/api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
         # this key should not need to change unless we need to clear the cache
         key: api-cache-v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install Poetry
       uses: snok/install-poetry@v1
       with:
         # Version of Poetry to use
-        version: 1.1.13
+        version: 1.2.2
         virtualenvs-create: true
         virtualenvs-in-project: true
     - name: Load cached venv
       id: cached-poetry-dependencies
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: .venv
         key: venv-3-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}-${{ matrix.python-version }}
