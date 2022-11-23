@@ -1,11 +1,11 @@
 import json
 import os
 import re
-from dateutil.parser import isoparse
 from typing import Optional
 from unittest.mock import patch
 
 import pytest
+from dateutil.parser import isoparse
 from singer_sdk._singerlib import Catalog
 from singer_sdk.helpers import _catalog as cat_helpers
 
