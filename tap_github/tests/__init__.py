@@ -13,7 +13,7 @@ requests_cache.install_cache(
     # make sure that API keys don't end up being cached
     # Also ignore user-agent so that various versions of request
     # can share the cache
-    ignored_parameters=["Authorization", "user-agent"],
+    ignored_parameters=["Authorization", "User-Agent", "If-modified-since"],
     # tell requests_cache to check headers for the above parameter
     match_headers=True,
     # expire the cache after 24h (86400 seconds)

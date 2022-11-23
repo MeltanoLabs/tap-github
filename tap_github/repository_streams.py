@@ -1988,7 +1988,10 @@ class WorkflowRunJobsStream(GitHubRestStream):
 
 
 class DependentsStream(GitHubRestStream):
-    """Defines 'dependents' stream."""
+    """Defines 'dependents' stream.
+
+    This stream scrapes the website instead of using the API.
+    """
 
     name = "dependents"
     path = "/{org}/{repo}/network/dependents"
@@ -2022,7 +2025,7 @@ class DependentsStream(GitHubRestStream):
 
         Mock a web browser user-agent.
         """
-        return {"User-agent": "Mozilla/5.0"}
+        return {"User-Agent": "Mozilla/5.0"}
 
     schema = th.PropertiesList(
         # Parent keys
