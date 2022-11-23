@@ -1,7 +1,7 @@
-import datetime
 import json
 import os
 import re
+from dateutil.parser import isoparse
 from typing import Optional
 from unittest.mock import patch
 
@@ -122,16 +122,14 @@ def test_last_state_message_is_valid(capsys, repo_list_config):
     assert "progress_markers" not in last_state_msg
 
     last_state = json.loads(last_state_msg)
-    last_state_updated_at = datetime.datetime.fromisoformat(
+    last_state_updated_at = isoparse(
         last_state["value"]["bookmarks"]["issue_comments"]["partitions"][0][
             "replication_key_value"
         ]
     )
     latest_updated_at = max(
         map(
-            lambda record: datetime.datetime.fromisoformat(
-                json.loads(record)["record"]["updated_at"]
-            ),
+            lambda record: isoparse(json.loads(record)["record"]["updated_at"]),
             issue_comments_records,
         )
     )
