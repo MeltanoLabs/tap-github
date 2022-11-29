@@ -4,8 +4,10 @@ Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
 import logging
 import time
-from typing import Any, Dict, Iterable, Optional
+from datetime import datetime
+from typing import Any, Dict, Iterable, Optional, Union, cast
 from urllib.parse import urlparse
+from bs4 import NavigableString, Tag
 
 import requests
 
@@ -36,7 +38,7 @@ def scrape_dependents(
 
 def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, Any]]:
     # Optional dependency:
-    from bs4 import BeautifulSoup, Tag
+    from bs4 import BeautifulSoup
 
     s = requests.Session()
 
@@ -85,3 +87,66 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
             time.sleep(1)
         else:
             url = ""
+
+
+def parse_counter(
+    tag: Union[Tag, NavigableString, None], logger: logging.Logger
+) -> int:
+    if not tag:
+        return 0
+    try:
+        title = tag["title"]  # type: ignore
+        if isinstance(title, str):
+            title_string = cast(str, title)
+        else:
+            title_string = cast(str, title[0])
+        return int(title_string.strip())
+    except KeyError:
+        logger.debug(
+            f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
+        )
+        return 0
+
+
+def scrape_metrics(
+    response: requests.Response, logger: Optional[logging.Logger] = None
+) -> Iterable[Dict[str, Any]]:
+    from bs4 import BeautifulSoup
+    import re
+
+    logger = logger or logging.getLogger("scraping")
+
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    try:
+        issues = parse_counter(soup.find("span", id="issues-repo-tab-count"), logger)
+        prs = parse_counter(
+            soup.find("span", id="pull-requests-repo-tab-count"), logger
+        )
+    except IndexError:
+        raise IndexError(
+            "Could not find issues or prs info. Maybe the GitHub page format has changed?"
+        )
+
+    dependents = parse_counter(
+        getattr(soup.find(text=re.compile(" Used by ")), "next_element", None), logger
+    )
+    contributors = parse_counter(
+        getattr(soup.find(text=re.compile(" Contributors ")), "next_element", None),
+        logger,
+    )
+
+    fetched_at = datetime.now()
+
+    metrics = [
+        {
+            "open_issues": issues,
+            "open_prs": prs,
+            "dependents": dependents,
+            "contributors": contributors,
+            "fetched_at": fetched_at,
+        }
+    ]
+
+    logger.debug(metrics)
+    return metrics

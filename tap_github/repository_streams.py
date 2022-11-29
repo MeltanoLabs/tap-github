@@ -15,7 +15,7 @@ from tap_github.schema_objects import (
     reactions_object,
     user_object,
 )
-from tap_github.scraping import scrape_dependents
+from tap_github.scraping import scrape_dependents, scrape_metrics
 
 
 class RepositoryStream(GitHubRestStream):
@@ -1985,6 +1985,55 @@ class WorkflowRunJobsStream(GitHubRestStream):
         if not self._schema_emitted:
             super()._write_schema_message()
             self._schema_emitted = True
+
+
+class ExtraMetricsStream(GitHubRestStream):
+    """Defines 'extra-metrics' stream."""
+
+    name = "extra-metrics"
+    path = "/{org}/{repo}/"
+    primary_keys = ["repo_id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo_id"]
+
+    @property
+    def url_base(self) -> str:
+        return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL).replace(
+            "api.", ""
+        )
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the repository main page to extract extra metrics."""
+        yield from scrape_metrics(response, self.logger)
+
+    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        if context is not None:
+            row["repo"] = context["repo"]
+            row["org"] = context["org"]
+            row["repo_id"] = context["repo_id"]
+        return row
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed.
+
+        Mock a web browser user-agent.
+        """
+        return {"User-agent": "Mozilla/5.0"}
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Metric keys
+        th.Property("open_issues", th.IntegerType),
+        th.Property("open_prs", th.IntegerType),
+        th.Property("dependents", th.IntegerType),
+        th.Property("contributors", th.IntegerType),
+        th.Property("fetched_at", th.DateType),
+    ).to_dict()
 
 
 class DependentsStream(GitHubRestStream):
