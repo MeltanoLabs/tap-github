@@ -3,6 +3,7 @@
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Any, Dict, Iterable, Optional, Union, cast
@@ -10,6 +11,9 @@ from urllib.parse import urlparse
 
 import requests
 from bs4 import NavigableString, Tag
+
+used_by_regex = re.compile(" Used by ")
+contributors_regex = re.compile(" Contributors ")
 
 
 def scrape_dependents(
@@ -102,17 +106,14 @@ def parse_counter(
             title_string = cast(str, title[0])
         return int(title_string.strip())
     except KeyError:
-        logger.debug(
+        raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
         )
-        return 0
 
 
 def scrape_metrics(
     response: requests.Response, logger: Optional[logging.Logger] = None
 ) -> Iterable[Dict[str, Any]]:
-    import re
-
     from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")
@@ -125,15 +126,16 @@ def scrape_metrics(
             soup.find("span", id="pull-requests-repo-tab-count"), logger
         )
     except IndexError:
+        # These two items should exist. We raise an error if we could not find them.
         raise IndexError(
             "Could not find issues or prs info. Maybe the GitHub page format has changed?"
         )
 
     dependents = parse_counter(
-        getattr(soup.find(text=re.compile(" Used by ")), "next_element", None), logger
+        getattr(soup.find(text=used_by_regex), "next_element", None), logger
     )
     contributors = parse_counter(
-        getattr(soup.find(text=re.compile(" Contributors ")), "next_element", None),
+        getattr(soup.find(text=contributors_regex), "next_element", None),
         logger,
     )
 
