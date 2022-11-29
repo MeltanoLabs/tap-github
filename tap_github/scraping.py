@@ -7,9 +7,9 @@ import time
 from datetime import datetime
 from typing import Any, Dict, Iterable, Optional, Union, cast
 from urllib.parse import urlparse
-from bs4 import NavigableString, Tag
 
 import requests
+from bs4 import NavigableString, Tag
 
 
 def scrape_dependents(
@@ -111,8 +111,9 @@ def parse_counter(
 def scrape_metrics(
     response: requests.Response, logger: Optional[logging.Logger] = None
 ) -> Iterable[Dict[str, Any]]:
-    from bs4 import BeautifulSoup
     import re
+
+    from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")
 
