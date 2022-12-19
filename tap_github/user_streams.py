@@ -285,9 +285,11 @@ class UserContributedToStream(GitHubGraphqlStream):
                 }
                 nodes {
                   node_id: id
+                  database_id: databaseId
                   name_with_owner: nameWithOwner
                   open_graph_image_url: openGraphImageUrl
                   stargazer_count: stargazerCount
+                  pushed_at: pushedAt
                   owner {
                     node_id: id
                     login
