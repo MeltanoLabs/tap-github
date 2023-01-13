@@ -2032,7 +2032,7 @@ class ExtraMetricsStream(GitHubRestStream):
         th.Property("open_prs", th.IntegerType),
         th.Property("dependents", th.IntegerType),
         th.Property("contributors", th.IntegerType),
-        th.Property("fetched_at", th.DateType),
+        th.Property("fetched_at", th.DateTimeType),
     ).to_dict()
 
 
