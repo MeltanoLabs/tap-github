@@ -405,5 +405,12 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     ) -> Dict[str, int]:
         """Return the cost of the last graphql API call."""
         costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())
-        cost = next(costgen)
+        try:
+            cost = next(costgen)
+        except StopIteration:
+            # calculate_sync_cost is called before the main response parsing.
+            # In some cases, the tap crashes here before we have been able to
+            # properly analyze where the error comes from, so we ignore these
+            # costs to allow figuring out what happened downstream.
+            cost = 0
         return {"rest": 0, "graphql": int(cost), "search": 0}
