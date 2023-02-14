@@ -412,3 +412,25 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         # them to 0.
         cost = next(costgen, 0)
         return {"rest": 0, "graphql": int(cost), "search": 0}
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Validate HTTP response.
+
+        The graphql spec is a bit confusing around response codes
+        (https://github.com/graphql/graphql-over-http/blob/main/spec/GraphQLOverHTTP.md#response)
+        Github's API is a bit of a free adaptation of standards, so we
+        choose fail immediately on error here, so that something is logged
+        at the very minimum.
+
+        Args:
+            response: A `requests.Response`_ object.
+
+        Raises:
+            FatalAPIError: If the request is not retriable.
+            RetriableAPIError: If the request is retriable.
+        """
+        super().validate_response(response)
+        rj = response.json()
+        if "errors" in rj:
+            msg = rj["errors"]
+            raise FatalAPIError(f"Graphql error: {msg}", response)
