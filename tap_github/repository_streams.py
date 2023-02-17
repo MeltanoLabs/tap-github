@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
+from singer_sdk.exceptions import FatalAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
