@@ -92,6 +92,20 @@ class RepositoryStream(GitHubRestStream):
                     )
                 return "query {" + " ".join(chunks) + " rateLimit { cost } }"
 
+            def validate_response(self, response: requests.Response) -> None:
+                """Allow some specific errors.
+                Do not raise exceptions if the error is "type": "NOT_FOUND"
+                as we actually expect these in this stream when we send an invalid
+                repo name.
+                """
+                GitHubRestStream.validate_response(self, response)
+                rj = response.json()
+                if "errors" in rj:
+                    # simplify error handling by looking at the first error only
+                    err = rj["errors"][0]
+                    if err.get("type") != "NOT_FOUND":
+                        raise FatalAPIError(f"Graphql error: {err}", response)
+
         repos_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(repo_list))
         # replace manually provided org/repo values by the ones obtained

@@ -19,6 +19,10 @@ repo_list_2 = [
     "MeltanoLabs/Tap-GitLab",
     # mistype the org
     "meltanolabs/target-athena",
+    # a repo that does not exist at all
+    # this one has no matching record below as it should be removed
+    # from the list by the TempStream
+    "brokenOrg/does_not_exist",
 ]
 # the same list, but without typos, for validation
 repo_list_2_corrected = [
