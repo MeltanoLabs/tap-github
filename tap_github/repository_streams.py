@@ -106,6 +106,8 @@ class RepositoryStream(GitHubRestStream):
                         return
                     raise
 
+        repos_with_ids: list = list()
+
         temp_stream = TempStream(self._tap, list(repo_list))
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
