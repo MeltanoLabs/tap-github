@@ -99,15 +99,13 @@ class RepositoryStream(GitHubRestStream):
                 as we actually expect these in this stream when we send an invalid
                 repo name.
                 """
-                GitHubRestStream.validate_response(self, response)
-                rj = response.json()
-                if "errors" in rj:
-                    # simplify error handling by looking at the first error only
-                    err = rj["errors"][0]
-                    if err.get("type") != "NOT_FOUND":
-                        raise FatalAPIError(f"Graphql error: {err}", response)
+                try:
+                    super().validate_response(response)
+                except FatalAPIError as e:
+                    if "NOT_FOUND" in str(e):
+                        return
+                    raise
 
-        repos_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(repo_list))
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
