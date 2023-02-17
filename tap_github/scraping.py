@@ -81,7 +81,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
         # next page?
         try:
             next_link: Tag = soup.select(".paginate-container")[0].find_all(
-                "a", text="Next"
+                "a", string="Next"
             )[0]
         except IndexError:
             break
@@ -132,10 +132,10 @@ def scrape_metrics(
         )
 
     dependents = parse_counter(
-        getattr(soup.find(text=used_by_regex), "next_element", None), logger
+        getattr(soup.find(string=used_by_regex), "next_element", None), logger
     )
     contributors = parse_counter(
-        getattr(soup.find(text=contributors_regex), "next_element", None),
+        getattr(soup.find(string=contributors_regex), "next_element", None),
         logger,
     )
 
