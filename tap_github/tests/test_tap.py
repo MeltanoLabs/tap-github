@@ -98,7 +98,7 @@ def test_get_a_repository_in_repo_list_mode(
     # Verify we got the right number of records
     # one per repo in the list only if we sync the "repositories" stream, 0 if not
     assert captured_out.count('{"type": "RECORD", "stream": "repositories"') == len(
-        repo_list_2 * (not skip_parent_streams)
+        repo_list_2_ids * (not skip_parent_streams)
     )
     # check that the tap corrects invalid case in config input
     assert '"repo": "Tap-GitLab"' not in captured_out
