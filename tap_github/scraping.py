@@ -5,7 +5,7 @@ Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional, Union, cast
 from urllib.parse import urlparse
 
@@ -139,7 +139,7 @@ def scrape_metrics(
         logger,
     )
 
-    fetched_at = datetime.now()
+    fetched_at = datetime.now(tz=timezone.utc)
 
     metrics = [
         {

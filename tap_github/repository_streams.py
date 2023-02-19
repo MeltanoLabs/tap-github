@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
+from singer_sdk.exceptions import FatalAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
@@ -92,6 +93,19 @@ class RepositoryStream(GitHubRestStream):
                         "{ nameWithOwner databaseId }"
                     )
                 return "query {" + " ".join(chunks) + " rateLimit { cost } }"
+
+            def validate_response(self, response: requests.Response) -> None:
+                """Allow some specific errors.
+                Do not raise exceptions if the error is "type": "NOT_FOUND"
+                as we actually expect these in this stream when we send an invalid
+                repo name.
+                """
+                try:
+                    super().validate_response(response)
+                except FatalAPIError as e:
+                    if "NOT_FOUND" in str(e):
+                        return
+                    raise
 
         repos_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(repo_list))
@@ -2074,7 +2088,7 @@ class ExtraMetricsStream(GitHubRestStream):
         th.Property("open_prs", th.IntegerType),
         th.Property("dependents", th.IntegerType),
         th.Property("contributors", th.IntegerType),
-        th.Property("fetched_at", th.DateType),
+        th.Property("fetched_at", th.DateTimeType),
     ).to_dict()
 
 
