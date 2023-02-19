@@ -19,6 +19,10 @@ repo_list_2 = [
     "MeltanoLabs/Tap-GitLab",
     # mistype the org
     "meltanolabs/target-athena",
+    # a repo that does not exist at all
+    # this one has no matching record below as it should be removed
+    # from the list by the TempStream
+    "brokenOrg/does_not_exist",
 ]
 # the same list, but without typos, for validation
 repo_list_2_corrected = [
@@ -94,7 +98,7 @@ def test_get_a_repository_in_repo_list_mode(
     # Verify we got the right number of records
     # one per repo in the list only if we sync the "repositories" stream, 0 if not
     assert captured_out.count('{"type": "RECORD", "stream": "repositories"') == len(
-        repo_list_2 * (not skip_parent_streams)
+        repo_list_2_ids * (not skip_parent_streams)
     )
     # check that the tap corrects invalid case in config input
     assert '"repo": "Tap-GitLab"' not in captured_out
