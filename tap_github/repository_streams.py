@@ -640,6 +640,8 @@ class ReleasesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     replication_key = "published_at"
 
+    use_fake_since_parameter = True
+
     # Search API max: 10,000 total.
     MAX_RESULTS_LIMIT = 10000
     
