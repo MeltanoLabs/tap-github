@@ -640,6 +640,8 @@ class ReleasesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     replication_key = "published_at"
 
+    MAX_RESULTS_LIMIT = 10000
+
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
