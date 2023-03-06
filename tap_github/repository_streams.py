@@ -1351,6 +1351,7 @@ class PullRequestCommits(GitHubRestStream):
             row["pull_number"] = context["pull_number"]
         return row
 
+
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
