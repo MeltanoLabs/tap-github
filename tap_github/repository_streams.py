@@ -462,8 +462,6 @@ class EventsStream(GitHubRestStream):
         # the parent stream, e.g. for fork/parent PR events.
         row["target_repo"] = row.pop("repo", None)
         row["target_org"] = row.pop("org", None)
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
