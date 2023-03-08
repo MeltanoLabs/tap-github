@@ -2133,7 +2133,7 @@ class DependenciesStream(GitHubGraphqlStream):
         """
         Add a dependency_repo_id top-level field to be used as primary key.
         """
-        row = GitHubGraphqlStream.post_process(self, row, context)
+        row = super().post_process(row, context)
         row["dependency_repo_id"] = (
             row["dependency"]["id"] if row["dependency"] else None
         )
