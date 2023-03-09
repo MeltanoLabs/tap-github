@@ -455,14 +455,13 @@ class EventsStream(GitHubRestStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        row = super().post_process(row, context)
         # TODO - We should think about the best approach to handle this. An alternative would be to
         # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
         # objects to "target_". They are worth keeping, however, as they can be different from
         # the parent stream, e.g. for fork/parent PR events.
         row["target_repo"] = row.pop("repo", None)
         row["target_org"] = row.pop("org", None)
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
@@ -824,6 +823,7 @@ class IssuesStream(GitHubRestStream):
         return headers
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        row = super().post_process(row, context)
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
             # some issue bodies include control characters such as \x00
@@ -835,8 +835,6 @@ class IssuesStream(GitHubRestStream):
         # replace +1/-1 emojis to avoid downstream column name errors.
         row["plus_one"] = row.pop("+1", None)
         row["minus_one"] = row.pop("-1", None)
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
@@ -916,9 +914,8 @@ class IssueCommentsStream(GitHubRestStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        row = super().post_process(row, context)
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         if row["body"] is not None:
             # some comment bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
@@ -976,6 +973,7 @@ class IssueEventsStream(GitHubRestStream):
         return super().get_records(context)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        row = super().post_process(row, context)
         if "issue" in row.keys():
             row["issue_number"] = int(row["issue"].pop("number"))
             row["issue_url"] = row["issue"].pop("url")
@@ -983,8 +981,6 @@ class IssueEventsStream(GitHubRestStream):
             self.logger.debug(
                 f"No issue assosciated with event {row['id']} - {row['event']}."
             )
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
 
         return row
 
@@ -1024,12 +1020,9 @@ class CommitsStream(GitHubRestStream):
         It's not clear from github's API docs which time (author or committer)
         is used to compare to the `since` argument that the endpoint supports.
         """
-        row["commit_timestamp"] = row["commit"]["committer"]["date"]
-        # add some context info to help downstream processing
         assert context is not None, "CommitsStream was called without context"
-        row["repo"] = context["repo"]
-        row["org"] = context["org"]
-        row["repo_id"] = context["repo_id"]
+        row = super().post_process(row, context)
+        row["commit_timestamp"] = row["commit"]["committer"]["date"]
         return row
 
     schema = th.PropertiesList(
@@ -1150,6 +1143,7 @@ class PullRequestsStream(GitHubRestStream):
         return headers
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        row = super().post_process(row, context)
         if row["body"] is not None:
             # some pr bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
@@ -1160,8 +1154,6 @@ class PullRequestsStream(GitHubRestStream):
         # replace +1/-1 emojis to avoid downstream column name errors.
         row["plus_one"] = row.pop("+1", None)
         row["minus_one"] = row.pop("-1", None)
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
@@ -1347,6 +1339,12 @@ class PullRequestCommits(GitHubRestStream):
             ),
         ),
     ).to_dict()
+
+    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None and "pull_number" in context:
+            row["pull_number"] = context["pull_number"]
+        return row
 
 
 class ReviewsStream(GitHubRestStream):
@@ -1540,9 +1538,8 @@ class StargazersStream(GitHubRestStream):
         """
         Add a user_id top-level field to be used as state replication key.
         """
+        row = super().post_process(row, context)
         row["user_id"] = row["user"]["id"]
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     schema = th.PropertiesList(
@@ -1581,9 +1578,8 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         """
         Add a user_id top-level field to be used as state replication key.
         """
+        row = super().post_process(row, context)
         row["user_id"] = row["user"]["id"]
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     def get_next_page_token(
@@ -2024,10 +2020,10 @@ class ExtraMetricsStream(GitHubRestStream):
         yield from scrape_metrics(response, self.logger)
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+        row = super().post_process(row, context)
         if context is not None:
             row["repo"] = context["repo"]
             row["org"] = context["org"]
-            row["repo_id"] = context["repo_id"]
         return row
 
     @property
@@ -2077,11 +2073,10 @@ class DependentsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         new_row = {"dependent": row}
+        new_row = super().post_process(new_row, context)
         # we extract dependent_name_with_owner to be able to use it safely as a primary key,
         # regardless of the target used.
         new_row["dependent_name_with_owner"] = row["name_with_owner"]
-        if context is not None:
-            new_row["repo_id"] = context["repo_id"]
         return new_row
 
     @property
@@ -2136,11 +2131,10 @@ class DependenciesStream(GitHubGraphqlStream):
         """
         Add a dependency_repo_id top-level field to be used as primary key.
         """
+        row = super().post_process(row, context)
         row["dependency_repo_id"] = (
             row["dependency"]["id"] if row["dependency"] else None
         )
-        if context is not None:
-            row["repo_id"] = context["repo_id"]
         return row
 
     @property
