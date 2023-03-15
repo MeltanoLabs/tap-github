@@ -12,8 +12,8 @@ from urllib.parse import urlparse
 import requests
 from bs4 import NavigableString, Tag
 
-used_by_regex = re.compile(" Used by ")
-contributors_regex = re.compile(" Contributors ")
+used_by_regex = re.compile("   Used by ")
+contributors_regex = re.compile("   Contributors ")
 
 
 def scrape_dependents(
