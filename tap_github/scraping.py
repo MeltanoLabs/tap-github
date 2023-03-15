@@ -104,7 +104,7 @@ def parse_counter(
             title_string = cast(str, title)
         else:
             title_string = cast(str, title[0])
-        return int(title_string.strip())
+        return int(title_string.strip().replace(",", ""))
     except KeyError:
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
