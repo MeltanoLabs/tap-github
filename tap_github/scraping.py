@@ -99,6 +99,8 @@ def parse_counter(
     if not tag:
         return 0
     try:
+        if tag == "\n":
+            return 0
         title = tag["title"]  # type: ignore
         if isinstance(title, str):
             title_string = cast(str, title)
