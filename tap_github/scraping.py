@@ -12,8 +12,8 @@ from urllib.parse import urlparse
 import requests
 from bs4 import NavigableString, Tag
 
-used_by_regex = re.compile(" Used by ")
-contributors_regex = re.compile(" Contributors ")
+used_by_regex = re.compile(" {3}Used by ")
+contributors_regex = re.compile(" {3}Contributors ")
 
 
 def scrape_dependents(
@@ -99,12 +99,14 @@ def parse_counter(
     if not tag:
         return 0
     try:
+        if tag == "\n":
+            return 0
         title = tag["title"]  # type: ignore
         if isinstance(title, str):
             title_string = cast(str, title)
         else:
             title_string = cast(str, title[0])
-        return int(title_string.strip())
+        return int(title_string.strip().replace(",", ""))
     except KeyError:
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
@@ -131,13 +133,27 @@ def scrape_metrics(
             "Could not find issues or prs info. Maybe the GitHub page format has changed?"
         )
 
-    dependents = parse_counter(
-        getattr(soup.find(text=used_by_regex), "next_element", None), logger
-    )
-    contributors = parse_counter(
-        getattr(soup.find(text=contributors_regex), "next_element", None),
-        logger,
-    )
+    dependents_node = soup.find(text=used_by_regex)
+    # verify that we didn't hit some random text in the page.
+    # sometimes the dependents section isn't shown on the page either
+    dependents_node_parent = getattr(dependents_node, "parent", None)
+    dependents: int = 0
+    if dependents_node_parent is not None:
+        if dependents_node_parent["href"].endswith("/network/dependents"):
+            dependents = parse_counter(
+                getattr(dependents_node, "next_element", None), logger
+            )
+
+    # likewise, handle edge cases with contributors
+    contributors_node = soup.find(text=contributors_regex)
+    contributors_node_parent = getattr(contributors_node, "parent", None)
+    contributors: int = 0
+    if contributors_node_parent is not None:
+        if contributors_node_parent["href"].endswith("/graphs/contributors"):
+            contributors = parse_counter(
+                getattr(contributors_node, "next_element", None),
+                logger,
+            )
 
     fetched_at = datetime.now(tz=timezone.utc)
 
