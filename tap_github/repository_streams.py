@@ -2000,9 +2000,9 @@ class WorkflowRunJobsStream(GitHubRestStream):
 
 
 class ExtraMetricsStream(GitHubRestStream):
-    """Defines 'extra-metrics' stream."""
+    """Defines the 'extra_metrics' stream."""
 
-    name = "extra-metrics"
+    name = "extra_metrics"
     path = "/{org}/{repo}/"
     primary_keys = ["repo_id"]
     parent_stream_type = RepositoryStream
