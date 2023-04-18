@@ -1685,19 +1685,11 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         # If since parameter is present, try to exit early by looking at the last "starred_at".
         # Noting that we are traversing in DESCENDING order by STARRED_AT.
         if since:
-<<<<<<< HEAD
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
             # If no results, return None to exit early.
             if len(results) == 0:
                 return None
             last = results[-1]
-=======
-            results = extract_jsonpath(self.query_jsonpath, input=response.json())
-            # If no results, return None to exit early.
-            if len(results) == 0:
-                return None
-            *_, last = results
->>>>>>> 2366839 (Fix stargazers empty)
             if parse(last["starred_at"]) < parse(since):
                 return None
         return super().get_next_page_token(response, previous_token)
