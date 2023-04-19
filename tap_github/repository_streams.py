@@ -2322,7 +2322,7 @@ class TrafficPageViewsStream(TrafficRestStream):
 
     name = "traffic_pageviews"
     path = "/repos/{org}/{repo}/traffic/views"
-    primary_keys = ["repo", "org", "referrer"]
+    primary_keys = ["repo", "org", "timestamp"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
