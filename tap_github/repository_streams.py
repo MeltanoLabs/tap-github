@@ -2219,3 +2219,123 @@ class DependenciesStream(GitHubGraphqlStream):
             ),
         ),
     ).to_dict()
+
+class TrafficRestStream(GitHubRestStream):
+    """Base class for Traffic Streams"""
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows."""
+        yield from extract_jsonpath(self.records_jsonpath, input=response.json())
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors.
+        Do not raise exceptions if the error says "Must have push access to repository"
+        as we actually expect these in this stream when we don't have write permissions into it.
+        """
+        try:
+            super().validate_response(response)
+        except FatalAPIError as e:
+            if "Must have push access to repository" in str(e):
+                self.logger.info(
+                    (
+                        f"We do not have permissions for this repository: e \t"
+                    )
+                )
+                return
+            raise
+
+
+
+class TrafficClonesStream(TrafficRestStream):
+    """Defines 'traffic_clones' stream."""
+
+    name = "traffic_clones"
+    path = "/repos/{org}/{repo}/traffic/clones"
+    primary_keys = ["repo", "org", "timestamp"]
+    replication_key = "timestamp"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "$.clones[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Clones Data
+        th.Property("timestamp", th.DateTimeType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
+
+
+class TrafficReferralPathsStream(TrafficRestStream):
+    """Defines 'traffic_referral_paths' stream."""
+
+    name = "traffic_referral_paths"
+    path = "/repos/{org}/{repo}/traffic/popular/paths"
+    primary_keys = ["repo", "org", "path"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Referral path data
+        th.Property("path", th.StringType),
+        th.Property("title", th.StringType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
+
+class TrafficReferrersStream(TrafficRestStream):
+    """Defines 'traffic_referrers' stream."""
+
+    name = "traffic_referrers"
+    path = "/repos/{org}/{repo}/traffic/popular/referrers"
+    primary_keys = ["repo", "org", "referrer"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Referrer data
+        th.Property("referrer", th.StringType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
+
+class TrafficPageViewsStream(TrafficRestStream):
+    """Defines 'traffic_pageviews' stream."""
+
+    name = "traffic_pageviews"
+    path = "/repos/{org}/{repo}/traffic/views"
+    primary_keys = ["repo", "org", "referrer"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "$.views[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Page view data
+        th.Property("timestamp", th.DateTimeType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
