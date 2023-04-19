@@ -2309,14 +2309,10 @@ class DependenciesStream(GitHubGraphqlStream):
         ),
     ).to_dict()
 
-
 class TrafficRestStream(GitHubRestStream):
     """Base class for Traffic Streams"""
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        if response.status_code != 200:
-            return []
-
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
@@ -2325,12 +2321,18 @@ class TrafficRestStream(GitHubRestStream):
         Do not raise exceptions if the error says "Must have push access to repository"
         as we actually expect these in this stream when we don't have write permissions into it.
         """
-        if response.status_code == 403:
-            contents = response.json()
-            if contents["message"] == "Resource not accessible by integration":
-                self.logger.info("Permissions missing to sync stream '%s'", self.name)
+        try:
+            super().validate_response(response)
+        except FatalAPIError as e:
+            if "Must have push access to repository" in str(e):
+                self.logger.info(
+                    (
+                        f"We do not have permissions for this repository: e \t"
+                    )
+                )
                 return
-        super().validate_response(response)
+            raise
+
 
 
 class TrafficClonesStream(TrafficRestStream):
@@ -2344,7 +2346,6 @@ class TrafficClonesStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.clones[*]"
-    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2369,7 +2370,6 @@ class TrafficReferralPathsStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "[*]"
-    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2383,7 +2383,6 @@ class TrafficReferralPathsStream(TrafficRestStream):
         th.Property("uniques", th.IntegerType),
     ).to_dict()
 
-
 class TrafficReferrersStream(TrafficRestStream):
     """Defines 'traffic_referrers' stream."""
 
@@ -2395,7 +2394,6 @@ class TrafficReferrersStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "[*]"
-    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2408,19 +2406,17 @@ class TrafficReferrersStream(TrafficRestStream):
         th.Property("uniques", th.IntegerType),
     ).to_dict()
 
-
 class TrafficPageViewsStream(TrafficRestStream):
     """Defines 'traffic_pageviews' stream."""
 
     name = "traffic_pageviews"
     path = "/repos/{org}/{repo}/traffic/views"
-    primary_keys = ["repo", "org", "timestamp"]
+    primary_keys = ["repo", "org", "referrer"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.views[*]"
-    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
