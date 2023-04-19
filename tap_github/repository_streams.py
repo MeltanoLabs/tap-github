@@ -2327,7 +2327,7 @@ class TrafficRestStream(GitHubRestStream):
         except FatalAPIError as e:
             if "Must have push access to repository" in str(e):
                 self.logger.info(
-                    (f"We do not have permissions for this repository: {e} \t")
+                    "We do not have permissions for this repository", exc_info=True
                 )
                 return
             raise
