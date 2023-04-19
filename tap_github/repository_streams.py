@@ -2225,6 +2225,9 @@ class TrafficRestStream(GitHubRestStream):
     """Base class for Traffic Streams"""
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        if response.status_code != 200:
+            return []
+
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
