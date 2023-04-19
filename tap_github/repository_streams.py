@@ -2309,6 +2309,7 @@ class DependenciesStream(GitHubGraphqlStream):
         ),
     ).to_dict()
 
+
 class TrafficRestStream(GitHubRestStream):
     """Base class for Traffic Streams"""
 
@@ -2326,13 +2327,10 @@ class TrafficRestStream(GitHubRestStream):
         except FatalAPIError as e:
             if "Must have push access to repository" in str(e):
                 self.logger.info(
-                    (
-                        f"We do not have permissions for this repository: e \t"
-                    )
+                    (f"We do not have permissions for this repository: e \t")
                 )
                 return
             raise
-
 
 
 class TrafficClonesStream(TrafficRestStream):
@@ -2383,6 +2381,7 @@ class TrafficReferralPathsStream(TrafficRestStream):
         th.Property("uniques", th.IntegerType),
     ).to_dict()
 
+
 class TrafficReferrersStream(TrafficRestStream):
     """Defines 'traffic_referrers' stream."""
 
@@ -2405,6 +2404,7 @@ class TrafficReferrersStream(TrafficRestStream):
         th.Property("count", th.IntegerType),
         th.Property("uniques", th.IntegerType),
     ).to_dict()
+
 
 class TrafficPageViewsStream(TrafficRestStream):
     """Defines 'traffic_pageviews' stream."""
