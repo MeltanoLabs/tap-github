@@ -1210,6 +1210,7 @@ class PullRequestsStream(GitHubRestStream):
         if row["title"] is not None:
             row["title"] = row["title"].replace("\x00", "")
 
+        
         # replace +1/-1 emojis to avoid downstream column name errors.
         if "reactions" in row:
             row["reactions"]["plus_one"] = row["reactions"].pop("+1", None)
