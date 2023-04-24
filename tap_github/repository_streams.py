@@ -1207,10 +1207,14 @@ class PullRequestsStream(GitHubRestStream):
             # such chars are removed from the data before we pass it on to
             # the target
             row["body"] = row["body"].replace("\x00", "")
+<<<<<<< HEAD
         if row["title"] is not None:
             row["title"] = row["title"].replace("\x00", "")
 
         
+=======
+
+>>>>>>> 9c729d5 (Apply black formatter)
         # replace +1/-1 emojis to avoid downstream column name errors.
         if "reactions" in row:
             row["reactions"]["plus_one"] = row["reactions"].pop("+1", None)
