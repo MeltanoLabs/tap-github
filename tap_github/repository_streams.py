@@ -69,6 +69,7 @@ class RepositoryStream(GitHubRestStream):
         It also removes non-existant repos and corrects casing to ensure
         data is correct downstream.
         """
+
         # use a temp handmade stream to reuse all the graphql setup of the tap
         class TempStream(GitHubGraphqlStream):
             name = "tempStream"
@@ -1151,7 +1152,7 @@ class PullRequestsStream(GitHubRestStream):
             # such chars are removed from the data before we pass it on to
             # the target
             row["body"] = row["body"].replace("\x00", "")
-        
+
         # replace +1/-1 emojis to avoid downstream column name errors.
         if "reactions" in row:
             row["reactions"]["plus_one"] = row["reactions"].pop("+1", None)
