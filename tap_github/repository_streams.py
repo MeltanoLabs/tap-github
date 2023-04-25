@@ -1844,6 +1844,22 @@ class ProjectsStream(GitHubRestStream):
     ).to_dict()
 
 
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors.
+        Do not raise exceptions if the error says "Projects are disabled for this repository"
+        as we actually expect these in this stream when the repository does not have projects enabled
+        """
+        try:
+            super().validate_response(response)
+        except FatalAPIError as e:
+            if "Projects are disabled for this repository" in str(e):
+                self.logger.info(
+                    "This repository does not have projects enabled", exc_info=True
+                )
+                return
+            raise
+
+
 class ProjectColumnsStream(GitHubRestStream):
     name = "project_columns"
     path = "/projects/{project_id}/columns"
