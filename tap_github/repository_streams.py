@@ -1813,10 +1813,11 @@ class ProjectsStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
+    tolerated_http_errors = [410] # 410 Gone - projects are disabled
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {
-            "project_id": record["id"],
+            "project_id": record.get("id"),
             "repo_id": context["repo_id"] if context else None,
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
@@ -1843,21 +1844,6 @@ class ProjectsStream(GitHubRestStream):
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
-
-    def validate_response(self, response: requests.Response) -> None:
-        """Allow some specific errors.
-        Do not raise exceptions if the error says "Projects are disabled for this repository"
-        as we actually expect these in this stream when the repository does not have projects enabled
-        """
-        try:
-            super().validate_response(response)
-        except FatalAPIError as e:
-            if "Projects are disabled for this repository" in str(e):
-                self.logger.info(
-                    "This repository does not have projects enabled", exc_info=True
-                )
-                return
-            raise
 
 
 class ProjectColumnsStream(GitHubRestStream):
