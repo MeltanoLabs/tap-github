@@ -69,6 +69,7 @@ class RepositoryStream(GitHubRestStream):
         It also removes non-existant repos and corrects casing to ensure
         data is correct downstream.
         """
+
         # use a temp handmade stream to reuse all the graphql setup of the tap
         class TempStream(GitHubGraphqlStream):
             name = "tempStream"
@@ -1105,6 +1106,32 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
+    ).to_dict()
+
+
+class LabelsStream(GitHubRestStream):
+    """Defines 'labels' stream."""
+
+    name = "labels"
+    path = "/repos/{org}/{repo}/labels"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Label Keys
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property("color", th.StringType),
+        th.Property("default", th.BooleanType),
     ).to_dict()
 
 
