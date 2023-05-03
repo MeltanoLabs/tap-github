@@ -48,6 +48,7 @@ class UserStream(GitHubRestStream):
         It also removes non-existant repos and corrects casing to ensure
         data is correct downstream.
         """
+
         # use a temp handmade stream to reuse all the graphql setup of the tap
         class TempStream(GitHubGraphqlStream):
             name = "tempStream"
@@ -97,10 +98,8 @@ class UserStream(GitHubRestStream):
                     # not exist, log some details, and move on to the next one
                     invalid_username = user_list[int(item[4:])]
                     self.logger.info(
-                        (
-                            f"Username not found: {invalid_username} \t"
-                            "Removing it from list"
-                        )
+                        f"Username not found: {invalid_username} \t"
+                        "Removing it from list"
                     )
                     continue
                 # the databaseId (in graphql language) is not available on

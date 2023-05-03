@@ -5,7 +5,7 @@ import sys
 from typing import Pattern, TextIO, Union
 
 
-class FilterStdOutput(object):
+class FilterStdOutput:
     """Filter out stdout/sterr given a regex pattern."""
 
     def __init__(self, stream: TextIO, re_pattern: Union[str, Pattern]):
