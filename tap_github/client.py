@@ -1,7 +1,7 @@
 """REST client handling, including GitHubStream base class."""
 
 import collections
-import email
+import email.utils
 import inspect
 import random
 import re
