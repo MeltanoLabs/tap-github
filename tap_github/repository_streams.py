@@ -2236,15 +2236,12 @@ class TrafficRestStream(GitHubRestStream):
         Do not raise exceptions if the error says "Must have push access to repository"
         as we actually expect these in this stream when we don't have write permissions into it.
         """
-        try:
-            super().validate_response(response)
-        except FatalAPIError as e:
-            if "Must have push access to repository" in str(e):
-                self.logger.info(
-                    "We do not have permissions for this repository", exc_info=True
-                )
+        if response.status_code == 403:
+            contents = response.json()
+            if contents["message"] == "Resource not accessible by integration":
+                self.logger.info("Permissions missing to sync stream '%s'", self.name)
                 return
-            raise
+        super().validate_response(response)
 
 
 class TrafficClonesStream(TrafficRestStream):
