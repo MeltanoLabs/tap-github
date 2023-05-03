@@ -2224,6 +2224,17 @@ class DependenciesStream(GitHubGraphqlStream):
 class TrafficRestStream(GitHubRestStream):
     """Base class for Traffic Streams"""
 
+    @property
+    def metadata(self):
+        """Override default selection metadata for this stream.
+        
+        TODO: Remove this in favor of the recommended approach when the SDK has one.
+        """
+        result = super().metadata
+        if self._tap_input_catalog is None:
+            result.root.selected = False
+        return result
+
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         if response.status_code != 200:
             return []
