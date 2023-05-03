@@ -2254,7 +2254,7 @@ class TrafficRestStream(GitHubRestStream):
     @property
     def metadata(self):
         """Override default selection metadata for this stream.
-        
+
         TODO: Remove this in favor of the recommended approach when the SDK has one.
         """
         result = super().metadata
