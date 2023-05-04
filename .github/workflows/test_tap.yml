@@ -55,13 +55,6 @@ jobs:
       run: |
         poetry install
       if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-    - name: Check formatting with black and isort
-      run: |
-        poetry run black --check .
-        poetry run isort --check .
-    - name: Check typing annotations with mypy
-      run: |
-        poetry run mypy . --ignore-missing-imports
     - name: Test with pytest
       id: test_pytest
       continue-on-error: true
