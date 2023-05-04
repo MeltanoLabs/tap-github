@@ -1,7 +1,7 @@
 """REST client handling, including GitHubStream base class."""
 
 import collections
-import email
+import email.utils
 import inspect
 import random
 import re
@@ -346,7 +346,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         has_next_page_indices: List[int] = []
         # Iterate over all the items and filter items with hasNextPage = True.
-        for (key, value) in next_page_results.items():
+        for key, value in next_page_results.items():
             # Check if key is even then add pair to new dictionary
             if any(value):
                 pagination_index = int(str(key).split("_")[1])
@@ -362,7 +362,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         # We leverage previous_token to remember the pagination cursors
         # for indices below max_pagination_index.
         next_page_cursors: Dict[str, str] = dict()
-        for (key, value) in (previous_token or {}).items():
+        for key, value in (previous_token or {}).items():
             # Only keep pagination info for indices below max_pagination_index.
             pagination_index = int(str(key).split("_")[1])
             if pagination_index < max_pagination_index:

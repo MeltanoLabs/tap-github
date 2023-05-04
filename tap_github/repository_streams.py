@@ -125,10 +125,8 @@ class RepositoryStream(GitHubRestStream):
                     # not exist, log some details, and move on to the next one
                     repo_full_name = "/".join(repo_list[int(item[4:])])
                     self.logger.info(
-                        (
-                            f"Repository not found: {repo_full_name} \t"
-                            "Removing it from list"
-                        )
+                        f"Repository not found: {repo_full_name} \t"
+                        "Removing it from list"
                     )
                     continue
                 repos_with_ids.append(
