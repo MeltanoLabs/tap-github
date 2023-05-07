@@ -113,25 +113,13 @@ def generate_app_access_token(
 class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
-    def prepare_tokens(self) -> Dict[str, TokenRateLimit]:
-        # Save GitHub tokens
-        available_tokens: List[str] = []
-        if "auth_token" in self._config:
-            available_tokens = available_tokens + [self._config["auth_token"]]
-        if "additional_auth_tokens" in self._config:
-            available_tokens = available_tokens + self._config["additional_auth_tokens"]
-        else:
-            # Accept multiple tokens using environment variables GITHUB_TOKEN*
-            env_tokens = [
-                value
-                for key, value in environ.items()
-                if key.startswith("GITHUB_TOKEN")
-            ]
-            if len(env_tokens) > 0:
-                self.logger.info(
-                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
-                )
-                available_tokens = env_tokens
+    def refresh_app_token(self):
+        if self.last_private_key_token_refresh:
+            # Do not refresh token if less than 10 minutes have passed, if this is requested the app probably hit its rate limit.
+            if (
+                datetime.now() - self.last_private_key_token_refresh
+            ).total_seconds() < 600:
+                return
 
         # Parse App level private key and generate a token
         if "GITHUB_APP_PRIVATE_KEY" in environ.keys():
@@ -152,7 +140,32 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 app_token = generate_app_access_token(
                     github_app_id, github_private_key, github_installation_id or None
                 )
-                available_tokens = available_tokens + [app_token]
+                # Get rate_limit_buffer
+                rate_limit_buffer = self._config.get("rate_limit_buffer", None)
+                # Update last refresh timestamp
+                self.last_private_key_token_refresh = datetime.now()
+
+                return TokenRateLimit(app_token, rate_limit_buffer)
+
+    def prepare_tokens(self) -> Dict[str, TokenRateLimit]:
+        # Save GitHub tokens
+        available_tokens: List[str] = []
+        if "auth_token" in self._config:
+            available_tokens = available_tokens + [self._config["auth_token"]]
+        if "additional_auth_tokens" in self._config:
+            available_tokens = available_tokens + self._config["additional_auth_tokens"]
+        else:
+            # Accept multiple tokens using environment variables GITHUB_TOKEN*
+            env_tokens = [
+                value
+                for key, value in environ.items()
+                if key.startswith("GITHUB_TOKEN")
+            ]
+            if len(env_tokens) > 0:
+                self.logger.info(
+                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
+                )
+                available_tokens = env_tokens
 
         # Get rate_limit_buffer
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
@@ -180,8 +193,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.logger.info(f"Tap will run with {len(filtered_tokens)} auth tokens")
 
         # Create a dict of TokenRateLimit
-        # TODO - separate app_token and add logic to refresh the token
-        # using generate_app_access_token.
         return {
             token: TokenRateLimit(token, rate_limit_buffer) for token in filtered_tokens
         }
@@ -200,6 +211,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.active_token: Optional[TokenRateLimit] = (
             choice(list(self.tokens_map.values())) if len(self.tokens_map) else None
         )
+        self.last_private_key_token_refresh: datetime = None
+        # Refresh tokens from private key if it was supplied
+        if self.active_token is None:
+            self.active_token = self.refresh_app_token()
 
     def get_next_auth_token(self) -> None:
         tokens_list = list(self.tokens_map.items())
@@ -234,6 +249,16 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             HTTP headers for authentication.
         """
         result = super().auth_headers
+
+        if self.last_private_key_token_refresh is not None:
+            # Refresh token once every 30 minutes if we have a private key
+            if (
+                datetime.now() - self.last_private_key_token_refresh
+            ).total_seconds() > 1800:
+                new_token = self.refresh_app_token()
+                if new_token:
+                    self.active_token = new_token
+
         if self.active_token:
             # Make sure that our token is still valid or update it.
             if not self.active_token.is_valid():
