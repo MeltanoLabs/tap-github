@@ -71,6 +71,10 @@ To avoid this, the GitHub streams will exit early. I.e. when there are no more `
 
 You can easily run `tap-github` by itself or in a pipeline using [Meltano](www.meltano.com).
 
+### Notes regarding permissions
+
+* For the `traffic_*` streams, [you will need write access to the repository](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28). You can enable extraction for these streams by [selecting them in the catalog](https://hub.meltano.com/singer/spec/#metadata).
+
 ### Executing the Tap Directly
 
 ```bash

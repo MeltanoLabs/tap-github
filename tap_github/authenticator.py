@@ -144,10 +144,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
             if not (github_private_key):
                 self.logger.warning(
-                    (
-                        "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
-                        '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----"'
-                    )
+                    "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
+                    '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----"'
                 )
 
             else:

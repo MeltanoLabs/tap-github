@@ -125,10 +125,8 @@ class RepositoryStream(GitHubRestStream):
                     # not exist, log some details, and move on to the next one
                     repo_full_name = "/".join(repo_list[int(item[4:])])
                     self.logger.info(
-                        (
-                            f"Repository not found: {repo_full_name} \t"
-                            "Removing it from list"
-                        )
+                        f"Repository not found: {repo_full_name} \t"
+                        "Removing it from list"
                     )
                     continue
                 repos_with_ids.append(
@@ -1107,6 +1105,32 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("author_association", th.StringType),
+    ).to_dict()
+
+
+class LabelsStream(GitHubRestStream):
+    """Defines 'labels' stream."""
+
+    name = "labels"
+    path = "/repos/{org}/{repo}/labels"
+    primary_keys = ["id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Label Keys
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property("color", th.StringType),
+        th.Property("default", th.BooleanType),
     ).to_dict()
 
 
@@ -2221,4 +2245,135 @@ class DependenciesStream(GitHubGraphqlStream):
                 ),
             ),
         ),
+    ).to_dict()
+
+
+class TrafficRestStream(GitHubRestStream):
+    """Base class for Traffic Streams"""
+
+    @property
+    def metadata(self):
+        """Override default selection metadata for this stream.
+
+        TODO: Remove this in favor of the recommended approach when the SDK has one.
+        """
+        result = super().metadata
+        if self._tap_input_catalog is None:
+            result.root.selected = False
+        return result
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        if response.status_code != 200:
+            return []
+
+        """Parse the response and return an iterator of result rows."""
+        yield from extract_jsonpath(self.records_jsonpath, input=response.json())
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors.
+        Do not raise exceptions if the error says "Must have push access to repository"
+        as we actually expect these in this stream when we don't have write permissions into it.
+        """
+        if response.status_code == 403:
+            contents = response.json()
+            if contents["message"] == "Resource not accessible by integration":
+                self.logger.info("Permissions missing to sync stream '%s'", self.name)
+                return
+        super().validate_response(response)
+
+
+class TrafficClonesStream(TrafficRestStream):
+    """Defines 'traffic_clones' stream."""
+
+    name = "traffic_clones"
+    path = "/repos/{org}/{repo}/traffic/clones"
+    primary_keys = ["repo", "org", "timestamp"]
+    replication_key = "timestamp"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "$.clones[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Clones Data
+        th.Property("timestamp", th.DateTimeType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
+
+
+class TrafficReferralPathsStream(TrafficRestStream):
+    """Defines 'traffic_referral_paths' stream."""
+
+    name = "traffic_referral_paths"
+    path = "/repos/{org}/{repo}/traffic/popular/paths"
+    primary_keys = ["repo", "org", "path"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Referral path data
+        th.Property("path", th.StringType),
+        th.Property("title", th.StringType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
+
+
+class TrafficReferrersStream(TrafficRestStream):
+    """Defines 'traffic_referrers' stream."""
+
+    name = "traffic_referrers"
+    path = "/repos/{org}/{repo}/traffic/popular/referrers"
+    primary_keys = ["repo", "org", "referrer"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Referrer data
+        th.Property("referrer", th.StringType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
+    ).to_dict()
+
+
+class TrafficPageViewsStream(TrafficRestStream):
+    """Defines 'traffic_pageviews' stream."""
+
+    name = "traffic_pageviews"
+    path = "/repos/{org}/{repo}/traffic/views"
+    primary_keys = ["repo", "org", "timestamp"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+    records_jsonpath = "$.views[*]"
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Page view data
+        th.Property("timestamp", th.DateTimeType),
+        th.Property("count", th.IntegerType),
+        th.Property("uniques", th.IntegerType),
     ).to_dict()
