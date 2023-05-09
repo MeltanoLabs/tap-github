@@ -832,8 +832,9 @@ class IssuesStream(GitHubRestStream):
             row["body"] = row["body"].replace("\x00", "")
 
         # replace +1/-1 emojis to avoid downstream column name errors.
-        row["plus_one"] = row.pop("+1", None)
-        row["minus_one"] = row.pop("-1", None)
+        if "reactions" in row:
+            row["reactions"]["plus_one"] = row["reactions"].pop("+1", None)
+            row["reactions"]["minus_one"] = row["reactions"].pop("-1", None)
         return row
 
     schema = th.PropertiesList(
@@ -1177,8 +1178,9 @@ class PullRequestsStream(GitHubRestStream):
             row["body"] = row["body"].replace("\x00", "")
 
         # replace +1/-1 emojis to avoid downstream column name errors.
-        row["plus_one"] = row.pop("+1", None)
-        row["minus_one"] = row.pop("-1", None)
+        if "reactions" in row:
+            row["reactions"]["plus_one"] = row["reactions"].pop("+1", None)
+            row["reactions"]["minus_one"] = row["reactions"].pop("-1", None)
         return row
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
