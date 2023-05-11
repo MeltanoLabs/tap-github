@@ -107,6 +107,9 @@ class RepositoryStream(GitHubRestStream):
                         return
                     raise
 
+        if len(repo_list) < 1:
+            return []
+
         repos_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(repo_list))
         # replace manually provided org/repo values by the ones obtained
@@ -147,9 +150,27 @@ class RepositoryStream(GitHubRestStream):
                 {"search_name": s["name"], "search_query": s["query"]}
                 for s in self.config["searches"]
             ]
+
         if "repositories" in self.config:
-            split_repo_names = map(lambda s: s.split("/"), self.config["repositories"])
-            return self.get_repo_ids(list(split_repo_names))
+            split_repo_names = list(
+                map(lambda s: s.split("/"), self.config["repositories"])
+            )
+            augmented_repo_list = list()
+            # chunk requests to the graphql endpoint to avoid timeouts and other
+            # obscure errors that the api doesn't say much about. The actual limit
+            # seems closer to 1000, use half that to stay safe.
+            chunk_size = 500
+            list_length = len(split_repo_names)
+            self.logger.info(f"Filtering repository list of {list_length} repositories")
+            for ndx in range(0, list_length, chunk_size):
+                augmented_repo_list += self.get_repo_ids(
+                    split_repo_names[ndx : ndx + chunk_size]
+                )
+            self.logger.info(
+                f"Running the tap on {len(augmented_repo_list)} repositories"
+            )
+            return augmented_repo_list
+
         if "organizations" in self.config:
             return [{"org": org} for org in self.config["organizations"]]
         return None
