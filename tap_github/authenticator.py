@@ -211,7 +211,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.active_token: Optional[TokenRateLimit] = (
             choice(list(self.tokens_map.values())) if len(self.tokens_map) else None
         )
-        self.last_private_key_token_refresh: datetime = None
+        self.last_private_key_token_refresh = None
         # Refresh tokens from private key if it was supplied
         if self.active_token is None:
             self.active_token = self.refresh_app_token()
