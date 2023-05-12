@@ -93,9 +93,12 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
             url = ""
 
 
-def parse_counter(
-    tag: Union[Tag, NavigableString, None], logger: logging.Logger
-) -> int:
+def parse_counter(tag: Union[Tag, NavigableString, None]) -> int:
+    """
+    Extract a count of [issues|PR|contributors...] from an HTML tag.
+    For very high numbers, we only get an approximate value as github
+    does not provide the actual number.
+    """
     if not tag:
         return 0
     try:
@@ -106,8 +109,8 @@ def parse_counter(
             title_string = cast(str, title)
         else:
             title_string = cast(str, title[0])
-        return int(title_string.strip().replace(",", ""))
-    except KeyError:
+        return int(title_string.strip().replace(",", "").replace("+", ""))
+    except (KeyError, ValueError):
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
         )
@@ -123,10 +126,8 @@ def scrape_metrics(
     soup = BeautifulSoup(response.content, "html.parser")
 
     try:
-        issues = parse_counter(soup.find("span", id="issues-repo-tab-count"), logger)
-        prs = parse_counter(
-            soup.find("span", id="pull-requests-repo-tab-count"), logger
-        )
+        issues = parse_counter(soup.find("span", id="issues-repo-tab-count"))
+        prs = parse_counter(soup.find("span", id="pull-requests-repo-tab-count"))
     except IndexError:
         # These two items should exist. We raise an error if we could not find them.
         raise IndexError(
@@ -140,9 +141,7 @@ def scrape_metrics(
     dependents: int = 0
     if dependents_node_parent is not None:
         if dependents_node_parent["href"].endswith("/network/dependents"):
-            dependents = parse_counter(
-                getattr(dependents_node, "next_element", None), logger
-            )
+            dependents = parse_counter(getattr(dependents_node, "next_element", None))
 
     # likewise, handle edge cases with contributors
     contributors_node = soup.find(text=contributors_regex)
@@ -152,7 +151,6 @@ def scrape_metrics(
         if contributors_node_parent["href"].endswith("/graphs/contributors"):
             contributors = parse_counter(
                 getattr(contributors_node, "next_element", None),
-                logger,
             )
 
     fetched_at = datetime.now(tz=timezone.utc)
