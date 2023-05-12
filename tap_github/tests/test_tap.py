@@ -5,10 +5,12 @@ from typing import Optional
 from unittest.mock import patch
 
 import pytest
+from bs4 import BeautifulSoup
 from dateutil.parser import isoparse
 from singer_sdk._singerlib import Catalog
 from singer_sdk.helpers import _catalog as cat_helpers
 
+from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
 
 from .fixtures import alternative_sync_chidren, repo_list_config, username_list_config
@@ -165,3 +167,30 @@ def test_get_a_user_in_user_usernames_mode(
     assert '{"username": "aaronsteers"' in captured_out
     assert '{"username": "aaRONsTeeRS"' not in captured_out
     assert '{"username": "EricBoucher"' not in captured_out
+
+
+def test_web_tag_parse_counter():
+    """
+    Check that the parser runs ok on various forms of counters.
+    Used in extra_metrics stream.
+    """
+    # regular int
+    tag = BeautifulSoup(
+        '<span id="issues-repo-tab-count" title="57" class="Counter">57</span>',
+        "html.parser",
+    ).span
+    assert parse_counter(tag) == 57
+
+    # 2k
+    tag = BeautifulSoup(
+        '<span id="issues-repo-tab-count" title="2028" class="Counter">2k</span>',
+        "html.parser",
+    ).span
+    assert parse_counter(tag) == 2028
+
+    # 5k+. The real number is not available in the page, use this approx value
+    tag = BeautifulSoup(
+        '<span id="issues-repo-tab-count" title="5,000+" class="Counter">5k+</span>',
+        "html.parser",
+    ).span
+    assert parse_counter(tag) == 5_000

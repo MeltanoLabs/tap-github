@@ -93,9 +93,12 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
             url = ""
 
 
-def parse_counter(
-    tag: Union[Tag, NavigableString, None], logger: logging.Logger
-) -> int:
+def parse_counter(tag: Union[Tag, NavigableString, None]) -> int:
+    """
+    Extract a count of [issues|PR|contributors...] from an HTML tag.
+    For very high numbers, we only get an approximate value as github
+    does not provide the actual number.
+    """
     if not tag:
         return 0
     try:
@@ -106,8 +109,8 @@ def parse_counter(
             title_string = cast(str, title)
         else:
             title_string = cast(str, title[0])
-        return int(title_string.strip().replace(",", ""))
-    except KeyError:
+        return int(title_string.strip().replace(",", "").replace("+", ""))
+    except (KeyError, ValueError):
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
         )
