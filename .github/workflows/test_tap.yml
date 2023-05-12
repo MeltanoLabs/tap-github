@@ -72,5 +72,11 @@ jobs:
       id: retry_test_pytest
       if: steps.test_pytest.outcome=='failure'         # check the step outcome, wait and retry
       run: |
-        sleep 60m
+        # sleep as little as possible to reduce CI run time
+        # This assumes that REST quota is the one that caused problem
+        # (which is most likely/often the case)
+        target_ts=$(curl -s -H "Accept: application/vnd.github+json"  -H "Authorization: Bearer $GITHUB_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28"  https://api.github.com/rate_limit | grep reset | head -n 1 | awk -F: '{ print $2 }')
+        current_ts=$(date +%s)
+        seconds_to_sleep=$(echo "$target_ts - $current_ts" | bc)
+        sleep $seconds_to_sleep
         LOGLEVEL=WARNING poetry run pytest --capture=no
