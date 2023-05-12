@@ -26,14 +26,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: Get Date
+      id: get-date
+      run: |
+        echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+      shell: bash
+
     - name: Cache github API responses
       uses: actions/cache@v3
       with:
         # must match the path in tests/__init__.py
         path: '.cache/api_calls_tests_cache.sqlite'
         # github cache expires after 1wk, and we expire the content after 24h
-        # this key should not need to change unless we need to clear the cache
-        key: api-cache-v4
+        # this key is rotated every 24h so that the code does not find a stale
+        # file in the cache. See issue #119
+        key: api-cache-v4-${{ steps.get-date.outputs.date }}
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
