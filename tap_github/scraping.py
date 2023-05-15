@@ -134,7 +134,7 @@ def scrape_metrics(
             "Could not find issues or prs info. Maybe the GitHub page format has changed?"
         )
 
-    dependents_node = soup.find(text=used_by_regex)
+    dependents_node = soup.find(string=used_by_regex)
     # verify that we didn't hit some random text in the page.
     # sometimes the dependents section isn't shown on the page either
     dependents_node_parent = getattr(dependents_node, "parent", None)
@@ -144,7 +144,7 @@ def scrape_metrics(
             dependents = parse_counter(getattr(dependents_node, "next_element", None))
 
     # likewise, handle edge cases with contributors
-    contributors_node = soup.find(text=contributors_regex)
+    contributors_node = soup.find(string=contributors_regex)
     contributors_node_parent = getattr(contributors_node, "parent", None)
     contributors: int = 0
     if contributors_node_parent is not None:
