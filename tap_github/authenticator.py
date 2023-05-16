@@ -113,6 +113,8 @@ def generate_app_access_token(
 class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
+    last_private_key_token_refresh: Optional[datetime]
+
     def refresh_app_token(self):
         if self.last_private_key_token_refresh:
             # Do not refresh token if less than 10 minutes have passed, if this is requested the app probably hit its rate limit.
