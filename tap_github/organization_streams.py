@@ -123,7 +123,7 @@ class TeamMembersStream(GitHubRestStream):
     """
 
     name = "team_members"
-    primary_keys = ["id"]
+    primary_keys = ["id", "team_slug"]
     path = "/orgs/{org}/teams/{team_slug}/members"
     ignore_parent_replication_key = True
     parent_stream_type = TeamsStream
