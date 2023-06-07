@@ -1618,7 +1618,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
-            "This stream 'stargazers' might conflict with previous implementation. "
+            "The stream 'stargazers' might conflict with previous implementation. "
             "Looking for the older version? Use 'stargazers_rest'."
         )
 

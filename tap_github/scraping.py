@@ -139,7 +139,7 @@ def scrape_metrics(
     # sometimes the dependents section isn't shown on the page either
     dependents_node_parent = getattr(dependents_node, "parent", None)
     dependents: int = 0
-    if dependents_node_parent is not None:
+    if dependents_node_parent is not None and "href" in dependents_node_parent:
         if dependents_node_parent["href"].endswith("/network/dependents"):
             dependents = parse_counter(getattr(dependents_node, "next_element", None))
 
@@ -147,7 +147,7 @@ def scrape_metrics(
     contributors_node = soup.find(text=contributors_regex)
     contributors_node_parent = getattr(contributors_node, "parent", None)
     contributors: int = 0
-    if contributors_node_parent is not None:
+    if contributors_node_parent is not None and "href" in contributors_node_parent:
         if contributors_node_parent["href"].endswith("/graphs/contributors"):
             contributors = parse_counter(
                 getattr(contributors_node, "next_element", None),
