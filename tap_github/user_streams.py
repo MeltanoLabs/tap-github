@@ -36,14 +36,12 @@ class UserStream(GitHubRestStream):
             # seems closer to 1000, use half that to stay safe.
             chunk_size = 500
             list_length = len(input_user_list)
-            self.logger.info(f"Filtering repository list of {list_length} repositories")
+            self.logger.info(f"Filtering user list of {list_length} users")
             for ndx in range(0, list_length, chunk_size):
                 augmented_user_list += self.get_repo_ids(
                     input_user_list[ndx : ndx + chunk_size]
                 )
-            self.logger.info(
-                f"Running the tap on {len(augmented_user_list)} repositories"
-            )
+            self.logger.info(f"Running the tap on {len(augmented_user_list)} users")
             return augmented_user_list
 
         elif "user_ids" in self.config:
