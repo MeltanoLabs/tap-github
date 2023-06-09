@@ -28,8 +28,24 @@ class UserStream(GitHubRestStream):
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
         if "user_usernames" in self.config:
-            # return [{"username": u} for u in self.config["user_usernames"]]
-            return self.get_user_ids(self.config["user_usernames"])
+            input_user_list = self.config["user_usernames"]
+
+            augmented_user_list = list()
+            # chunk requests to the graphql endpoint to avoid timeouts and other
+            # obscure errors that the api doesn't say much about. The actual limit
+            # seems closer to 1000, use half that to stay safe.
+            chunk_size = 500
+            list_length = len(input_user_list)
+            self.logger.info(f"Filtering repository list of {list_length} repositories")
+            for ndx in range(0, list_length, chunk_size):
+                augmented_user_list += self.get_repo_ids(
+                    input_user_list[ndx : ndx + chunk_size]
+                )
+            self.logger.info(
+                f"Running the tap on {len(augmented_user_list)} repositories"
+            )
+            return augmented_user_list
+
         elif "user_ids" in self.config:
             return [{"id": id} for id in self.config["user_ids"]]
         return None
@@ -75,6 +91,9 @@ class UserStream(GitHubRestStream):
                         "{ login avatarUrl}"
                     )
                 return "query {" + " ".join(chunks) + " rateLimit { cost } }"
+
+        if len(user_list) < 1:
+            return []
 
         users_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(user_list))
