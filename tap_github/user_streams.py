@@ -28,8 +28,22 @@ class UserStream(GitHubRestStream):
     def partitions(self) -> Optional[List[Dict]]:
         """Return a list of partitions."""
         if "user_usernames" in self.config:
-            # return [{"username": u} for u in self.config["user_usernames"]]
-            return self.get_user_ids(self.config["user_usernames"])
+            input_user_list = self.config["user_usernames"]
+
+            augmented_user_list = list()
+            # chunk requests to the graphql endpoint to avoid timeouts and other
+            # obscure errors that the api doesn't say much about. The actual limit
+            # seems closer to 1000, use half that to stay safe.
+            chunk_size = 500
+            list_length = len(input_user_list)
+            self.logger.info(f"Filtering user list of {list_length} users")
+            for ndx in range(0, list_length, chunk_size):
+                augmented_user_list += self.get_user_ids(
+                    input_user_list[ndx : ndx + chunk_size]
+                )
+            self.logger.info(f"Running the tap on {len(augmented_user_list)} users")
+            return augmented_user_list
+
         elif "user_ids" in self.config:
             return [{"id": id} for id in self.config["user_ids"]]
         return None
@@ -64,8 +78,6 @@ class UserStream(GitHubRestStream):
             @property
             def query(self) -> str:
                 chunks = list()
-                # there is probably some limit to how many items can be requested
-                # in a single query, but it's well above 1k.
                 for i, user in enumerate(self.user_list):
                     # we use the `repositoryOwner` query which is the only one that
                     # works on both users and orgs with graphql. REST is less picky
@@ -75,6 +87,9 @@ class UserStream(GitHubRestStream):
                         "{ login avatarUrl}"
                     )
                 return "query {" + " ".join(chunks) + " rateLimit { cost } }"
+
+        if len(user_list) < 1:
+            return []
 
         users_with_ids: list = list()
         temp_stream = TempStream(self._tap, list(user_list))
@@ -272,7 +287,8 @@ class UserContributedToStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent,
+        # we rename "id" to "node_id".
         return """
           query userContributedTo($username: String! $nextPageCursor_0: String) {
             user (login: $username) {
