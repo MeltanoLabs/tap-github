@@ -80,8 +80,6 @@ class UserStream(GitHubRestStream):
             @property
             def query(self) -> str:
                 chunks = list()
-                # there is probably some limit to how many items can be requested
-                # in a single query, but it's well above 1k.
                 for i, user in enumerate(self.user_list):
                     # we use the `repositoryOwner` query which is the only one that
                     # works on both users and orgs with graphql. REST is less picky
@@ -291,7 +289,8 @@ class UserContributedToStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent,
+        # we rename "id" to "node_id".
         return """
           query userContributedTo($username: String! $nextPageCursor_0: String) {
             user (login: $username) {
