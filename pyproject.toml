@@ -33,7 +33,7 @@ classifiers = [
 [tool.poetry.dependencies]
 PyJWT = "2.7.0"
 python = "<3.12,>=3.7.2"
-requests = "^2.30.0"
+requests = "^2.31.0"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
 singer-sdk = "^0.22.0"

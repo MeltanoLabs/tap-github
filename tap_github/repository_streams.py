@@ -85,8 +85,6 @@ class RepositoryStream(GitHubRestStream):
             @property
             def query(self) -> str:
                 chunks = list()
-                # there is probably some limit to how many items can be requested
-                # in a single query, but it's well above 1k.
                 for i, repo in enumerate(self.repo_list):
                     chunks.append(
                         f'repo{i}: repository(name: "{repo[1]}", owner: "{repo[0]}") '
@@ -1618,7 +1616,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
-            "This stream 'stargazers' might conflict with previous implementation. "
+            "The stream 'stargazers' might conflict with previous implementation. "
             "Looking for the older version? Use 'stargazers_rest'."
         )
 
