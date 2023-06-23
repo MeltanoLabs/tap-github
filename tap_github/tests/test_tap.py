@@ -105,7 +105,10 @@ def test_get_a_repository_in_repo_list_mode(
     """
     repo_list_config["skip_parent_streams"] = skip_parent_streams
     captured_out = run_tap_with_config(
-        capsys, repo_list_config, "repositories" if skip_parent_streams else None
+        capsys,
+        repo_list_config,
+        "repositories" if skip_parent_streams else None,
+        single_stream=None,
     )
     # Verify we got the right number of records
     # one per repo in the list only if we sync the "repositories" stream, 0 if not
@@ -125,7 +128,9 @@ def test_last_state_message_is_valid(capsys, repo_list_config):
     Run this on a single repo to avoid having to filter messages too much.
     """
     repo_list_config["skip_parent_streams"] = True
-    captured_out = run_tap_with_config(capsys, repo_list_config, "repositories")
+    captured_out = run_tap_with_config(
+        capsys, repo_list_config, "repositories", single_stream=None
+    )
     # capture the messages we're interested in
     state_messages = re.findall(r'{"type": "STATE", "value":.*}', captured_out)
     issue_comments_records = re.findall(
@@ -164,7 +169,10 @@ def test_get_a_user_in_user_usernames_mode(
     """
     username_list_config["skip_parent_streams"] = skip_parent_streams
     captured_out = run_tap_with_config(
-        capsys, username_list_config, "users" if skip_parent_streams else None
+        capsys,
+        username_list_config,
+        "users" if skip_parent_streams else None,
+        single_stream=None,
     )
     # Verify we got the right number of records:
     # one per user in the list if we sync the root stream, 0 otherwise
