@@ -1526,7 +1526,8 @@ class ContributorsStream(GitHubRestStream):
                 == "The history or contributor list is too large to list contributors for this repository via the API."
             ):
                 self.logger.info(
-                    "Skipping repo '%s' as contributors list is too large", self.name
+                    "Skipping repo '%s'. The list of contributors is too large.",
+                    self.name,
                 )
                 return
         super().validate_response(response)
