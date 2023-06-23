@@ -1510,6 +1510,27 @@ class ContributorsStream(GitHubRestStream):
         th.Property("contributions", th.IntegerType),
     ).to_dict()
 
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        # TODO: update this and validate_response when
+        # https://github.com/meltano/sdk/pull/1754 is merged
+        if response.status_code != 200:
+            return []
+        yield from super().parse_response(response)
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors."""
+        if response.status_code == 403:
+            contents = response.json()
+            if (
+                contents["message"]
+                == "The history or contributor list is too large to list contributors for this repository via the API."
+            ):
+                self.logger.info(
+                    "Skipping repo '%s' as contributors list is too large", self.name
+                )
+                return
+        super().validate_response(response)
+
 
 class AnonymousContributorsStream(GitHubRestStream):
     """Defines 'AnonymousContributors' stream."""
