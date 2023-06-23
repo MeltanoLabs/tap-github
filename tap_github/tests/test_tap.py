@@ -57,10 +57,13 @@ def test_validate_repo_list_config(repo_list_config):
     assert partitions == repo_list_context
 
 
-def run_tap_with_config(capsys, config_obj: dict, skip_stream: Optional[str]) -> str:
+def run_tap_with_config(
+    capsys, config_obj: dict, skip_stream: Optional[str], single_stream: Optional[str]
+) -> str:
     """
     Run the tap with the given config and capture stdout, optionally
-    skipping a stream (this is meant to be the top level stream)
+    skipping a stream (this is meant to be the top level stream), or
+    running a single one.
     """
     tap1 = TapGitHub(config=config_obj)
     tap1.run_discovery()
@@ -72,6 +75,13 @@ def run_tap_with_config(capsys, config_obj: dict, skip_stream: Optional[str]) ->
             stream_name=skip_stream,
             selected=False,
         )
+    elif single_stream is not None:
+        cat_helpers.deselect_all_streams(catalog)
+        cat_helpers.set_catalog_stream_selected(catalog, "repositories", selected=True)
+        cat_helpers.set_catalog_stream_selected(
+            catalog, stream_name=single_stream, selected=True
+        )
+
     # discard previous output to stdout (potentially from other tests)
     capsys.readouterr()
     with patch(
@@ -167,6 +177,18 @@ def test_get_a_user_in_user_usernames_mode(
     assert '{"username": "aaronsteers"' in captured_out
     assert '{"username": "aaRONsTeeRS"' not in captured_out
     assert '{"username": "EricBoucher"' not in captured_out
+
+
+@pytest.mark.repo_list(["torvalds/linux"])
+def test_large_list_of_contributors(capsys, repo_list_config):
+    """
+    Check that the github error message for very large lists of contributors
+    is handled properly (does not return any records).
+    """
+    captured_out = run_tap_with_config(
+        capsys, repo_list_config, skip_stream=None, single_stream="contributors"
+    )
+    assert captured_out.count('{"type": "RECORD", "stream": "contributors"') == 0
 
 
 def test_web_tag_parse_counter():
