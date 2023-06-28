@@ -275,8 +275,10 @@ class GitHubRestStream(RESTStream):
             FrameType,
             cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_back,
         ).f_locals["e"]
-        if exc.response.status_code == 403 and "rate limit exceeded" in str(
-            exc.response.content
+        if (
+            exc.response is not None
+            and exc.response.status_code == 403
+            and "rate limit exceeded" in str(exc.response.content)
         ):
             # we hit a rate limit, rotate token
             prepared_request = details["args"][0]
