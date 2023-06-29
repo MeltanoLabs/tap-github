@@ -2183,7 +2183,11 @@ class DependenciesStream(GitHubGraphqlStream):
     query_jsonpath = (
         "$.data.repository.dependencyGraphManifests.nodes.[*].dependencies.nodes.[*]"
     )
-    primary_keys = ["dependency_repo_id", "repo_id"]
+    # github's api sometimes returns multiple versions of a same package as dependencies
+    # of a given repo. We use package_name instead of dependency_repo_id because
+    # the latter changes as github's resolution improves, which would lead to invalid
+    # duplicate values
+    primary_keys = ["repo_id", "package_name", "package_manager", "requirements"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo_id"]
     ignore_parent_replication_key = True
@@ -2206,6 +2210,9 @@ class DependenciesStream(GitHubGraphqlStream):
         row["dependency_repo_id"] = (
             row["dependency"]["id"] if row["dependency"] else None
         )
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
         return row
 
     @property
