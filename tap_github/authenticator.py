@@ -6,6 +6,7 @@ from datetime import datetime
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional
+from time import sleep
 
 import jwt
 import requests
@@ -200,15 +201,29 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.active_token: Optional[TokenRateLimit] = (
             choice(list(self.tokens_map.values())) if len(self.tokens_map) else None
         )
+        self.buffer_wait_time: int = 2
 
     def get_next_auth_token(self) -> None:
         tokens_list = list(self.tokens_map.items())
         current_token = self.active_token.token if self.active_token else ""
         shuffle(tokens_list)
+        token_waiting_list: List[float, TokenRateLimit] = []
         for _, token_rate_limit in tokens_list:
+            if not token_rate_limit.is_valid():
+                wait_time = self.rate_limit_reset - datetime.now().timestamp()
+                assert wait_time > 0
+                token_waiting_list.append((wait_time, token_rate_limit))
             if token_rate_limit.is_valid() and current_token != token_rate_limit.token:
                 self.active_token = token_rate_limit
                 self.logger.info(f"Switching to fresh auth token")
+                return
+
+        if len(token_waiting_list) > 0:
+            wait_time, token =  min(token_waiting_list, key=lambda x: x[0])  # Grab the token with the lowest wait time
+            self.logger.info(f"Waiting {wait_time} seconds for a token to be valid again")
+            sleep(wait_time + self.buffer_wait_time)
+            if token.is_valid():
+                self.active_token = token
                 return
 
         raise RuntimeError(
