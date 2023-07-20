@@ -15,6 +15,7 @@ class UserStream(GitHubRestStream):
 
     name = "users"
     replication_key = "updated_at"
+    tolerated_http_errors = [404]
 
     @property
     def path(self) -> str:  # type: ignore
