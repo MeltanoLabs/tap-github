@@ -2191,6 +2191,7 @@ class DependenciesStream(GitHubGraphqlStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo_id"]
     ignore_parent_replication_key = True
+    do_not_paginate = False
 
     @property
     def http_headers(self) -> dict:
@@ -2220,7 +2221,7 @@ class DependenciesStream(GitHubGraphqlStream):
         """Return dynamic GraphQL query."""
         # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
         # Due to GrapQl nested-pagination limitations, we loop through the top level dependencyGraphManifests one by one.
-        return """
+        initial_query = """
           query repositoryDependencies($repo: String! $org: String! $nextPageCursor_0: String $nextPageCursor_1: String) {
             repository(name: $repo owner: $org) {
               dependencyGraphManifests (first: 1 withDependencies: true after: $nextPageCursor_0) {
@@ -2263,8 +2264,20 @@ class DependenciesStream(GitHubGraphqlStream):
               cost
             }
           }
-
         """
+
+        if self.do_not_paginate:
+            no_pagination_query = initial_query.replace(
+                " $nextPageCursor_0: String $nextPageCursor_1: String", ""
+            )
+            no_pagination_query = no_pagination_query.replace("after: $nextPageCursor_0", "")
+            no_pagination_query = no_pagination_query.replace("after: $nextPageCursor_1", "")
+            no_pagination_query = no_pagination_query.replace("first: 1", "first: 10")
+            no_pagination_query = no_pagination_query.replace("first: 50", "first: 100")
+
+            return no_pagination_query
+
+        return initial_query
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -2294,6 +2307,12 @@ class DependenciesStream(GitHubGraphqlStream):
             ),
         ),
     ).to_dict()
+
+
+class DependenciesStreamIncomplete(DependenciesStream):
+    """Defines 'DependenciesStreamDirty' stream to limit pagination."""
+    do_not_paginate = True
+
 
 
 class TrafficRestStream(GitHubRestStream):
