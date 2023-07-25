@@ -2265,7 +2265,6 @@ class DependenciesStream(GitHubGraphqlStream):
           }
         """
 
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -2298,8 +2297,8 @@ class DependenciesStream(GitHubGraphqlStream):
 
 class DependenciesStreamIncomplete(DependenciesStream):
     """Defines 'DependenciesStreamDirty' stream to limit pagination."""
-    do_not_paginate = True
 
+    do_not_paginate = True
 
 
 class TrafficRestStream(GitHubRestStream):
