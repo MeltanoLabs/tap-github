@@ -334,6 +334,9 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         Warning - we recommend to avoid using deep (nested) pagination.
         """
 
+        if self.do_not_paginate:
+            return None
+
         resp_json = response.json()
 
         # Find if results contains "hasNextPage_X" flags and if any are True.
