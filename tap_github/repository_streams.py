@@ -2270,8 +2270,12 @@ class DependenciesStream(GitHubGraphqlStream):
             no_pagination_query = initial_query.replace(
                 " $nextPageCursor_0: String $nextPageCursor_1: String", ""
             )
-            no_pagination_query = no_pagination_query.replace("after: $nextPageCursor_0", "")
-            no_pagination_query = no_pagination_query.replace("after: $nextPageCursor_1", "")
+            no_pagination_query = no_pagination_query.replace(
+                "after: $nextPageCursor_0", ""
+            )
+            no_pagination_query = no_pagination_query.replace(
+                "after: $nextPageCursor_1", ""
+            )
             no_pagination_query = no_pagination_query.replace("first: 1", "first: 10")
             no_pagination_query = no_pagination_query.replace("first: 50", "first: 100")
 
@@ -2311,8 +2315,8 @@ class DependenciesStream(GitHubGraphqlStream):
 
 class DependenciesStreamIncomplete(DependenciesStream):
     """Defines 'DependenciesStreamDirty' stream to limit pagination."""
-    do_not_paginate = True
 
+    do_not_paginate = True
 
 
 class TrafficRestStream(GitHubRestStream):
