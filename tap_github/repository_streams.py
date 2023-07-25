@@ -2300,6 +2300,13 @@ class DependenciesStreamIncomplete(DependenciesStream):
     """Defines 'DependenciesStreamDirty' stream to limit pagination."""
     do_not_paginate = True
 
+    @property
+    def query(self) -> str:
+        """"""
+        initial_query = super().query()
+        no_pagination_query = initial_query.replace("first: 1", "first: 20")
+        no_pagination_query = no_pagination_query.replace("first: 50", "first: 100")
+        return no_pagination_query
 
 
 class TrafficRestStream(GitHubRestStream):
