@@ -334,7 +334,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         Warning - we recommend to avoid using deep (nested) pagination.
         """
 
-        if hasattr(self, 'do_not_paginate') and self.do_not_paginate:
+        if hasattr(self, "do_not_paginate") and self.do_not_paginate:
             return None
 
         resp_json = response.json()
