@@ -31,6 +31,8 @@ plugins:
       kind: array
     - name: user_ids
       kind: array
+    - name: issues_check_transfer
+      kind: array
     - name: start_date
       kind: date_iso8601
       value: '2010-01-01T00:00:00Z'
