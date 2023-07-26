@@ -50,6 +50,7 @@ from tap_github.repository_streams import (
     WorkflowsStream,
 )
 from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
+from tap_github.issue_transfer_streams import IssueTransfersStream
 
 
 class Streams(Enum):
@@ -118,6 +119,10 @@ class Streams(Enum):
     ORGANIZATIONS = (
         {"organizations"},
         [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
+    )
+    ISSUES_TRANSFER = (
+        {"issues_check_transfer"},
+        [IssueTransfersStream],
     )
 
     @classmethod
