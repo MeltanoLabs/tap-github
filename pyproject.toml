@@ -6,25 +6,18 @@ authors = ["Meltano and Meltano Community"]
 homepage = "https://github.com/MeltanoLabs/tap-github"
 repository = "https://github.com/MeltanoLabs/tap-github"
 license = "Apache 2.0"
-keywords = [
-    "Meltano",
-    "Singer",
-    "Meltano SDK",
-    "Singer SDK",
-    "ELT",
-    "Github",
-]
+keywords = ["Meltano", "Singer", "Meltano SDK", "Singer SDK", "ELT", "Github"]
 classifiers = [
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Typing :: Typed",
+	"Intended Audience :: Developers",
+	"License :: OSI Approved :: Apache Software License",
+	"Operating System :: OS Independent",
+	"Programming Language :: Python :: 3.7",
+	"Programming Language :: Python :: 3.8",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: Implementation :: CPython",
+	"Typing :: Typed",
 ]
 
 [tool.poetry.urls]
@@ -36,7 +29,8 @@ python = "<3.12,>=3.7.2"
 requests = "^2.31.0"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = "^0.30.0"
+# singer-sdk = "^0.30.0"
+singer-sdk = { git = "https://github.com/meltano/sdk.git", rev = "c3a8f90ac4d79eb5c655740d0fd88f393af7f306" }
 types-simplejson = "^3.19.0"
 types-python-dateutil = "^2.8.6"
 nested-lookup = "^0.2.25"
@@ -53,9 +47,7 @@ requests-cache = "^1.0.1"
 isort = "^5.10.1"
 
 [[tool.mypy.overrides]]
-module = [
-    "backoff",
-]
+module = ["backoff"]
 ignore_missing_imports = true
 
 [tool.black]
@@ -63,7 +55,7 @@ line-length = 88
 
 [tool.isort]
 profile = "black"
-multi_line_output = 3 # Vertical Hanging Indent
+multi_line_output = 3    # Vertical Hanging Indent
 src_paths = "tap_github"
 
 [build-system]
