@@ -2309,17 +2309,6 @@ class DependenciesStream(GitHubGraphqlStream):
 class TrafficRestStream(GitHubRestStream):
     """Base class for Traffic Streams"""
 
-    @property
-    def metadata(self):
-        """Override default selection metadata for this stream.
-
-        TODO: Remove this in favor of the recommended approach when the SDK has one.
-        """
-        result = super().metadata
-        if self._tap_input_catalog is None:
-            result.root.selected = False
-        return result
-
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         if response.status_code != 200:
             return []
@@ -2351,6 +2340,7 @@ class TrafficClonesStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.clones[*]"
+    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2375,6 +2365,7 @@ class TrafficReferralPathsStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "[*]"
+    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2400,6 +2391,7 @@ class TrafficReferrersStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "[*]"
+    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2424,6 +2416,7 @@ class TrafficPageViewsStream(TrafficRestStream):
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
     records_jsonpath = "$.views[*]"
+    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
