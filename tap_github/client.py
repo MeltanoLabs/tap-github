@@ -22,6 +22,7 @@ from tap_github.authenticator import GitHubTokenAuthenticator
 
 EMPTY_REPO_ERROR_STATUS = 409
 
+
 class GitHubRestStream(RESTStream):
     """GitHub Rest stream class."""
 
@@ -188,7 +189,9 @@ class GitHubRestStream(RESTStream):
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
         full_path = urlparse(response.url).path
-        if response.status_code in (self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]):
+        if response.status_code in (
+            self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
+        ):
             msg = (
                 f"{response.status_code} Tolerated Status Code "
                 f"(Reason: {response.reason}) for path: {full_path}"
@@ -243,7 +246,9 @@ class GitHubRestStream(RESTStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
         # TODO - Split into handle_reponse and parse_response.
-        if response.status_code in (self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]):
+        if response.status_code in (
+            self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
+        ):
             return []
 
         # Update token rate limit info and loop through tokens if needed.
