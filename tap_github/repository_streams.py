@@ -120,7 +120,9 @@ class RepositoryStream(GitHubRestStream):
                 if item == "rateLimit":
                     continue
                 try:
-                    org, repo = record[item]["nameWithOwner"].split("/")
+                    repo_full_name = "/".join(repo_list[int(item[4:])])
+                    name_with_owner = record[item]["nameWithOwner"]
+                    org, repo = name_with_owner.split("/")
                 except TypeError:
                     # one of the repos returned `None`, which means it does
                     # not exist, log some details, and move on to the next one
@@ -130,6 +132,14 @@ class RepositoryStream(GitHubRestStream):
                         "Removing it from list"
                     )
                     continue
+                # check if repo has moved or been renamed
+                if repo_full_name.lower() != name_with_owner.lower():
+                    # the repo name has changed, log some details, and move on.
+                    self.logger.info(
+                        f"Repository name changed: {repo_full_name} \t"
+                        f"New name: {name_with_owner}"
+                    )
+
                 repos_with_ids.append(
                     {"org": org, "repo": repo, "repo_id": record[item]["databaseId"]}
                 )
