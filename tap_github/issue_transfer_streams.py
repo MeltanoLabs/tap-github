@@ -24,6 +24,8 @@ class IssueTransfersStream(GitHubRestStream):
     name = "issue_transfers"
     path = "/repos/{org}/{repo}/issues/{issue_number}"
     primary_keys = ["id"]
+    # Do not fail if the issue has been transferred from a deleted repository
+    tolerated_http_errors = [404]
 
     @property
     def partitions(self) -> Optional[List[Dict]]:
