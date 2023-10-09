@@ -886,6 +886,20 @@ class IssuesStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("type", th.StringType),
+        th.Property("active_lock_reason", th.StringType),
+        th.Property("draft", th.BooleanType),
+        th.Property("state_reason", th.StringType),
+        th.Property(
+            "performed_via_github_app",
+            th.ObjectType(
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("slug", th.StringType),
+                th.Property("name", th.StringType),
+                th.Property("external_url", th.StringType),
+                th.Property("html_url", th.StringType),
+            ),
+        ),
         th.Property("user", user_object),
         th.Property(
             "labels",
@@ -1813,7 +1827,7 @@ class ProjectsStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [410] # 410 Gone - projects are disabled
+    tolerated_http_errors = [410]  # 410 Gone - projects are disabled
 
     def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
         return {
@@ -1843,7 +1857,6 @@ class ProjectsStream(GitHubRestStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
-
 
 
 class ProjectColumnsStream(GitHubRestStream):
