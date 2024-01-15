@@ -11,6 +11,7 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
+    files_object,
     label_object,
     milestone_object,
     reactions_object,
@@ -1105,6 +1106,7 @@ class CommitsStream(GitHubRestStream):
         ),
         th.Property("author", user_object),
         th.Property("committer", user_object),
+        th.Property("files", th.ArrayType(files_object)),
     ).to_dict()
 
 
