@@ -71,5 +71,5 @@ files_object = th.ObjectType(
     th.Property("raw_url", th.StringType),
     th.Property("contents_url", th.StringType),
     th.Property("patch", th.StringType),
-    th.Property("previous_filename", th.StringType)
+    th.Property("previous_filename", th.StringType),
 )
