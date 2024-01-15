@@ -59,3 +59,17 @@ reactions_object = th.ObjectType(
     th.Property("rocket", th.IntegerType),
     th.Property("eyes", th.IntegerType),
 )
+
+files_object = th.ObjectType(
+    th.Property("sha", th.StringType),
+    th.Property("filename", th.StringType),
+    th.Property("status", th.StringType),
+    th.Property("additions", th.IntegerType),
+    th.Property("deletions", th.IntegerType),
+    th.Property("changes", th.IntegerType),
+    th.Property("blob_url", th.StringType),
+    th.Property("raw_url", th.StringType),
+    th.Property("contents_url", th.StringType),
+    th.Property("patch", th.StringType),
+    th.Property("previous_filename", th.StringType)
+)
