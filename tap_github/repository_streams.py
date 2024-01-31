@@ -1106,7 +1106,6 @@ class CommitsStream(GitHubRestStream):
         ),
         th.Property("author", user_object),
         th.Property("committer", user_object),
-        th.Property("files", th.ArrayType(files_object)),
     ).to_dict()
 
 
@@ -1400,6 +1399,15 @@ class PullRequestCommits(GitHubRestStream):
                 )
             ),
         ),
+        th.Property("files", th.ArrayType(files_object)),
+        th.Property(
+            "stats",
+            th.ObjectType(
+                th.Property("additions", th.IntegerType),
+                th.Property("deletions", th.IntegerType),
+                th.Property("total", th.IntegerType)
+            )
+        )
     ).to_dict()
 
     def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
