@@ -11,6 +11,7 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
+    files_object,
     label_object,
     milestone_object,
     reactions_object,
@@ -1396,6 +1397,15 @@ class PullRequestCommits(GitHubRestStream):
                 th.ObjectType(
                     th.Property("url", th.StringType), th.Property("sha", th.StringType)
                 )
+            ),
+        ),
+        th.Property("files", th.ArrayType(files_object)),
+        th.Property(
+            "stats",
+            th.ObjectType(
+                th.Property("additions", th.IntegerType),
+                th.Property("deletions", th.IntegerType),
+                th.Property("total", th.IntegerType),
             ),
         ),
     ).to_dict()
