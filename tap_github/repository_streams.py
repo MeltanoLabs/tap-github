@@ -1405,9 +1405,9 @@ class PullRequestCommits(GitHubRestStream):
             th.ObjectType(
                 th.Property("additions", th.IntegerType),
                 th.Property("deletions", th.IntegerType),
-                th.Property("total", th.IntegerType)
-            )
-        )
+                th.Property("total", th.IntegerType),
+            ),
+        ),
     ).to_dict()
 
     def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
