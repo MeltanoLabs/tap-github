@@ -23,9 +23,6 @@ from tap_github.scraping import scrape_dependents, scrape_metrics
 class RepositoryStream(GitHubRestStream):
     """Defines 'Repository' stream."""
 
-    # Search API max: 1,000 total.
-    MAX_RESULTS_LIMIT = 1000
-
     name = "repositories"
     # updated_at will be updated any time the repository object is updated,
     # e.g. when the description or the primary language of the repository is updated.
@@ -48,6 +45,8 @@ class RepositoryStream(GitHubRestStream):
         """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
+            # Search API max: 1,000 total.
+            self.MAX_RESULTS_LIMIT = 1000
             return "/search/repositories"
         if "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
