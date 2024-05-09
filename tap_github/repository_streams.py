@@ -665,7 +665,7 @@ class ReleasesStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    replication_key = "published_at"
+    replication_key = "created_at"
 
     MAX_RESULTS_LIMIT = 10000
 
