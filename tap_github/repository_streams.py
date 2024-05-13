@@ -1019,7 +1019,7 @@ class IssueEventsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
         row = super().post_process(row, context)
-        if "issue" in row.keys():
+        if "issue" in row.keys() and row['issue'] is not None:
             row["issue_number"] = int(row["issue"].pop("number"))
             row["issue_url"] = row["issue"].pop("url")
         else:
