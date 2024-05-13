@@ -2,6 +2,7 @@
 
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
+
 import logging
 import re
 import time

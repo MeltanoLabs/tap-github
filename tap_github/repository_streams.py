@@ -11,6 +11,7 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
+    files_object,
     label_object,
     milestone_object,
     reactions_object,
@@ -21,9 +22,6 @@ from tap_github.scraping import scrape_dependents, scrape_metrics
 
 class RepositoryStream(GitHubRestStream):
     """Defines 'Repository' stream."""
-
-    # Search API max: 1,000 total.
-    MAX_RESULTS_LIMIT = 1000
 
     name = "repositories"
     # updated_at will be updated any time the repository object is updated,
@@ -47,6 +45,8 @@ class RepositoryStream(GitHubRestStream):
         """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
+            # Search API max: 1,000 total.
+            self.MAX_RESULTS_LIMIT = 1000
             return "/search/repositories"
         if "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
@@ -1412,6 +1412,15 @@ class PullRequestCommits(GitHubRestStream):
                 th.ObjectType(
                     th.Property("url", th.StringType), th.Property("sha", th.StringType)
                 )
+            ),
+        ),
+        th.Property("files", th.ArrayType(files_object)),
+        th.Property(
+            "stats",
+            th.ObjectType(
+                th.Property("additions", th.IntegerType),
+                th.Property("deletions", th.IntegerType),
+                th.Property("total", th.IntegerType),
             ),
         ),
     ).to_dict()

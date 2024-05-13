@@ -1,4 +1,5 @@
 """Tests standard tap features using the built-in SDK tests library."""
+
 import logging
 import os
 from unittest import mock

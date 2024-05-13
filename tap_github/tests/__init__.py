@@ -1,4 +1,5 @@
 """Test suite for tap-github."""
+
 import requests
 import requests_cache
 
