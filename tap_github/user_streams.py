@@ -230,7 +230,7 @@ class StarredStream(GitHubRestStream):
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("username", th.StringType),
-        th.Property("repo_id", th.StringType),
+        th.Property("repo_id", th.IntegerType),
         th.Property("user_id", th.IntegerType),
         # Starred Repo Info
         th.Property("starred_at", th.DateTimeType),
