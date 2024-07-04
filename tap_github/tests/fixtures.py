@@ -101,7 +101,7 @@ def alternative_sync_children(self, child_context: dict, no_sync: bool = True) -
         if child_stream.name == "collaborators":
             """
             The `ORG_LEVEL_TOKEN` variable is used to store an organization-level GitHub API token. This token is used when syncing the "collaborators" stream, as it requires a higher level of access than the standard user token.
-            
+
             If the `ORG_LEVEL_TOKEN` is not found in the environment, a warning is logged and the collaborators stream sync is skipped.
             """  # noqa: E501
             ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")  # noqa: N806
