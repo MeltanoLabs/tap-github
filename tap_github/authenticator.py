@@ -1,11 +1,14 @@
 """Classes to assist in authenticating to the GitHub API."""
 
+from __future__ import annotations
+
+import http
 import logging
 import time
 from datetime import datetime
 from os import environ
 from random import choice, shuffle
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import jwt
 import requests
@@ -22,12 +25,12 @@ class TokenRateLimit:
     # - not consume all available calls when we rare using an org or user token.
     DEFAULT_RATE_LIMIT_BUFFER = 1000
 
-    def __init__(self, token: str, rate_limit_buffer: Optional[int] = None):
+    def __init__(self, token: str, rate_limit_buffer: int | None = None):
         """Init TokenRateLimit info."""
         self.token = token
         self.rate_limit = self.DEFAULT_RATE_LIMIT
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
-        self.rate_limit_reset: Optional[int] = None
+        self.rate_limit_reset: int | None = None
         self.rate_limit_used = 0
         self.rate_limit_buffer = (
             rate_limit_buffer
@@ -44,17 +47,17 @@ class TokenRateLimit:
     def is_valid(self) -> bool:
         """Check if token is valid.
 
-        Returns:
+        Returns
+        -------
             True if the token is valid and has enough api calls remaining.
+
         """
         if self.rate_limit_reset is None:
             return True
-        if (
-            self.rate_limit_used > (self.rate_limit - self.rate_limit_buffer)
-            and self.rate_limit_reset > datetime.now().timestamp()
-        ):
-            return False
-        return True
+        return (
+            self.rate_limit_used <= self.rate_limit - self.rate_limit_buffer
+            or self.rate_limit_reset <= datetime.now().timestamp()
+        )
 
 
 def generate_jwt_token(
@@ -81,7 +84,7 @@ def generate_jwt_token(
 def generate_app_access_token(
     github_app_id: str,
     github_private_key: str,
-    github_installation_id: Optional[str] = None,
+    github_installation_id: str | None = None,
 ) -> str:
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
@@ -89,7 +92,8 @@ def generate_app_access_token(
 
     if github_installation_id is None:
         list_installations_resp = requests.get(
-            url="https://api.github.com/app/installations", headers=headers
+            url="https://api.github.com/app/installations",
+            headers=headers,
         )
         list_installations_resp.raise_for_status()
         list_installations = list_installations_resp.json()
@@ -99,12 +103,10 @@ def generate_app_access_token(
 
         github_installation_id = choice(list_installations)["id"]
 
-    url = "https://api.github.com/app/installations/{}/access_tokens".format(
-        github_installation_id
-    )
+    url = f"https://api.github.com/app/installations/{github_installation_id}/access_tokens"
     resp = requests.post(url, headers=headers)
 
-    if resp.status_code != 201:
+    if resp.status_code != http.HTTPStatus.CREATED:
         resp.raise_for_status()
 
     return resp.json()["token"]
@@ -113,13 +115,13 @@ def generate_app_access_token(
 class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
-    def prepare_tokens(self) -> Dict[str, TokenRateLimit]:
+    def prepare_tokens(self) -> dict[str, TokenRateLimit]:
         # Save GitHub tokens
-        available_tokens: List[str] = []
+        available_tokens: list[str] = []
         if "auth_token" in self._config:
-            available_tokens = available_tokens + [self._config["auth_token"]]
+            available_tokens += [self._config["auth_token"]]
         if "additional_auth_tokens" in self._config:
-            available_tokens = available_tokens + self._config["additional_auth_tokens"]
+            available_tokens += self._config["additional_auth_tokens"]
         else:
             # Accept multiple tokens using environment variables GITHUB_TOKEN*
             env_tokens = [
@@ -127,16 +129,16 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 for key, value in environ.items()
                 if key.startswith("GITHUB_TOKEN")
             ]
-            if len(env_tokens) > 0:
+            if env_tokens:
                 self.logger.info(
-                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
+                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication.",  # noqa: E501
                 )
                 available_tokens = env_tokens
 
         # Parse App level private key and generate a token
-        if "GITHUB_APP_PRIVATE_KEY" in environ.keys():
+        if "GITHUB_APP_PRIVATE_KEY" in environ:
             # To simplify settings, we use a single env-key formatted as follows:
-            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
+            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
             parts = environ["GITHUB_APP_PRIVATE_KEY"].split(";;")
             github_app_id = parts[0]
             github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
@@ -144,13 +146,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
             if not (github_private_key):
                 self.logger.warning(
-                    "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
-                    '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----"'
+                    "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "  # noqa: E501
+                    '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----"',  # noqa: E501
                 )
 
             else:
                 app_token = generate_app_access_token(
-                    github_app_id, github_private_key, github_installation_id or None
+                    github_app_id,
+                    github_private_key,
+                    github_installation_id or None,
                 )
                 available_tokens = available_tokens + [app_token]
 
@@ -169,11 +173,11 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 response.raise_for_status()
                 filtered_tokens.append(token)
-            except requests.exceptions.HTTPError:
+            except requests.exceptions.HTTPError:  # noqa: PERF203
                 msg = (
                     f"A token was dismissed. "
                     f"{response.status_code} Client Error: "
-                    f"{str(response.content)} (Reason: {response.reason})"
+                    f"{response.content!s} (Reason: {response.reason})"
                 )
                 self.logger.warning(msg)
 
@@ -190,14 +194,16 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         """Init authenticator.
 
         Args:
+        ----
             stream: A stream for a RESTful endpoint.
+
         """
         super().__init__(stream=stream)
         self.logger: logging.Logger = stream.logger
         self.tap_name: str = stream.tap_name
-        self._config: Dict[str, Any] = dict(stream.config)
+        self._config: dict[str, Any] = dict(stream.config)
         self.tokens_map = self.prepare_tokens()
-        self.active_token: Optional[TokenRateLimit] = (
+        self.active_token: TokenRateLimit | None = (
             choice(list(self.tokens_map.values())) if len(self.tokens_map) else None
         )
 
@@ -208,15 +214,16 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         for _, token_rate_limit in tokens_list:
             if token_rate_limit.is_valid() and current_token != token_rate_limit.token:
                 self.active_token = token_rate_limit
-                self.logger.info(f"Switching to fresh auth token")
+                self.logger.info("Switching to fresh auth token")
                 return
 
         raise RuntimeError(
-            "All GitHub tokens have hit their rate limit. Stopping here."
+            "All GitHub tokens have hit their rate limit. Stopping here.",
         )
 
     def update_rate_limit(
-        self, response_headers: requests.models.CaseInsensitiveDict
+        self,
+        response_headers: requests.models.CaseInsensitiveDict,
     ) -> None:
         # If no token or only one token is available, return early.
         if len(self.tokens_map) <= 1 or self.active_token is None:
@@ -225,13 +232,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.active_token.update_rate_limit(response_headers)
 
     @property
-    def auth_headers(self) -> Dict[str, str]:
+    def auth_headers(self) -> dict[str, str]:
         """Return a dictionary of auth headers to be applied.
 
         These will be merged with any `http_headers` specified in the stream.
 
-        Returns:
+        Returns
+        -------
             HTTP headers for authentication.
+
         """
         result = super().auth_headers
         if self.active_token:
@@ -242,6 +251,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         else:
             self.logger.info(
                 "No auth token detected. "
-                "For higher rate limits, please specify `auth_token` in config."
+                "For higher rate limits, please specify `auth_token` in config.",
             )
         return result

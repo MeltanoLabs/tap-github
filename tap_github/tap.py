@@ -1,8 +1,9 @@
 """GitHub tap class."""
 
+from __future__ import annotations
+
 import logging
 import os
-from typing import List
 
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
@@ -17,14 +18,15 @@ class TapGitHub(Tap):
     name = "tap-github"
 
     @classproperty
-    def logger(cls) -> logging.Logger:
+    def logger(cls) -> logging.Logger:  # noqa: N805
         """Get logger.
 
-        Returns:
+        Returns
+        -------
             Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
-        """
 
-        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()
+        """
+        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()  # noqa: N806
         assert (
             LOGLEVEL in logging._levelToName.values()
         ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
@@ -44,12 +46,12 @@ class TapGitHub(Tap):
         th.Property(
             "additional_auth_tokens",
             th.ArrayType(th.StringType),
-            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",
+            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",  # noqa: E501
         ),
         th.Property(
             "rate_limit_buffer",
             th.IntegerType,
-            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",
+            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",  # noqa: E501
         ),
         th.Property(
             "searches",
@@ -57,7 +59,7 @@ class TapGitHub(Tap):
                 th.ObjectType(
                     th.Property("name", th.StringType, required=True),
                     th.Property("query", th.StringType, required=True),
-                )
+                ),
             ),
         ),
         th.Property("organizations", th.ArrayType(th.StringType)),
@@ -77,9 +79,8 @@ class TapGitHub(Tap):
         ),
     ).to_dict()
 
-    def discover_streams(self) -> List[Stream]:
+    def discover_streams(self) -> list[Stream]:
         """Return a list of discovered streams for each query."""
-
         # If the config is empty, assume we are running --help or --capabilities.
         if (
             self.config
@@ -87,12 +88,12 @@ class TapGitHub(Tap):
         ):
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
-                f"{Streams.all_valid_queries()}."
+                f"{Streams.all_valid_queries()}.",
             )
         streams = []
         for stream_type in Streams:
             if (not self.config) or len(
-                stream_type.valid_queries.intersection(self.config)
+                stream_type.valid_queries.intersection(self.config),
             ) > 0:
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
