@@ -2443,14 +2443,15 @@ class TrafficPageViewsStream(TrafficRestStream):
     ).to_dict()
 
 
-class CustomPropertiesStream(RepositoryStream):
+class CustomPropertiesStream(GitHubRestStream):
     """Defines 'custom_properties' stream."""
 
     name = "custom_properties"
     path = "/repos/{org}/{repo}/properties/values"
-    primary_keys = ["property_name"]
+    primary_keys = ["repo", "org", "property_name"]
+    replication_key = None
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
 
     schema = th.PropertiesList(
