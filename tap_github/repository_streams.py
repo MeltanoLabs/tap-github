@@ -2452,7 +2452,6 @@ class CustomPropertiesStream(RepositoryStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
-    selected_by_default = True
 
     schema = th.PropertiesList(
         # Parent Keys
