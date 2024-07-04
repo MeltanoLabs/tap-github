@@ -269,7 +269,7 @@ class GitHubRestStream(RESTStream):
                 EMPTY_REPO_ERROR_STATUS,
             }
         ):
-            return []  # noqa: B901
+            return []  # type: ignore[return-value] # noqa: B901
 
         # Update token rate limit info and loop through tokens if needed.
         self.authenticator.update_rate_limit(response.headers)

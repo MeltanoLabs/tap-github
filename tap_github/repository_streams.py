@@ -354,7 +354,7 @@ class ReadmeHtmlStream(GitHubRestStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the README to yield the html response instead of an object."""
         if response.status_code in self.tolerated_http_errors:
-            return []
+            return []  # type: ignore[return-value]
 
         yield {"raw_html": response.text}
 
@@ -723,7 +723,7 @@ class LanguagesStream(GitHubRestStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""  # noqa: E501
         if response.status_code in self.tolerated_http_errors:
-            return []
+            return []  # type: ignore[return-value]
 
         languages_json = response.json()
         for key, value in languages_json.items():
@@ -1538,7 +1538,7 @@ class ContributorsStream(GitHubRestStream):
         # TODO: update this and validate_response when
         # https://github.com/meltano/sdk/pull/1754 is merged
         if response.status_code != http.HTTPStatus.OK:
-            return []
+            return []  # type: ignore[return-value]
         yield from super().parse_response(response)
 
     def validate_response(self, response: requests.Response) -> None:
@@ -2324,7 +2324,7 @@ class TrafficRestStream(GitHubRestStream):
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         if response.status_code != http.HTTPStatus.OK:
-            return []
+            return []  # type: ignore[return-value]
 
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())

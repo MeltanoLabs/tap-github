@@ -31,7 +31,7 @@ def scrape_dependents(
     # Navigate through Package toggle if present
     base_url = urlparse(response.url).hostname or "github.com"
     options = soup.find_all("a", class_="select-menu-item")
-    links = []
+    links: list[str] = []
     if len(options) > 0:
         links.extend(link["href"] for link in options)
     else:
