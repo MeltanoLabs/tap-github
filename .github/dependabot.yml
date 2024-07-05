@@ -9,8 +9,7 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-      time: 12:00
-      timezone: Etc/UTC
+      day: monday
     reviewers:
       - "edgarrmondragon"
     versioning-strategy: increase-if-necessary
@@ -25,8 +24,7 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-      time: 12:00
-      timezone: Etc/UTC
+      day: monday
     reviewers:
       - "edgarrmondragon"
     groups:
