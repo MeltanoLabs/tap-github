@@ -29,7 +29,7 @@ python = ">=3.8"
 requests = "~=2.32.3"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = { version = "~=0.32.0", python = "<4" }
+singer-sdk = { version = "~=0.38.0", python = "<4" }
 types-simplejson = "~=3.19.0"
 types-python-dateutil = "~=2.9.0"
 nested-lookup = "~=0.2.25"
