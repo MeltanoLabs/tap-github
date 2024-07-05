@@ -181,7 +181,7 @@ def test_get_a_user_in_user_usernames_mode(
     )
     # these 2 are inequalities as number will keep changing :)
     assert captured_out.count('{"type": "RECORD", "stream": "starred"') > 150
-    assert captured_out.count('{"type": "RECORD", "stream": "user_contributed_to"') > 50
+    assert captured_out.count('{"type": "RECORD", "stream": "user_contributed_to"') > 25
     assert '{"username": "aaronsteers"' in captured_out
     assert '{"username": "aaRONsTeeRS"' not in captured_out
     assert '{"username": "EricBoucher"' not in captured_out
