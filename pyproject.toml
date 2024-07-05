@@ -24,7 +24,7 @@ classifiers = [
 "Issue Tracker" = "https://github.com/MeltanoLabs/tap-github/issues"
 
 [tool.poetry.dependencies]
-PyJWT = "2.7.0"
+PyJWT = "2.8.0"
 python = ">=3.8,<3.12"
 requests = "~=2.32.3"
 # For local SDK dev:
