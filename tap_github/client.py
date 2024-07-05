@@ -164,7 +164,7 @@ class GitHubRestStream(RESTStream):
         since = self.get_starting_timestamp(context)
         since_key = "since" if not self.use_fake_since_parameter else "fake_since"
         if self.replication_key and since:
-            params[since_key] = since
+            params[since_key] = since.isoformat(sep="T")
             # Leverage conditional requests to save API quotas
             # https://github.community/t/how-does-if-modified-since-work/139627
             self._http_headers["If-modified-since"] = email.utils.format_datetime(since)
@@ -401,7 +401,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
-            params["since"] = str(since)
+            params["since"] = since.isoformat(sep="T")
 
         return params
 
