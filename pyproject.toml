@@ -31,7 +31,7 @@ requests = "~=2.32.3"
 # singer-sdk = {path = "../singer-sdk", develop = true}
 singer-sdk = "~=0.31.0"
 types-simplejson = "~=3.19.0"
-types-python-dateutil = "~=2.8.6"
+types-python-dateutil = "~=2.9.0"
 nested-lookup = "~=0.2.25"
 beautifulsoup4 = "~=4.12.0"
 
