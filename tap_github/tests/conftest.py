@@ -6,6 +6,37 @@ import pytest
 
 
 @pytest.fixture()
+def organization_list_config(request):
+    """Get a default list of organizations or pass your own by decorating your test with
+    @pytest.mark.organization_list(['MeltanoLabs', 'oviohub'])
+    """
+    marker = request.node.get_closest_marker("organization_list")
+
+    organization_list = ["MeltanoLabs"] if marker is None else marker.args[0]
+
+    return {
+        "metrics_log_level": "warning",
+        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+        "organizations": organization_list,
+        "rate_limit_buffer": 100,
+    }
+
+
+@pytest.fixture()
+def search_config():
+    return {
+        "metrics_log_level": "warning",
+        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+        "searches": [
+            {
+                "name": "tap_something",
+                "query": "tap-+language:Python",
+            },
+        ],
+    }
+
+
+@pytest.fixture()
 def repo_list_config(request):
     """Get a default list of repos or pass your own by decorating your test with
     @pytest.mark.repo_list(['org1/repo1', 'org2/repo2'])

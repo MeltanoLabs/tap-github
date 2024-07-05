@@ -12,20 +12,6 @@ sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')  # type: ignore
 
 
 @pytest.fixture()
-def search_config():
-    return {
-        "metrics_log_level": "warning",
-        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-        "searches": [
-            {
-                "name": "tap_something",
-                "query": "tap-+language:Python",
-            },
-        ],
-    }
-
-
-@pytest.fixture()
 def user_id_list_config(request):
     """Get a default list of usernames or pass your own by decorating your test with
     @pytest.mark.user_id_list(['ericboucher', 'aaronsteers'])
@@ -36,23 +22,6 @@ def user_id_list_config(request):
         "metrics_log_level": "warning",
         "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
         "user_ids": user_id_list,
-        "rate_limit_buffer": 100,
-    }
-
-
-@pytest.fixture()
-def organization_list_config(request):
-    """Get a default list of organizations or pass your own by decorating your test with
-    @pytest.mark.organization_list(['MeltanoLabs', 'oviohub'])
-    """
-    marker = request.node.get_closest_marker("organization_list")
-
-    organization_list = ["MeltanoLabs"] if marker is None else marker.args[0]
-
-    return {
-        "metrics_log_level": "warning",
-        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-        "organizations": organization_list,
         "rate_limit_buffer": 100,
     }
 
