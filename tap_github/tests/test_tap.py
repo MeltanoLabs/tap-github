@@ -58,7 +58,7 @@ def test_validate_repo_list_config(repo_list_config):
 
 
 def run_tap_with_config(
-    caps,
+    capsys: pytest.LogCaptureFixture,
     config_obj: dict,
     skip_stream: str | None,
     single_stream: str | None,
@@ -87,14 +87,14 @@ def run_tap_with_config(
         )
 
     # discard previous output to stdout (potentially from other tests)
-    caps.readouterr()
+    capsys.readouterr()
     with patch(
         "singer_sdk.streams.core.Stream._sync_children",
         alternative_sync_children,
     ):
         tap2 = TapGitHub(config=config_obj, catalog=catalog.to_dict())
         tap2.sync_all()
-    captured = caps.readouterr()
+    captured = capsys.readouterr()
     return captured.out
 
 
