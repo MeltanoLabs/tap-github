@@ -4,6 +4,7 @@ from typing import List, Set, Type
 from singer_sdk.streams.core import Stream
 
 from tap_github.organization_streams import (
+    CustomPropertiesStream,
     OrganizationStream,
     TeamMembersStream,
     TeamRolesStream,
@@ -17,7 +18,6 @@ from tap_github.repository_streams import (
     CommitsStream,
     CommunityProfileStream,
     ContributorsStream,
-    CustomPropertiesStream,
     DependenciesStream,
     DependentsStream,
     EventsStream,
@@ -75,7 +75,6 @@ class Streams(Enum):
             CommitsStream,
             CommunityProfileStream,
             ContributorsStream,
-            CustomPropertiesStream,
             DependenciesStream,
             DependentsStream,
             EventsStream,
@@ -119,7 +118,7 @@ class Streams(Enum):
     )
     ORGANIZATIONS = (
         {"organizations"},
-        [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
+        [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream, CustomPropertiesStream],
     )
 
     @classmethod
