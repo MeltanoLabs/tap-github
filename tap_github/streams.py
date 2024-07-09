@@ -119,7 +119,13 @@ class Streams(Enum):
     )
     ORGANIZATIONS = (
         {"organizations"},
-        [CustomPropertiesStream, OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
+        [
+            CustomPropertiesStream,
+            OrganizationStream,
+            TeamMembersStream,
+            TeamRolesStream,
+            TeamsStream,
+        ],
     )
 
     @classmethod
