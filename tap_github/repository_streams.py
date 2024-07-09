@@ -2441,3 +2441,26 @@ class TrafficPageViewsStream(TrafficRestStream):
         th.Property("count", th.IntegerType),
         th.Property("uniques", th.IntegerType),
     ).to_dict()
+
+
+class CustomPropertiesStream(GitHubRestStream):
+    """Defines 'custom_properties' stream."""
+
+    name = "custom_properties"
+    path = "/repos/{org}/{repo}/properties/values"
+    primary_keys = ["repo", "org", "property_name"]
+    replication_key = None
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Custom Property Keys
+        th.Property("property_name", th.StringType),
+        th.Property("value", th.StringType),
+    ).to_dict()
+
