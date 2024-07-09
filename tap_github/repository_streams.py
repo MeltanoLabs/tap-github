@@ -2463,3 +2463,4 @@ class CustomPropertiesStream(GitHubRestStream):
         th.Property("property_name", th.StringType),
         th.Property("value", th.StringType),
     ).to_dict()
+
