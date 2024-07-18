@@ -2047,6 +2047,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
         th.Property("html_url", th.StringType),
         th.Property("status", th.StringType),
         th.Property("conclusion", th.StringType),
+        th.Property("created_at", th.DateTimeType),
         th.Property("started_at", th.DateTimeType),
         th.Property("completed_at", th.DateTimeType),
         th.Property("name", th.StringType),
