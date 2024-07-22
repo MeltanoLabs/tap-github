@@ -10,13 +10,7 @@ from singer_sdk.testing import get_standard_tap_tests
 from tap_github.tap import TapGitHub
 from tap_github.utils.filter_stdout import nostdout
 
-from .fixtures import (
-    alternative_sync_chidren,
-    organization_list_config,
-    repo_list_config,
-    search_config,
-    username_list_config,
-)
+from .fixtures import alternative_sync_children
 
 
 # Run standard built-in tap tests from the SDK:
@@ -24,22 +18,22 @@ def test_standard_tap_tests_for_search_mode(search_config):
     """Run standard tap tests from the SDK."""
     tests = get_standard_tap_tests(TapGitHub, config=search_config)
     with patch(
-        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
-    ):
-        with nostdout():
-            for test in tests:
-                test()
+        "singer_sdk.streams.core.Stream._sync_children",
+        alternative_sync_children,
+    ), nostdout():
+        for test in tests:
+            test()
 
 
 def test_standard_tap_tests_for_repo_list_mode(repo_list_config):
     """Run standard tap tests from the SDK."""
     tests = get_standard_tap_tests(TapGitHub, config=repo_list_config)
     with patch(
-        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
-    ):
-        with nostdout():
-            for test in tests:
-                test()
+        "singer_sdk.streams.core.Stream._sync_children",
+        alternative_sync_children,
+    ), nostdout():
+        for test in tests:
+            test()
 
 
 def test_standard_tap_tests_for_username_list_mode(username_list_config):

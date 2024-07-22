@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 import contextlib
 import io
 import re
 import sys
-from typing import Pattern, TextIO, Union
+from typing import Pattern, TextIO
 
 
 class FilterStdOutput:
-    """Filter out stdout/sterr given a regex pattern."""
+    """Filter out stdout/stderr given a regex pattern."""
 
-    def __init__(self, stream: TextIO, re_pattern: Union[str, Pattern]):
+    def __init__(self, stream: TextIO, re_pattern: str | Pattern):  # noqa: FA100
         self.stream = stream
         self.pattern = (
             re.compile(re_pattern) if isinstance(re_pattern, str) else re_pattern
@@ -21,13 +23,12 @@ class FilterStdOutput:
     def write(self, data):
         if data == "\n" and self.triggered:
             self.triggered = False
+        elif self.pattern.search(data) is None:
+            self.stream.write(data)
+            self.stream.flush()
         else:
-            if self.pattern.search(data) is None:
-                self.stream.write(data)
-                self.stream.flush()
-            else:
-                # caught bad pattern
-                self.triggered = True
+            # caught bad pattern
+            self.triggered = True
 
     def flush(self):
         self.stream.flush()

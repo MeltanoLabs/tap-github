@@ -1,6 +1,5 @@
 """Test suite for tap-github."""
 
-import requests
 import requests_cache
 
 # Setup caching for all api calls done through `requests` in order to limit

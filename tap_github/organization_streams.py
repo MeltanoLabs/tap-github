@@ -1,6 +1,8 @@
 """User Stream types classes for tap-github."""
 
-from typing import Any, Dict, Iterable, List, Optional
+from __future__ import annotations
+
+from typing import Any, Iterable
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -16,17 +18,16 @@ class OrganizationStream(GitHubRestStream):
     path = "/orgs/{org}"
 
     @property
-    def partitions(self) -> Optional[List[Dict]]:
+    def partitions(self) -> list[dict] | None:
         return [{"org": org} for org in self.config["organizations"]]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "org": record["login"],
         }
 
-    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
-        """
-        Override the parent method to allow skipping API calls
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
+        """Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
         This allows running the tap with fewer API calls and preserving
         quota when only syncing a child stream. Without this,
@@ -63,9 +64,7 @@ class OrganizationStream(GitHubRestStream):
 
 
 class TeamsStream(GitHubRestStream):
-    """
-    API Reference: https://docs.github.com/en/rest/reference/teams#list-teams
-    """
+    """API Reference: https://docs.github.com/en/rest/reference/teams#list-teams"""
 
     name = "teams"
     primary_keys = ["id"]
@@ -74,14 +73,16 @@ class TeamsStream(GitHubRestStream):
     parent_stream_type = OrganizationStream
     state_partitioning_keys = ["org"]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         new_context = {"team_slug": record["slug"]}
-        if context:
-            return {
+        return (
+            {
                 **context,
                 **new_context,
             }
-        return new_context
+            if context
+            else new_context
+        )
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -118,9 +119,7 @@ class TeamsStream(GitHubRestStream):
 
 
 class TeamMembersStream(GitHubRestStream):
-    """
-    API Reference: https://docs.github.com/en/rest/reference/teams#list-team-members
-    """
+    """API Reference: https://docs.github.com/en/rest/reference/teams#list-team-members"""
 
     name = "team_members"
     primary_keys = ["id", "team_slug"]
@@ -129,14 +128,16 @@ class TeamMembersStream(GitHubRestStream):
     parent_stream_type = TeamsStream
     state_partitioning_keys = ["team_slug", "org"]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         new_context = {"username": record["login"]}
-        if context:
-            return {
+        return (
+            {
                 **context,
                 **new_context,
             }
-        return new_context
+            if context
+            else new_context
+        )
 
     schema = th.PropertiesList(
         # Parent keys
@@ -156,9 +157,7 @@ class TeamMembersStream(GitHubRestStream):
 
 
 class TeamRolesStream(GitHubRestStream):
-    """
-    API Reference: https://docs.github.com/en/rest/reference/teams#get-team-membership-for-a-user
-    """
+    """API Reference: https://docs.github.com/en/rest/reference/teams#get-team-membership-for-a-user"""
 
     name = "team_roles"
     path = "/orgs/{org}/teams/{team_slug}/memberships/{username}"
