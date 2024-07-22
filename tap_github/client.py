@@ -249,7 +249,7 @@ class GitHubRestStream(RESTStream):
         if response.status_code in (
             self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
         ):
-            return []
+            return
 
         # Update token rate limit info and loop through tokens if needed.
         self.authenticator.update_rate_limit(response.headers)
