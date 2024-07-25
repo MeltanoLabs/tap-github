@@ -747,7 +747,7 @@ class LanguagesStream(GitHubRestStream):
 class CollaboratorsStream(GitHubRestStream):
     name = "collaborators"
     path = "/repos/{org}/{repo}/collaborators"
-    primary_keys = ["id"]
+    primary_keys = ["id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
