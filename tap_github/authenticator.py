@@ -22,7 +22,12 @@ class TokenManager:
     # - not consume all available calls when we rare using an org or user token.
     DEFAULT_RATE_LIMIT_BUFFER = 1000
 
-    def __init__(self, token: str, rate_limit_buffer: Optional[int] = None, logger: Optional[Any] = None):
+    def __init__(
+        self,
+        token: str,
+        rate_limit_buffer: Optional[int] = None,
+        logger: Optional[Any] = None,
+    ):
         """Init TokenManager info."""
         self.token = token
         self.logger = logger
@@ -143,7 +148,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         if "auth_token" in self._config:
             personal_tokens.add(self._config["auth_token"])
         if "additional_auth_tokens" in self._config:
-            personal_tokens = personal_tokens.union(self._config["additional_auth_tokens"])
+            personal_tokens = personal_tokens.union(
+                self._config["additional_auth_tokens"]
+            )
         else:
             # Accept multiple tokens using environment variables GITHUB_TOKEN*
             env_tokens = {
@@ -159,7 +166,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         token_managers: List[TokenManager] = []
         for token in personal_tokens:
-            token_manager = TokenManager(token, rate_limit_buffer=rate_limit_buffer, logger=self.logger)
+            token_manager = TokenManager(
+                token, rate_limit_buffer=rate_limit_buffer, logger=self.logger
+            )
             if token_manager.is_valid_token():
                 token_managers.append(token_manager)
 
@@ -182,7 +191,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 app_token = generate_app_access_token(
                     github_app_id, github_private_key, github_installation_id or None
                 )
-                token_manager = TokenManager(app_token, rate_limit_buffer=rate_limit_buffer, logger=self.logger)
+                token_manager = TokenManager(
+                    app_token, rate_limit_buffer=rate_limit_buffer, logger=self.logger
+                )
                 if token_manager.is_valid_token():
                     token_managers.append(token_manager)
 
@@ -212,7 +223,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         current_token = self.active_token.token if self.active_token else ""
         shuffle(token_managers)
         for token_manager in token_managers:
-            if token_manager.has_calls_remaining() and current_token != token_manager.token:
+            if (
+                token_manager.has_calls_remaining()
+                and current_token != token_manager.token
+            ):
                 self.active_token = token_manager
                 self.logger.info(f"Switching to fresh auth token")
                 return

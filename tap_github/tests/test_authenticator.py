@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+
 import pytest
 import requests
-from unittest.mock import patch, MagicMock
+
 from tap_github.authenticator import TokenManager
 
 
-class TestTokenManager():
+class TestTokenManager:
 
     def test_default_rate_limits(self):
         token_manager = TokenManager("mytoken", rate_limit_buffer=700)
@@ -24,7 +26,7 @@ class TestTokenManager():
             "X-RateLimit-Limit": "5000",
             "X-RateLimit-Remaining": "4999",
             "X-RateLimit-Reset": "1372700873",
-            "X-RateLimit-Used": "1"
+            "X-RateLimit-Used": "1",
         }
 
         token_manager = TokenManager("mytoken")
@@ -36,7 +38,7 @@ class TestTokenManager():
         assert token_manager.rate_limit_used == 1
 
     def test_is_valid_token_successful(self):
-        with patch('requests.get') as mock_get:
+        with patch("requests.get") as mock_get:
             mock_response = mock_get.return_value
             mock_response.raise_for_status.return_value = None
 
@@ -45,17 +47,17 @@ class TestTokenManager():
             assert token_manager.is_valid_token()
             mock_get.assert_called_once_with(
                 url="https://api.github.com/rate_limit",
-                headers={"Authorization": "token validtoken"}
+                headers={"Authorization": "token validtoken"},
             )
 
     def test_is_valid_token_failure(self):
-        with patch('requests.get') as mock_get:
+        with patch("requests.get") as mock_get:
             # Setup for a failed request
             mock_response = mock_get.return_value
             mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError()
             mock_response.status_code = 401
-            mock_response.content = b'Unauthorized Access'
-            mock_response.reason = 'Unauthorized'
+            mock_response.content = b"Unauthorized Access"
+            mock_response.reason = "Unauthorized"
 
             token_manager = TokenManager("invalidtoken")
             token_manager.logger = MagicMock()
@@ -73,7 +75,7 @@ class TestTokenManager():
             "X-RateLimit-Limit": "5000",
             "X-RateLimit-Remaining": "4999",
             "X-RateLimit-Reset": "1372700873",
-            "X-RateLimit-Used": "1"
+            "X-RateLimit-Used": "1",
         }
 
         token_manager = TokenManager("mytoken")
@@ -86,7 +88,7 @@ class TestTokenManager():
             "X-RateLimit-Limit": "5000",
             "X-RateLimit-Remaining": "1",
             "X-RateLimit-Reset": "1372700873",
-            "X-RateLimit-Used": "4999"
+            "X-RateLimit-Used": "4999",
         }
 
         token_manager = TokenManager("mytoken", rate_limit_buffer=1000)
@@ -94,19 +96,19 @@ class TestTokenManager():
 
         assert token_manager.has_calls_remaining()
 
-    def test_has_calls_remaining_fails_if_few_calls_remaining_and_reset_time_not_reached(self):
+    def test_has_calls_remaining_fails_if_few_calls_remaining_and_reset_time_not_reached(
+        self,
+    ):
         mock_response_headers = {
             "X-RateLimit-Limit": "5000",
             "X-RateLimit-Remaining": "1",
-            "X-RateLimit-Reset": str(int((datetime.now() + timedelta(days=100)).timestamp())),
-            "X-RateLimit-Used": "4999"
+            "X-RateLimit-Reset": str(
+                int((datetime.now() + timedelta(days=100)).timestamp())
+            ),
+            "X-RateLimit-Used": "4999",
         }
 
         token_manager = TokenManager("mytoken", rate_limit_buffer=1000)
         token_manager.update_rate_limit(mock_response_headers)
 
         assert not token_manager.has_calls_remaining()
-
-
-
-
