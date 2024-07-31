@@ -215,7 +215,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self._config: Dict[str, Any] = dict(stream.config)
         self.token_managers = self.prepare_tokens()
         self.active_token: Optional[TokenManager] = (
-            choice(self.token_managers) if len(self.token_managers) else None
+            choice(self.token_managers) if self.token_managers else None
         )
 
     def get_next_auth_token(self) -> None:
