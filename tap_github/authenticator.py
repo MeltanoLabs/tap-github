@@ -2,9 +2,9 @@
 
 import logging
 import time
+from copy import deepcopy
 from datetime import datetime
 from os import environ
-from copy import deepcopy
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional, Set
 
