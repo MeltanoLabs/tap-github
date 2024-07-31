@@ -4,6 +4,7 @@ import logging
 import time
 from datetime import datetime
 from os import environ
+from copy import deepcopy
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional, Set
 
@@ -219,8 +220,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         )
 
     def get_next_auth_token(self) -> None:
-        token_managers = self.token_managers
         current_token = self.active_token.token if self.active_token else ""
+        token_managers = deepcopy(self.token_managers)
         shuffle(token_managers)
         for token_manager in token_managers:
             if (
