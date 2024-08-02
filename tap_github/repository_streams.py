@@ -1975,6 +1975,7 @@ class WorkflowRunsStream(GitHubRestStream):
         th.Property("head_branch", th.StringType),
         th.Property("head_sha", th.StringType),
         th.Property("run_number", th.IntegerType),
+        th.Property("run_attempt", th.IntegerType),
         th.Property("event", th.StringType),
         th.Property("status", th.StringType),
         th.Property("conclusion", th.StringType),
