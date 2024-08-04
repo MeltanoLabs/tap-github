@@ -142,7 +142,7 @@ class TestAppTokenManager:
 
     def test_generate_token_with_invalid_credentials(self):
         with patch.object(AppTokenManager, 'is_valid_token', return_value=False), \
-                patch('tap_github.authenticator.AppTokenManager.generate_app_access_token',
+                patch('tap_github.authenticator.generate_app_access_token',
                       return_value=('some_token', MagicMock())):
             token_manager = AppTokenManager('12345;;key\\ncontent;;67890')
             assert token_manager.token is None
@@ -151,7 +151,7 @@ class TestAppTokenManager:
     def test_successful_token_generation(self):
         token_time = MagicMock()
         with patch.object(AppTokenManager, 'is_valid_token', return_value=True), \
-                patch('tap_github.authenticator.AppTokenManager.generate_app_access_token',
+                patch('tap_github.authenticator.generate_app_access_token',
                       return_value=('valid_token', token_time)):
             token_manager = AppTokenManager('12345;;key\\ncontent;;67890')
             token_manager.claim_token()
@@ -224,8 +224,8 @@ class TestGitHubTokenAuthenticator:
         with patch.object(GitHubTokenAuthenticator, 'get_env',
                           return_value={'GITHUB_APP_PRIVATE_KEY': '123;;key', 'OTHER_TOKEN': 'blah'}), \
                 patch.object(AppTokenManager, 'is_valid_token', return_value=True), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
@@ -241,8 +241,8 @@ class TestGitHubTokenAuthenticator:
                           return_value={'GITHUB_TOKEN1': 'gt1', 'GITHUB_TOKENxyz': 'gt2',
                                         'GITHUB_APP_PRIVATE_KEY': '123;;key;;install_id', 'OTHER_TOKEN': 'blah'}), \
                 patch.object(TokenManager, 'is_valid_token', return_value=True), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             stream = mock_stream
             stream.config.update({
@@ -262,8 +262,8 @@ class TestGitHubTokenAuthenticator:
                           return_value={'GITHUB_TOKEN1': 'gt1', 'GITHUB_TOKENxyz': 'gt2',
                                         'GITHUB_APP_PRIVATE_KEY': '123;;key;;install_id', 'OTHER_TOKEN': 'blah'}), \
                 patch.object(TokenManager, 'is_valid_token', return_value=True), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             stream = mock_stream
             stream.config.update({
@@ -279,8 +279,8 @@ class TestGitHubTokenAuthenticator:
         with patch.object(GitHubTokenAuthenticator, 'get_env',
                           return_value={'GITHUB_TOKEN1': 'gt1', 'GITHUB_TOKENxyz': 'gt2', 'OTHER_TOKEN': 'blah'}), \
                 patch.object(TokenManager, 'is_valid_token', return_value=True), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             stream = mock_stream
             stream.config.update({
@@ -297,8 +297,8 @@ class TestGitHubTokenAuthenticator:
         with patch.object(GitHubTokenAuthenticator, 'get_env',
                           return_value={'GITHUB_TOKEN1': 'gt1', 'GITHUB_TOKENa': 'gt2', 'GITHUB_TOKENxyz': 'gt2', 'OTHER_TOKEN': 'blah'}), \
                 patch.object(TokenManager, 'is_valid_token', return_value=True), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             stream = mock_stream
             stream.config.update({
@@ -330,8 +330,8 @@ class TestGitHubTokenAuthenticator:
         with patch.object(GitHubTokenAuthenticator, 'get_env',
                           return_value={'GITHUB_APP_PRIVATE_KEY': '123;;key'}), \
                 patch.object(AppTokenManager, 'is_valid_token', return_value=False), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
@@ -343,8 +343,8 @@ class TestGitHubTokenAuthenticator:
                           return_value={'GITHUB_TOKEN1': 'gt1', 'GITHUB_APP_PRIVATE_KEY': '123;;key'}), \
                 patch.object(PersonalTokenManager, 'is_valid_token', return_value=False), \
                 patch.object(AppTokenManager, 'is_valid_token', return_value=False), \
-                patch.object(AppTokenManager, 'generate_app_access_token',
-                             return_value=('installationtoken12345', MagicMock())):
+                patch('tap_github.authenticator.generate_app_access_token',
+                      return_value=('installationtoken12345', MagicMock())):
 
             stream = mock_stream
             stream.config.update({

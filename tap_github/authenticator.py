@@ -98,7 +98,59 @@ class PersonalTokenManager(TokenManager):
         super().__init__(token, rate_limit_buffer=rate_limit_buffer, **kwargs)
 
 
+def generate_jwt_token(
+    github_app_id: str,
+    github_private_key: str,
+    expiration_time: int = 600,
+    algorithm: str = "RS256"
+) -> str:
+    actual_time = int(time.time())
 
+    payload = {
+        "iat": actual_time,
+        "exp": actual_time + expiration_time,
+        "iss": github_app_id,
+    }
+    token = jwt.encode(payload, github_private_key, algorithm=algorithm)
+
+    if isinstance(token, bytes):
+        token = token.decode("utf-8")
+
+    return token
+
+
+def generate_app_access_token(
+    github_app_id: str,
+    github_private_key: str,
+    github_installation_id: Optional[str] = None,
+) -> tuple[str, datetime]:
+    produced_at = datetime.now()
+    jwt_token = generate_jwt_token(github_app_id, github_private_key)
+
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+
+    if github_installation_id is None:
+        list_installations_resp = requests.get(
+            url="https://api.github.com/app/installations", headers=headers
+        )
+        list_installations_resp.raise_for_status()
+        list_installations = list_installations_resp.json()
+
+        if len(list_installations) == 0:
+            raise Exception(f"No installations found for app {github_app_id}.")
+
+        github_installation_id = choice(list_installations)["id"]
+
+    url = "https://api.github.com/app/installations/{}/access_tokens".format(
+        github_installation_id
+    )
+    resp = requests.post(url, headers=headers)
+
+    if resp.status_code != 201:
+        resp.raise_for_status()
+
+    expires_at = produced_at + timedelta(hours=1)
+    return resp.json()["token"], expires_at
 
 
 class AppTokenManager(TokenManager):
@@ -120,50 +172,6 @@ class AppTokenManager(TokenManager):
         self.token_expires_at: Optional[datetime] = None
         self.claim_token()
 
-    def generate_jwt_token(self, expiration_time: int = 600, algorithm: str = "RS256") -> str:
-        actual_time = int(time.time())
-
-        payload = {
-            "iat": actual_time,
-            "exp": actual_time + expiration_time,
-            "iss": self.github_app_id,
-        }
-        token = jwt.encode(payload, self.github_private_key, algorithm=algorithm)
-
-        if isinstance(token, bytes):
-            token = token.decode("utf-8")
-
-        return token
-
-    def generate_app_access_token(self) -> tuple[str, datetime]:
-        produced_at = datetime.now()
-        jwt_token = self.generate_jwt_token()
-
-        headers = {"Authorization": f"Bearer {jwt_token}"}
-
-        if self.github_installation_id is None:
-            list_installations_resp = requests.get(
-                url="https://api.github.com/app/installations", headers=headers
-            )
-            list_installations_resp.raise_for_status()
-            list_installations = list_installations_resp.json()
-
-            if len(list_installations) == 0:
-                raise Exception(f"No installations found for app {self.github_app_id}.")
-
-            self.github_installation_id = choice(list_installations)["id"]
-
-        url = "https://api.github.com/app/installations/{}/access_tokens".format(
-            self.github_installation_id
-        )
-        resp = requests.post(url, headers=headers)
-
-        if resp.status_code != 201:
-            resp.raise_for_status()
-
-        expires_at = produced_at + timedelta(hours=1)
-        return resp.json()["token"], expires_at
-
     def claim_token(self):
         """Updates the TokenManager's token and token_expires_at attributes.
 
@@ -181,7 +189,7 @@ class AppTokenManager(TokenManager):
                 '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'
             )
 
-        self.token, self.token_expires_at = self.generate_app_access_token()
+        self.token, self.token_expires_at = generate_app_access_token(self.github_app_id, self.github_private_key, self.github_installation_id)
 
         # Check if the token isn't valid.  If not, overwrite it with None
         if not self.is_valid_token():
