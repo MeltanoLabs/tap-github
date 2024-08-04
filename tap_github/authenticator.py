@@ -102,7 +102,7 @@ def generate_jwt_token(
     github_app_id: str,
     github_private_key: str,
     expiration_time: int = 600,
-    algorithm: str = "RS256"
+    algorithm: str = "RS256",
 ) -> str:
     actual_time = int(time.time())
 
@@ -189,12 +189,16 @@ class AppTokenManager(TokenManager):
                 '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'
             )
 
-        self.token, self.token_expires_at = generate_app_access_token(self.github_app_id, self.github_private_key, self.github_installation_id)
+        self.token, self.token_expires_at = generate_app_access_token(
+            self.github_app_id, self.github_private_key, self.github_installation_id
+        )
 
         # Check if the token isn't valid.  If not, overwrite it with None
         if not self.is_valid_token():
             if self.logger:
-                self.logger.warning("An app token was generated but could not be validated.")
+                self.logger.warning(
+                    "An app token was generated but could not be validated."
+                )
             self.token = None
             self.token_expires_at = None
 
@@ -226,7 +230,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 for key, value in env_dict.items()
                 if key.startswith("GITHUB_TOKEN")
             }
-
             if len(env_tokens) > 0:
                 self.logger.info(
                     f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
@@ -235,7 +238,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         token_managers: List[TokenManager] = []
         for token in personal_tokens:
-            token_manager = PersonalTokenManager(token, rate_limit_buffer=rate_limit_buffer, logger=self.logger)
+            token_manager = PersonalTokenManager(
+                token, rate_limit_buffer=rate_limit_buffer, logger=self.logger
+            )
             if token_manager.is_valid_token():
                 token_managers.append(token_manager)
 
@@ -245,11 +250,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
             env_key = env_dict["GITHUB_APP_PRIVATE_KEY"]
             try:
-                app_token_manager = AppTokenManager(env_key, rate_limit_buffer=rate_limit_buffer, logger=self.logger)
+                app_token_manager = AppTokenManager(
+                    env_key, rate_limit_buffer=rate_limit_buffer, logger=self.logger
+                )
                 if app_token_manager.is_valid_token():
                     token_managers.append(app_token_manager)
             except ValueError as e:
-                self.logger.warn(f"An error was thrown while preparing an app token: {e}")
+                self.logger.warn(
+                    f"An error was thrown while preparing an app token: {e}"
+                )
 
         self.logger.info(f"Tap will run with {len(token_managers)} auth tokens")
         return token_managers
