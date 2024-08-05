@@ -179,7 +179,8 @@ def mock_stream():
 class TestGitHubTokenAuthenticator:
 
     def test_prepare_tokens_returns_empty_if_none_found(self, mock_stream):
-        with patch("os.environ", {"GITHUB_TLJKJFDS": "gt1"}), \
+        with patch.object(GitHubTokenAuthenticator, "get_env",
+                          return_value={"GITHUB_TLJKJFDS": "gt1"}), \
                 patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
 
             auth = GitHubTokenAuthenticator(stream=mock_stream)
