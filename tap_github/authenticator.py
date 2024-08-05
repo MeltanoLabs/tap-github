@@ -6,7 +6,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from os import environ
 from random import choice, shuffle
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import jwt
 import requests
@@ -123,7 +123,7 @@ def generate_app_access_token(
     github_app_id: str,
     github_private_key: str,
     github_installation_id: Optional[str] = None,
-) -> tuple[str, datetime]:
+) -> Tuple[str, datetime]:
     produced_at = datetime.now()
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
