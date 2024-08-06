@@ -66,7 +66,7 @@ class TokenManager:
             return True
         except requests.exceptions.HTTPError:
             msg = (
-                f"A token was found to be invalid. "
+                f"A token could not be validated. "
                 f"{response.status_code} Client Error: "
                 f"{str(response.content)} (Reason: {response.reason})"
             )
@@ -243,6 +243,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             )
             if token_manager.is_valid_token():
                 token_managers.append(token_manager)
+            else:
+                logging.warn('A token was dismissed.')
 
         # Parse App level private key and generate a token
         if "GITHUB_APP_PRIVATE_KEY" in env_dict.keys():
