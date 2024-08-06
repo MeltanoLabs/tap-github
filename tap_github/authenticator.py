@@ -244,7 +244,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             if token_manager.is_valid_token():
                 token_managers.append(token_manager)
             else:
-                logging.warn('A token was dismissed.')
+                logging.warn("A token was dismissed.")
 
         # Parse App level private key and generate a token
         if "GITHUB_APP_PRIVATE_KEY" in env_dict.keys():
