@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+import re
 from singer_sdk.streams import RESTStream
 
 from tap_github.authenticator import (
@@ -137,13 +138,13 @@ class TestAppTokenManager:
             assert token_manager.github_installation_id == ""
 
     def test_initialization_with_malformed_env_key(self):
-        with pytest.raises(ValueError) as exc_info:
-            AppTokenManager("12345key\\ncontent")
-
-        assert str(exc_info.value) == (
-            "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
+        expected_error_expression = re.escape(
+            'GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is '
             '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'
         )
+        with pytest.raises(ValueError, match=expected_error_expression):
+            AppTokenManager("12345key\\ncontent")
+
 
     def test_generate_token_with_invalid_credentials(self):
         with patch.object(AppTokenManager, "is_valid_token", return_value=False), patch(
