@@ -222,17 +222,20 @@ class AppTokenManager(TokenManager):
         Returns:
             True if the token is valid and has enough api calls remaining.
         """
-        close_to_expiry = datetime.now() > self.token_expires_at - timedelta(
-            minutes=self.expiry_time_buffer
-        )
+        if self.token_expires_at is not None:
+            close_to_expiry = datetime.now() > self.token_expires_at - timedelta(
+                minutes=self.expiry_time_buffer
+            )
 
-        if close_to_expiry:
-            self.claim_token()
-            if self.token is None:
-                self.logger.warn("GitHub app token refresh failed.")
-                return False
-            else:
-                self.logger.info("GitHub app token refresh succeeded.")
+            if close_to_expiry:
+                self.claim_token()
+                if self.token is None:
+                    if self.logger:
+                        self.logger.warn("GitHub app token refresh failed.")
+                    return False
+                else:
+                    if self.logger:
+                        self.logger.info("GitHub app token refresh succeeded.")
 
         return super().has_calls_remaining()
 
