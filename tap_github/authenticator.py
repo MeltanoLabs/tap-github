@@ -47,7 +47,9 @@ class TokenManager:
     def update_rate_limit(self, response_headers: Any) -> None:
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
         self.rate_limit_remaining = int(response_headers["X-RateLimit-Remaining"])
-        self.rate_limit_reset = datetime.fromtimestamp(int(response_headers["X-RateLimit-Reset"]))
+        self.rate_limit_reset = datetime.fromtimestamp(
+            int(response_headers["X-RateLimit-Reset"])
+        )
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
 
     def is_valid_token(self) -> bool:
@@ -164,7 +166,7 @@ class AppTokenManager(TokenManager):
         env_key: str,
         rate_limit_buffer: Optional[int] = None,
         expiry_time_buffer: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         if rate_limit_buffer is None:
             rate_limit_buffer = self.DEFAULT_RATE_LIMIT_BUFFER
@@ -220,7 +222,9 @@ class AppTokenManager(TokenManager):
         Returns:
             True if the token is valid and has enough api calls remaining.
         """
-        close_to_expiry = datetime.now() > self.token_expires_at - timedelta(minutes=self.expiry_time_buffer)
+        close_to_expiry = datetime.now() > self.token_expires_at - timedelta(
+            minutes=self.expiry_time_buffer
+        )
 
         if close_to_expiry:
             self.claim_token()
@@ -284,7 +288,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             env_key = env_dict["GITHUB_APP_PRIVATE_KEY"]
             try:
                 app_token_manager = AppTokenManager(
-                    env_key, rate_limit_buffer=rate_limit_buffer, expiry_time_buffer=expiry_time_buffer, logger=self.logger
+                    env_key,
+                    rate_limit_buffer=rate_limit_buffer,
+                    expiry_time_buffer=expiry_time_buffer,
+                    logger=self.logger,
                 )
                 if app_token_manager.is_valid_token():
                     token_managers.append(app_token_manager)
