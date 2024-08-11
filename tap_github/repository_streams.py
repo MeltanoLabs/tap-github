@@ -2288,7 +2288,6 @@ class DependenciesStream(GitHubGraphqlStream):
               cost
             }
           }
-
         """
 
     schema = th.PropertiesList(
@@ -2319,6 +2318,20 @@ class DependenciesStream(GitHubGraphqlStream):
             ),
         ),
     ).to_dict()
+
+
+class DependenciesStreamIncomplete(DependenciesStream):
+    """Defines 'DependenciesStreamDirty' stream to limit pagination."""
+
+    do_not_paginate = True
+
+    @property
+    def query(self) -> str:
+        """Return altered query to limit pagination."""
+        initial_query = super().query
+        no_pagination_query = initial_query.replace("first: 1", "first: 20")
+        no_pagination_query = no_pagination_query.replace("first: 50", "first: 100")
+        return no_pagination_query
 
 
 class TrafficRestStream(GitHubRestStream):
