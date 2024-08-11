@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,7 +41,7 @@ class TestTokenManager:
 
         assert token_manager.rate_limit == 5000
         assert token_manager.rate_limit_remaining == 4999
-        assert token_manager.rate_limit_reset == datetime(2013, 7, 1, 11, 47, 53)
+        assert token_manager.rate_limit_reset == datetime(2013, 7, 1, 17, 47, 53)
         assert token_manager.rate_limit_used == 1
 
     def test_is_valid_token_successful(self):

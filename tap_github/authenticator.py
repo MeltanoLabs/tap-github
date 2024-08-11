@@ -3,7 +3,7 @@
 import logging
 import time
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -47,7 +47,7 @@ class TokenManager:
     def update_rate_limit(self, response_headers: Any) -> None:
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
         self.rate_limit_remaining = int(response_headers["X-RateLimit-Remaining"])
-        self.rate_limit_reset = datetime.fromtimestamp(
+        self.rate_limit_reset = datetime.utcfromtimestamp(
             int(response_headers["X-RateLimit-Reset"])
         )
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
