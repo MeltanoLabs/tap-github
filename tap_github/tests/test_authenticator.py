@@ -135,7 +135,7 @@ class TestAppTokenManager:
             token_manager = AppTokenManager("12345;;key\\ncontent")
             assert token_manager.github_app_id == "12345"
             assert token_manager.github_private_key == "key\ncontent"
-            assert token_manager.github_installation_id == ""
+            assert token_manager.github_installation_id is None
 
     def test_initialization_with_malformed_env_key(self):
         expected_error_expression = re.escape(
