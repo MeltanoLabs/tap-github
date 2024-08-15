@@ -1,5 +1,7 @@
 """Repository Stream types classes for tap-github."""
 
+from __future__ import annotations
+
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
@@ -29,8 +31,8 @@ class RepositoryStream(GitHubRestStream):
     replication_key = "updated_at"
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -61,7 +63,7 @@ class RepositoryStream(GitHubRestStream):
         else:
             return "$[*]"
 
-    def get_repo_ids(self, repo_list: List[Tuple[str]]) -> List[Dict[str, str]]:
+    def get_repo_ids(self, repo_list: list[tuple[str]]) -> list[dict[str, str]]:
         """Enrich the list of repos with their numeric ID from github.
 
         This helps maintain a stable id for context and bookmarks.
@@ -147,7 +149,7 @@ class RepositoryStream(GitHubRestStream):
         return repos_with_ids
 
     @property
-    def partitions(self) -> Optional[List[Dict[str, str]]]:
+    def partitions(self) -> list[dict[str, str]] | None:
         """Return a list of partitions.
 
         This is called before syncing records, we use it to fetch some additional
@@ -183,7 +185,7 @@ class RepositoryStream(GitHubRestStream):
             return [{"org": org} for org in self.config["organizations"]]
         return None
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
@@ -196,7 +198,7 @@ class RepositoryStream(GitHubRestStream):
             "repo_id": record["id"],
         }
 
-    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -472,7 +474,7 @@ class EventsStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
         Each row emitted should be a dictionary of property names to their values.
         """
@@ -482,7 +484,7 @@ class EventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         # TODO - We should think about the best approach to handle this. An alternative would be to
         # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
@@ -821,8 +823,8 @@ class IssuesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -850,7 +852,7 @@ class IssuesStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
@@ -933,7 +935,7 @@ class IssueCommentsStream(GitHubRestStream):
     # But it is too expensive on large repos and results in a lot of server errors.
     use_fake_since_parameter = True
 
-    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -944,7 +946,7 @@ class IssueCommentsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
         if row["body"] is not None:
@@ -992,7 +994,7 @@ class IssueEventsStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -1003,7 +1005,7 @@ class IssueEventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         if "issue" in row.keys():
             row["issue_number"] = int(row["issue"].pop("number"))
@@ -1045,7 +1047,7 @@ class CommitsStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a timestamp top-level field to be used as state replication key.
         It's not clear from github's API docs which time (author or committer)
@@ -1179,8 +1181,8 @@ class PullRequestsStream(GitHubRestStream):
     use_fake_since_parameter = True
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -1199,7 +1201,7 @@ class PullRequestsStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         if row["body"] is not None:
             # some pr bodies include control characters such as \x00
@@ -1216,7 +1218,7 @@ class PullRequestsStream(GitHubRestStream):
             row["reactions"]["minus_one"] = row["reactions"].pop("-1", None)
         return row
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         if context:
             return {
                 "org": context["org"],
@@ -1409,7 +1411,7 @@ class PullRequestCommits(GitHubRestStream):
         ),
     ).to_dict()
 
-    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None and "pull_number" in context:
             row["pull_number"] = context["pull_number"]
@@ -1568,8 +1570,8 @@ class AnonymousContributorsStream(GitHubRestStream):
     tolerated_http_errors = [204]
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -1625,7 +1627,7 @@ class StargazersStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1665,7 +1667,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
             "Looking for the older version? Use 'stargazers_rest'."
         )
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1674,8 +1676,8 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         return row
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         """
         Exit early if a since parameter is provided.
         """
@@ -1818,7 +1820,7 @@ class ProjectsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "project_id": record["id"],
             "repo_id": context["repo_id"] if context else None,
@@ -1857,7 +1859,7 @@ class ProjectColumnsStream(GitHubRestStream):
     parent_stream_type = ProjectsStream
     state_partitioning_keys = ["project_id", "repo", "org"]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "column_id": record["id"],
             "repo_id": context["repo_id"] if context else None,
@@ -2006,7 +2008,7 @@ class WorkflowRunsStream(GitHubRestStream):
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a child context object from the record and optional provided context.
         By default, will return context if provided and otherwise the record dict.
         Developers may override this behavior to send specific information to child
@@ -2082,8 +2084,8 @@ class WorkflowRunJobsStream(GitHubRestStream):
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         params = super().get_url_params(context, next_page_token)
         params["filter"] = "all"
         return params
@@ -2115,7 +2117,7 @@ class ExtraMetricsStream(GitHubRestStream):
         """Parse the repository main page to extract extra metrics."""
         yield from scrape_metrics(response, self.logger)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             row["repo"] = context["repo"]
@@ -2167,7 +2169,7 @@ class DependentsStream(GitHubRestStream):
         """Get the response for the first page and scrape results, potentially iterating through pages."""
         yield from scrape_dependents(response, self.logger)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         new_row = {"dependent": row}
         new_row = super().post_process(new_row, context)
         # we extract dependent_name_with_owner to be able to use it safely as a primary key,
@@ -2227,7 +2229,7 @@ class DependenciesStream(GitHubGraphqlStream):
         headers["Accept"] = "application/vnd.github.hawkgirl-preview+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a dependency_repo_id top-level field to be used as primary key.
         """

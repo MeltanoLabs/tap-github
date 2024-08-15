@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from typing import List, Set, Type
 
@@ -57,10 +59,10 @@ class Streams(Enum):
     Represents all streams our tap supports, and which queries (by username, by organization, etc.) you can use.
     """
 
-    valid_queries: Set[str]
-    streams: List[Type[Stream]]
+    valid_queries: set[str]
+    streams: list[type[Stream]]
 
-    def __init__(self, valid_queries: Set[str], streams: List[Type[Stream]]):
+    def __init__(self, valid_queries: set[str], streams: list[type[Stream]]):
         self.valid_queries = valid_queries
         self.streams = streams
 

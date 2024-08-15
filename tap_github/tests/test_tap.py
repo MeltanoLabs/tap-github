@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -58,7 +60,7 @@ def test_validate_repo_list_config(repo_list_config):
 
 
 def run_tap_with_config(
-    capsys, config_obj: dict, skip_stream: Optional[str], single_stream: Optional[str]
+    capsys, config_obj: dict, skip_stream: str | None, single_stream: str | None
 ) -> str:
     """
     Run the tap with the given config and capture stdout, optionally
