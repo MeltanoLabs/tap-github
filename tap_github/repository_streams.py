@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -486,9 +486,9 @@ class EventsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
-        # TODO - We should think about the best approach to handle this. An alternative would be to
-        # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
-        # objects to "target_". They are worth keeping, however, as they can be different from
+        # TODO - We should think about the best approach to handle this. An alternative would be to  # noqa: E501
+        # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these  # noqa: E501
+        # objects to "target_". They are worth keeping, however, as they can be different from  # noqa: E501
         # the parent stream, e.g. for fork/parent PR events.
         row["target_repo"] = row.pop("repo", None)
         row["target_org"] = row.pop("org", None)
@@ -726,7 +726,7 @@ class LanguagesStream(GitHubRestStream):
     state_partitioning_keys = ["repo", "org"]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""
+        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""  # noqa: E501
         if response.status_code in self.tolerated_http_errors:
             return
 
@@ -784,7 +784,7 @@ class CollaboratorsStream(GitHubRestStream):
 
 
 class AssigneesStream(GitHubRestStream):
-    """Defines 'Assignees' stream which returns possible assignees for issues/prs following GitHub's API convention."""
+    """Defines 'Assignees' stream which returns possible assignees for issues/prs following GitHub's API convention."""  # noqa: E501
 
     name = "assignees"
     path = "/repos/{org}/{repo}/assignees"
@@ -812,7 +812,7 @@ class AssigneesStream(GitHubRestStream):
 
 
 class IssuesStream(GitHubRestStream):
-    """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
+    """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""  # noqa: E501
 
     name = "issues"
     path = "/repos/{org}/{repo}/issues"
@@ -829,7 +829,7 @@ class IssuesStream(GitHubRestStream):
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
         # Fetch all issues and PRs, regardless of state (OPEN, CLOSED, MERGED).
-        # To exclude PRs from the issues stream, you can use the Stream Maps in the config.
+        # To exclude PRs from the issues stream, you can use the Stream Maps in the config.  # noqa: E501
         # {
         #     // ..
         #     "stream_maps": {
@@ -1548,7 +1548,7 @@ class ContributorsStream(GitHubRestStream):
             contents = response.json()
             if (
                 contents["message"]
-                == "The history or contributor list is too large to list contributors for this repository via the API."
+                == "The history or contributor list is too large to list contributors for this repository via the API."  # noqa: E501
             ):
                 self.logger.info(
                     "Skipping repo '%s'. The list of contributors is too large.",
@@ -1598,7 +1598,7 @@ class AnonymousContributorsStream(GitHubRestStream):
 
 
 class StargazersStream(GitHubRestStream):
-    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
+    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""  # noqa: E501
 
     name = "stargazers_rest"
     path = "/repos/{org}/{repo}/stargazers"
@@ -1613,7 +1613,7 @@ class StargazersStream(GitHubRestStream):
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
-            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."
+            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."  # noqa: E501
         )
 
     @property
@@ -1648,7 +1648,7 @@ class StargazersStream(GitHubRestStream):
 
 
 class StargazersGraphqlStream(GitHubGraphqlStream):
-    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""  # noqa: E501
 
     name = "stargazers"
     query_jsonpath = "$.data.repository.stargazers.edges.[*]"
@@ -1693,7 +1693,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         except IndexError:
             since = ""
 
-        # If since parameter is present, try to exit early by looking at the last "starred_at".
+        # If since parameter is present, try to exit early by looking at the last "starred_at".  # noqa: E501
         # Noting that we are traversing in DESCENDING order by STARRED_AT.
         if since:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
@@ -1708,7 +1708,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
         return """
           query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) {
             repository(name: $repo owner: $org) {
@@ -1736,7 +1736,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
               cost
             }
           }
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1762,12 +1762,12 @@ class StatsContributorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
-    # Note - these queries are expensive and the API might return an HTTP 202 if the response
+    # Note - these queries are expensive and the API might return an HTTP 202 if the response  # noqa: E501
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
     tolerated_http_errors = [202, 204]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and return an iterator of flattened contributor activity."""
+        """Parse the response and return an iterator of flattened contributor activity."""  # noqa: E501
         replacement_keys = {
             "a": "additions",
             "c": "commits",
@@ -1779,7 +1779,7 @@ class StatsContributorsStream(GitHubRestStream):
             weekly_data = contributor_activity["weeks"]
             for week in weekly_data:
                 # no need to save weeks with no contributions or author.
-                # if a user has deleted their account, GitHub may surprisingly return author: None.
+                # if a user has deleted their account, GitHub may surprisingly return author: None.  # noqa: E501
                 author = contributor_activity["author"]
                 if (sum(week[key] for key in ["a", "c", "d"]) == 0) or (author is None):
                     continue
@@ -2166,13 +2166,13 @@ class DependentsStream(GitHubRestStream):
         )
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Get the response for the first page and scrape results, potentially iterating through pages."""
+        """Get the response for the first page and scrape results, potentially iterating through pages."""  # noqa: E501
         yield from scrape_dependents(response, self.logger)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         new_row = {"dependent": row}
         new_row = super().post_process(new_row, context)
-        # we extract dependent_name_with_owner to be able to use it safely as a primary key,
+        # we extract dependent_name_with_owner to be able to use it safely as a primary key,  # noqa: E501
         # regardless of the target used.
         new_row["dependent_name_with_owner"] = row["name_with_owner"]
         return new_row
@@ -2245,8 +2245,8 @@ class DependenciesStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
-        # Due to GrapQl nested-pagination limitations, we loop through the top level dependencyGraphManifests one by one.
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
+        # Due to GrapQl nested-pagination limitations, we loop through the top level dependencyGraphManifests one by one.  # noqa: E501
         return """
           query repositoryDependencies($repo: String! $org: String! $nextPageCursor_0: String $nextPageCursor_1: String) {
             repository(name: $repo owner: $org) {
@@ -2291,7 +2291,7 @@ class DependenciesStream(GitHubGraphqlStream):
             }
           }
 
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -2337,7 +2337,7 @@ class TrafficRestStream(GitHubRestStream):
         """Allow some specific errors.
         Do not raise exceptions if the error says "Must have push access to repository"
         as we actually expect these in this stream when we don't have write permissions into it.
-        """
+        """  # noqa: E501
         if response.status_code == 403:
             contents = response.json()
             if contents["message"] == "Resource not accessible by integration":

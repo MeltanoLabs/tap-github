@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional, Union, cast
+from typing import Any, Iterable, cast
 from urllib.parse import urlparse
 
 import requests
@@ -69,7 +69,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, A
 
         if not len(repo_names) == len(stars) == len(forks):
             raise IndexError(
-                "Could not find star and fork info. Maybe the GitHub page format has changed?"
+                "Could not find star and fork info. Maybe the GitHub page format has changed?"  # noqa: E501
             )
 
         repos = [
@@ -134,7 +134,7 @@ def scrape_metrics(
     except IndexError:
         # These two items should exist. We raise an error if we could not find them.
         raise IndexError(
-            "Could not find issues or prs info. Maybe the GitHub page format has changed?"
+            "Could not find issues or prs info. Maybe the GitHub page format has changed?"  # noqa: E501
         )
 
     dependents_node = soup.find(string=used_by_regex)

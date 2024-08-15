@@ -8,7 +8,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from os import environ
 from random import choice, shuffle
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import jwt
 import requests
@@ -55,7 +55,7 @@ class TokenManager:
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
 
     def is_valid_token(self) -> bool:
-        """Try making a request with the current token. If the request succeeds return True, else False."""
+        """Try making a request with the current token. If the request succeeds return True, else False."""  # noqa: E501
         if not self.token:
             return False
 
@@ -156,7 +156,7 @@ def generate_app_access_token(
 
 
 class AppTokenManager(TokenManager):
-    """A class to store an app token's attributes and state, and handle token refreshing"""
+    """A class to store an app token's attributes and state, and handle token refreshing"""  # noqa: E501
 
     DEFAULT_RATE_LIMIT = 15000
     DEFAULT_EXPIRY_BUFFER_MINS = 10
@@ -190,7 +190,7 @@ class AppTokenManager(TokenManager):
         The outcome will be _either_ that self.token is updated to a newly claimed valid token and
         self.token_expires_at is updated to the anticipated expiry time (erring on the side of an early estimate)
         _or_ self.token and self.token_expires_at are both set to None.
-        """
+        """  # noqa: E501
         self.token = None
         self.token_expires_at = None
 
@@ -198,7 +198,7 @@ class AppTokenManager(TokenManager):
         if not self.github_app_id or not self.github_private_key:
             raise ValueError(
                 "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
-                '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'
+                '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'  # noqa: E501
             )
 
         self.token, self.token_expires_at = generate_app_access_token(
@@ -268,7 +268,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             }
             if len(env_tokens) > 0:
                 self.logger.info(
-                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."
+                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."  # noqa: E501
                 )
                 personal_tokens = personal_tokens.union(env_tokens)
 
@@ -285,7 +285,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         # Parse App level private key and generate a token
         if "GITHUB_APP_PRIVATE_KEY" in env_dict.keys():
             # To simplify settings, we use a single env-key formatted as follows:
-            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"
+            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
             env_key = env_dict["GITHUB_APP_PRIVATE_KEY"]
             try:
                 app_token_manager = AppTokenManager(
@@ -329,7 +329,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 and current_token != token_manager.token
             ):
                 self.active_token = token_manager
-                self.logger.info(f"Switching to fresh auth token")
+                self.logger.info("Switching to fresh auth token")
                 return
 
         raise RuntimeError(

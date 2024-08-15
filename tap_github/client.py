@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import collections
 import email.utils
 import inspect
 import random
-import re
 import time
 from types import FrameType
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
+from typing import Any, Iterable, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -34,7 +32,7 @@ class GitHubRestStream(RESTStream):
     LOG_REQUEST_METRIC_URLS = True
 
     # GitHub is missing the "since" parameter on a few endpoints
-    # set this parameter to True if your stream needs to navigate data in descending order
+    # set this parameter to True if your stream needs to navigate data in descending order  # noqa: E501
     # and try to exit early on its own.
     # This only has effect on streams whose `replication_key` is `updated_at`.
     use_fake_since_parameter = False
@@ -85,13 +83,13 @@ class GitHubRestStream(RESTStream):
         else:
             results = resp_json.get("items")
 
-        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.
+        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.  # noqa: E501
         if not results:
             return None
 
-        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
-        # the "since" parameter out of the box. So we use a workaround here to exit early.
-        # For such streams, we sort by descending dates (most recent first), and paginate
+        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support  # noqa: E501
+        # the "since" parameter out of the box. So we use a workaround here to exit early.  # noqa: E501
+        # For such streams, we sort by descending dates (most recent first), and paginate  # noqa: E501
         # "back in time" until we reach records before our "fake_since" parameter.
         if self.replication_key and self.use_fake_since_parameter:
             request_parameters = parse_qs(str(urlparse(response.request.url).query))
@@ -111,7 +109,7 @@ class GitHubRestStream(RESTStream):
                 else None
             )
 
-            # commit_timestamp is a constructed key which does not exist in the raw response
+            # commit_timestamp is a constructed key which does not exist in the raw response  # noqa: E501
             replication_date = (
                 results[-1][self.replication_key]
                 if self.replication_key != "commit_timestamp"
@@ -148,19 +146,19 @@ class GitHubRestStream(RESTStream):
             params["sort"] = "updated"
             params["direction"] = "desc" if self.use_fake_since_parameter else "asc"
 
-        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
-        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support  # noqa: E501
+        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.  # noqa: E501
         elif self.replication_key in ["starred_at", "created_at"]:
             params["sort"] = "created"
             params["direction"] = "desc"
 
-        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp  # noqa: E501
         elif self.replication_key == "commit_timestamp":
             params["direction"] = "desc"
 
         elif self.replication_key:
             self.logger.warning(
-                f"The replication key '{self.replication_key}' is not fully supported by this client yet."
+                f"The replication key '{self.replication_key}' is not fully supported by this client yet."  # noqa: E501
             )
 
         since = self.get_starting_timestamp(context)
@@ -204,7 +202,7 @@ class GitHubRestStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
+                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
             )
             # Retry on rate limiting
             if (
@@ -229,7 +227,7 @@ class GitHubRestStream(RESTStream):
             if (
                 response.status_code == 401
                 # if the token is invalid, we are also told about it
-                and not "bad credentials" in str(response.content).lower()
+                and "bad credentials" not in str(response.content).lower()
             ):
                 raise RetriableAPIError(msg, response)
 
@@ -241,7 +239,7 @@ class GitHubRestStream(RESTStream):
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
+                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
             )
             raise RetriableAPIError(msg, response)
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Iterable
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 

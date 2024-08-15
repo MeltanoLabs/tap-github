@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +13,11 @@ from singer_sdk.helpers import _catalog as cat_helpers
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
 
-from .fixtures import alternative_sync_chidren, repo_list_config, username_list_config
+from .fixtures import (  # noqa: F401
+    alternative_sync_chidren,
+    repo_list_config,
+    username_list_config,
+)
 
 repo_list_2 = [
     "MeltanoLabs/tap-github",
@@ -44,7 +46,7 @@ repo_list_2_ids = [
 
 
 @pytest.mark.repo_list(repo_list_2)
-def test_validate_repo_list_config(repo_list_config):
+def test_validate_repo_list_config(repo_list_config):  # noqa: F811
     """Verify that the repositories list is parsed correctly"""
     repo_list_context = [
         {
@@ -98,7 +100,9 @@ def run_tap_with_config(
 @pytest.mark.parametrize("skip_parent_streams", [False, True])
 @pytest.mark.repo_list(repo_list_2)
 def test_get_a_repository_in_repo_list_mode(
-    capsys, repo_list_config, skip_parent_streams
+    capsys,
+    repo_list_config,  # noqa: F811
+    skip_parent_streams,  # noqa: F811
 ):
     """
     Discover the catalog, and request 2 repository records.
@@ -123,7 +127,7 @@ def test_get_a_repository_in_repo_list_mode(
 
 
 @pytest.mark.repo_list(["MeltanoLabs/tap-github"])
-def test_last_state_message_is_valid(capsys, repo_list_config):
+def test_last_state_message_is_valid(capsys, repo_list_config):  # noqa: F811
     """
     Validate that the last state message is not a temporary one and contains the
     expected values for a stream with overridden state partitioning keys.
@@ -164,7 +168,9 @@ def test_last_state_message_is_valid(capsys, repo_list_config):
 @pytest.mark.parametrize("skip_parent_streams", [False, True])
 @pytest.mark.username_list(["EricBoucher", "aaRONsTeeRS"])
 def test_get_a_user_in_user_usernames_mode(
-    capsys, username_list_config, skip_parent_streams
+    capsys,
+    username_list_config,  # noqa: F811
+    skip_parent_streams,  # noqa: F811
 ):
     """
     Discover the catalog, and request 2 repository records
@@ -190,7 +196,7 @@ def test_get_a_user_in_user_usernames_mode(
 
 
 @pytest.mark.repo_list(["torvalds/linux"])
-def test_large_list_of_contributors(capsys, repo_list_config):
+def test_large_list_of_contributors(capsys, repo_list_config):  # noqa: F811
     """
     Check that the github error message for very large lists of contributors
     is handled properly (does not return any records).
