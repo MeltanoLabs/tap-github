@@ -3,6 +3,8 @@
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import time
@@ -18,8 +20,8 @@ contributors_regex = re.compile(" {3}Contributors ")
 
 
 def scrape_dependents(
-    response: requests.Response, logger: Optional[logging.Logger] = None
-) -> Iterable[Dict[str, Any]]:
+    response: requests.Response, logger: logging.Logger | None = None
+) -> Iterable[dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")
@@ -41,7 +43,7 @@ def scrape_dependents(
         yield from _scrape_dependents(f"https://{base_url}/{link}", logger)
 
 
-def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, Any]]:
+def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, Any]]:
     # Optional dependency:
     from bs4 import BeautifulSoup
 
@@ -94,7 +96,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
             url = ""
 
 
-def parse_counter(tag: Union[Tag, NavigableString, None]) -> int:
+def parse_counter(tag: Tag | NavigableString | None) -> int:
     """
     Extract a count of [issues|PR|contributors...] from an HTML tag.
     For very high numbers, we only get an approximate value as github
@@ -118,8 +120,8 @@ def parse_counter(tag: Union[Tag, NavigableString, None]) -> int:
 
 
 def scrape_metrics(
-    response: requests.Response, logger: Optional[logging.Logger] = None
-) -> Iterable[Dict[str, Any]]:
+    response: requests.Response, logger: logging.Logger | None = None
+) -> Iterable[dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")

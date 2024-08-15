@@ -1,9 +1,11 @@
 """Classes to assist in authenticating to the GitHub API."""
 
+from __future__ import annotations
+
 import logging
 import time
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -27,16 +29,16 @@ class TokenManager:
 
     def __init__(
         self,
-        token: Optional[str],
-        rate_limit_buffer: Optional[int] = None,
-        logger: Optional[Any] = None,
+        token: str | None,
+        rate_limit_buffer: int | None = None,
+        logger: Any | None = None,
     ):
         """Init TokenManager info."""
         self.token = token
         self.logger = logger
         self.rate_limit = self.DEFAULT_RATE_LIMIT
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
-        self.rate_limit_reset: Optional[datetime] = None
+        self.rate_limit_reset: datetime | None = None
         self.rate_limit_used = 0
         self.rate_limit_buffer = (
             rate_limit_buffer
@@ -95,7 +97,7 @@ class TokenManager:
 class PersonalTokenManager(TokenManager):
     """A class to store token rate limiting information."""
 
-    def __init__(self, token: str, rate_limit_buffer: Optional[int] = None, **kwargs):
+    def __init__(self, token: str, rate_limit_buffer: int | None = None, **kwargs):
         """Init PersonalTokenRateLimit info."""
         super().__init__(token, rate_limit_buffer=rate_limit_buffer, **kwargs)
 
@@ -124,8 +126,8 @@ def generate_jwt_token(
 def generate_app_access_token(
     github_app_id: str,
     github_private_key: str,
-    github_installation_id: Optional[str] = None,
-) -> Tuple[str, datetime]:
+    github_installation_id: str | None = None,
+) -> tuple[str, datetime]:
     produced_at = datetime.now()
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
@@ -143,9 +145,7 @@ def generate_app_access_token(
 
         github_installation_id = choice(list_installations)["id"]
 
-    url = "https://api.github.com/app/installations/{}/access_tokens".format(
-        github_installation_id
-    )
+    url = f"https://api.github.com/app/installations/{github_installation_id}/access_tokens"
     resp = requests.post(url, headers=headers)
 
     if resp.status_code != 201:
@@ -164,8 +164,8 @@ class AppTokenManager(TokenManager):
     def __init__(
         self,
         env_key: str,
-        rate_limit_buffer: Optional[int] = None,
-        expiry_time_buffer: Optional[int] = None,
+        rate_limit_buffer: int | None = None,
+        expiry_time_buffer: int | None = None,
         **kwargs,
     ):
         if rate_limit_buffer is None:
@@ -175,15 +175,13 @@ class AppTokenManager(TokenManager):
         parts = env_key.split(";;")
         self.github_app_id = parts[0]
         self.github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
-        self.github_installation_id: Optional[str] = (
-            parts[2] if len(parts) >= 3 else None
-        )
+        self.github_installation_id: str | None = parts[2] if len(parts) >= 3 else None
 
         if expiry_time_buffer is None:
             expiry_time_buffer = self.DEFAULT_EXPIRY_BUFFER_MINS
         self.expiry_time_buffer = expiry_time_buffer
 
-        self.token_expires_at: Optional[datetime] = None
+        self.token_expires_at: datetime | None = None
         self.claim_token()
 
     def claim_token(self):
@@ -247,14 +245,14 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
     def get_env():
         return dict(environ)
 
-    def prepare_tokens(self) -> List[TokenManager]:
+    def prepare_tokens(self) -> list[TokenManager]:
         """Prep GitHub tokens"""
 
         env_dict = self.get_env()
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
         expiry_time_buffer = self._config.get("expiry_time_buffer", None)
 
-        personal_tokens: Set[str] = set()
+        personal_tokens: set[str] = set()
         if "auth_token" in self._config:
             personal_tokens.add(self._config["auth_token"])
         if "additional_auth_tokens" in self._config:
@@ -274,7 +272,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 personal_tokens = personal_tokens.union(env_tokens)
 
-        token_managers: List[TokenManager] = []
+        token_managers: list[TokenManager] = []
         for token in personal_tokens:
             token_manager = PersonalTokenManager(
                 token, rate_limit_buffer=rate_limit_buffer, logger=self.logger
@@ -315,9 +313,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         super().__init__(stream=stream)
         self.logger: logging.Logger = stream.logger
         self.tap_name: str = stream.tap_name
-        self._config: Dict[str, Any] = dict(stream.config)
+        self._config: dict[str, Any] = dict(stream.config)
         self.token_managers = self.prepare_tokens()
-        self.active_token: Optional[TokenManager] = (
+        self.active_token: TokenManager | None = (
             choice(self.token_managers) if self.token_managers else None
         )
 
@@ -348,7 +346,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.active_token.update_rate_limit(response_headers)
 
     @property
-    def auth_headers(self) -> Dict[str, str]:
+    def auth_headers(self) -> dict[str, str]:
         """Return a dictionary of auth headers to be applied.
 
         These will be merged with any `http_headers` specified in the stream.

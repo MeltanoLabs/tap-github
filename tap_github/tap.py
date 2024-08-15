@@ -1,5 +1,7 @@
 """GitHub tap class."""
 
+from __future__ import annotations
+
 import logging
 import os
 from typing import List
@@ -77,7 +79,7 @@ class TapGitHub(Tap):
         ),
     ).to_dict()
 
-    def discover_streams(self) -> List[Stream]:
+    def discover_streams(self) -> list[Stream]:
         """Return a list of discovered streams for each query."""
 
         # If the config is empty, assume we are running --help or --capabilities.

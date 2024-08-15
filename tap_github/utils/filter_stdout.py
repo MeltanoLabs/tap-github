@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import io
 import re
@@ -8,7 +10,7 @@ from typing import Pattern, TextIO, Union
 class FilterStdOutput:
     """Filter out stdout/sterr given a regex pattern."""
 
-    def __init__(self, stream: TextIO, re_pattern: Union[str, Pattern]):
+    def __init__(self, stream: TextIO, re_pattern: str | Pattern):
         self.stream = stream
         self.pattern = (
             re.compile(re_pattern) if isinstance(re_pattern, str) else re_pattern

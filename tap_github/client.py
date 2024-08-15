@@ -1,5 +1,7 @@
 """REST client handling, including GitHubStream base class."""
 
+from __future__ import annotations
+
 import collections
 import email.utils
 import inspect
@@ -27,7 +29,7 @@ class GitHubRestStream(RESTStream):
     """GitHub Rest stream class."""
 
     MAX_PER_PAGE = 100  # GitHub's limit is 100.
-    MAX_RESULTS_LIMIT: Optional[int] = None
+    MAX_RESULTS_LIMIT: int | None = None
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
@@ -37,7 +39,7 @@ class GitHubRestStream(RESTStream):
     # This only has effect on streams whose `replication_key` is `updated_at`.
     use_fake_since_parameter = False
 
-    _authenticator: Optional[GitHubTokenAuthenticator] = None
+    _authenticator: GitHubTokenAuthenticator | None = None
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
@@ -50,19 +52,19 @@ class GitHubRestStream(RESTStream):
         return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
 
     primary_keys = ["id"]
-    replication_key: Optional[str] = None
-    tolerated_http_errors: List[int] = []
+    replication_key: str | None = None
+    tolerated_http_errors: list[int] = []
 
     @property
-    def http_headers(self) -> Dict[str, str]:
+    def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
         headers["User-Agent"] = cast(str, self.config.get("user_agent", "tap-github"))
         return headers
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         """Return a token for identifying next page or None if no more pages."""
         if (
             previous_token
@@ -135,8 +137,8 @@ class GitHubRestStream(RESTStream):
         return (previous_token or 1) + 1
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
@@ -265,7 +267,7 @@ class GitHubRestStream(RESTStream):
 
         yield from results
 
-    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
         if context is not None and "repo_id" in context:
             row["repo_id"] = context["repo_id"]
@@ -295,8 +297,8 @@ class GitHubRestStream(RESTStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: Optional[dict],
-    ) -> Dict[str, int]:
+        context: dict | None,
+    ) -> dict[str, int]:
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
 
@@ -327,8 +329,8 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         """
         Return a dict of cursors for identifying next page or None if no more pages.
 
@@ -352,7 +354,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             with_keys=True,
         )
 
-        has_next_page_indices: List[int] = []
+        has_next_page_indices: list[int] = []
         # Iterate over all the items and filter items with hasNextPage = True.
         for key, value in next_page_results.items():
             # Check if key is even then add pair to new dictionary
@@ -369,7 +371,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         # We leverage previous_token to remember the pagination cursors
         # for indices below max_pagination_index.
-        next_page_cursors: Dict[str, str] = dict()
+        next_page_cursors: dict[str, str] = dict()
         for key, value in (previous_token or {}).items():
             # Only keep pagination info for indices below max_pagination_index.
             pagination_index = int(str(key).split("_")[1])
@@ -391,8 +393,8 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         return next_page_cursors
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params = context.copy() if context else dict()
         params["per_page"] = self.MAX_PER_PAGE
@@ -409,8 +411,8 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: Optional[dict],
-    ) -> Dict[str, int]:
+        context: dict | None,
+    ) -> dict[str, int]:
         """Return the cost of the last graphql API call."""
         costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())
         # calculate_sync_cost is called before the main response parsing.

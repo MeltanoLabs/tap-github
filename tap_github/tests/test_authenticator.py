@@ -15,7 +15,6 @@ from tap_github.authenticator import (
 
 
 class TestTokenManager:
-
     def test_default_rate_limits(self):
         token_manager = TokenManager("mytoken", rate_limit_buffer=700)
 
@@ -122,7 +121,6 @@ class TestTokenManager:
 
 
 class TestAppTokenManager:
-
     def test_initialization_with_3_part_env_key(self):
         with patch.object(AppTokenManager, "claim_token", return_value=None):
             token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
@@ -305,12 +303,10 @@ def mock_stream():
 
 
 class TestGitHubTokenAuthenticator:
-
     def test_prepare_tokens_returns_empty_if_none_found(self, mock_stream):
         with patch.object(
             GitHubTokenAuthenticator, "get_env", return_value={"GITHUB_TLJKJFDS": "gt1"}
         ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
-
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
@@ -322,7 +318,6 @@ class TestGitHubTokenAuthenticator:
             "get_env",
             return_value={"OTHER_TOKEN": "blah", "NOT_THE_RIGHT_TOKEN": "meh"},
         ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
-
             stream = mock_stream
             stream.config.update({"auth_token": "gt5"})
             auth = GitHubTokenAuthenticator(stream=stream)
@@ -337,7 +332,6 @@ class TestGitHubTokenAuthenticator:
             "get_env",
             return_value={"OTHER_TOKEN": "blah", "NOT_THE_RIGHT_TOKEN": "meh"},
         ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
-
             stream = mock_stream
             stream.config.update({"additional_auth_tokens": ["gt7", "gt8", "gt9"]})
             auth = GitHubTokenAuthenticator(stream=stream)
@@ -356,7 +350,6 @@ class TestGitHubTokenAuthenticator:
                 "OTHER_TOKEN": "blah",
             },
         ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
-
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
@@ -372,7 +365,6 @@ class TestGitHubTokenAuthenticator:
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
@@ -396,7 +388,6 @@ class TestGitHubTokenAuthenticator:
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             stream = mock_stream
             stream.config.update(
                 {"auth_token": "gt5", "additional_auth_tokens": ["gt7", "gt8", "gt9"]}
@@ -429,7 +420,6 @@ class TestGitHubTokenAuthenticator:
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             stream = mock_stream
             stream.config.update(
                 {
@@ -460,7 +450,6 @@ class TestGitHubTokenAuthenticator:
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             stream = mock_stream
             stream.config.update(
                 {
@@ -488,7 +477,6 @@ class TestGitHubTokenAuthenticator:
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             stream = mock_stream
             stream.config.update({"auth_token": "gt1"})
             auth = GitHubTokenAuthenticator(stream=stream)
@@ -525,7 +513,6 @@ class TestGitHubTokenAuthenticator:
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
@@ -538,13 +525,10 @@ class TestGitHubTokenAuthenticator:
             return_value={"GITHUB_TOKEN1": "gt1", "GITHUB_APP_PRIVATE_KEY": "123;;key"},
         ), patch.object(
             PersonalTokenManager, "is_valid_token", return_value=False
-        ), patch.object(
-            AppTokenManager, "is_valid_token", return_value=False
-        ), patch(
+        ), patch.object(AppTokenManager, "is_valid_token", return_value=False), patch(
             "tap_github.authenticator.generate_app_access_token",
             return_value=("installationtoken12345", MagicMock()),
         ):
-
             stream = mock_stream
             stream.config.update(
                 {"auth_token": "gt5", "additional_auth_tokens": ["gt7", "gt8", "gt9"]}

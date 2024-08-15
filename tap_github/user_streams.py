@@ -1,5 +1,7 @@
 """User Stream types classes for tap-github."""
 
+from __future__ import annotations
+
 import re
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -25,7 +27,7 @@ class UserStream(GitHubRestStream):
             return "/user/{id}"
 
     @property
-    def partitions(self) -> Optional[List[Dict]]:
+    def partitions(self) -> list[dict] | None:
         """Return a list of partitions."""
         if "user_usernames" in self.config:
             input_user_list = self.config["user_usernames"]
@@ -48,13 +50,13 @@ class UserStream(GitHubRestStream):
             return [{"id": id} for id in self.config["user_ids"]]
         return None
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "username": record["login"],
             "user_id": record["id"],
         }
 
-    def get_user_ids(self, user_list: List[str]) -> List[Dict[str, str]]:
+    def get_user_ids(self, user_list: list[str]) -> list[dict[str, str]]:
         """Enrich the list of userse with their numeric ID from github.
 
         This helps maintain a stable id for context and bookmarks.
@@ -132,7 +134,7 @@ class UserStream(GitHubRestStream):
         self.logger.info(f"Running the tap on {len(users_with_ids)} users")
         return users_with_ids
 
-    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -218,7 +220,7 @@ class StarredStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a repo_id top-level field to be used as state replication key.
         """
