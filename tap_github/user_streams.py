@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Iterable
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -318,7 +318,7 @@ class UserContributedToStream(GitHubGraphqlStream):
               cost
             }
           }
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         th.Property("node_id", th.StringType),

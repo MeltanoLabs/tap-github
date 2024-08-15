@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import List
 
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
@@ -46,12 +45,12 @@ class TapGitHub(Tap):
         th.Property(
             "additional_auth_tokens",
             th.ArrayType(th.StringType),
-            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",
+            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",  # noqa: E501
         ),
         th.Property(
             "rate_limit_buffer",
             th.IntegerType,
-            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",
+            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",  # noqa: E501
         ),
         th.Property(
             "searches",

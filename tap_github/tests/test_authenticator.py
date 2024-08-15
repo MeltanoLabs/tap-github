@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -102,7 +102,7 @@ class TestTokenManager:
 
         assert token_manager.has_calls_remaining()
 
-    def test_has_calls_remaining_fails_if_few_calls_remaining_and_reset_time_not_reached(
+    def test_has_calls_remaining_fails_if_few_calls_remaining_and_reset_time_not_reached(  # noqa: E501
         self,
     ):
         mock_response_headers = {
@@ -138,7 +138,7 @@ class TestAppTokenManager:
     def test_initialization_with_malformed_env_key(self):
         expected_error_expression = re.escape(
             "GITHUB_APP_PRIVATE_KEY could not be parsed. The expected format is "
-            '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'
+            '":app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----"'  # noqa: E501
         )
         with pytest.raises(ValueError, match=expected_error_expression):
             AppTokenManager("12345key\\ncontent")
@@ -183,8 +183,8 @@ class TestAppTokenManager:
             token_manager.update_rate_limit(mock_response_headers)
 
             assert token_manager.has_calls_remaining()
-            # calling has_calls_remaining() will trigger the token generation function to be called again,
-            # so token_expires_at should have been reset back to the mocked unexpired_time
+            # calling has_calls_remaining() will trigger the token generation function to be called again,  # noqa: E501
+            # so token_expires_at should have been reset back to the mocked unexpired_time  # noqa: E501
             assert token_manager.token_expires_at == unexpired_time
             token_manager.logger.info.assert_called_once()
             assert (
@@ -268,7 +268,7 @@ class TestAppTokenManager:
 
             assert token_manager.has_calls_remaining()
 
-    def test_has_calls_remaining_fails_if_time_left_and_few_calls_remaining_and_reset_time_not_reached(
+    def test_has_calls_remaining_fails_if_time_left_and_few_calls_remaining_and_reset_time_not_reached(  # noqa: E501
         self,
     ):
         unexpired_time = datetime.now() + timedelta(days=1)
@@ -373,7 +373,7 @@ class TestGitHubTokenAuthenticator:
 
     def test_all_token_types(self, mock_stream):
         # Expectations:
-        # - the presence of additional_auth_tokens causes personal tokens in the environment to be ignored.
+        # - the presence of additional_auth_tokens causes personal tokens in the environment to be ignored.  # noqa: E501
         # - the other types all coexist
         with patch.object(
             GitHubTokenAuthenticator,
@@ -486,7 +486,7 @@ class TestGitHubTokenAuthenticator:
             assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt2"]
 
     def test_handle_error_if_app_key_invalid(self, mock_stream):
-        # Confirm expected behaviour if an error is raised while setting up the app token manager:
+        # Confirm expected behaviour if an error is raised while setting up the app token manager:  # noqa: E501
         # - don"t crash
         # - print the error as a warning
         # - continue with any other obtained tokens

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Set, Type
 
 from singer_sdk.streams.core import Stream
 
@@ -57,7 +56,7 @@ from tap_github.user_streams import StarredStream, UserContributedToStream, User
 class Streams(Enum):
     """
     Represents all streams our tap supports, and which queries (by username, by organization, etc.) you can use.
-    """
+    """  # noqa: E501
 
     valid_queries: set[str]
     streams: list[type[Stream]]
