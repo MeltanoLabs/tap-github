@@ -167,7 +167,9 @@ class AppTokenManager(TokenManager):
         parts = env_key.split(";;")
         self.github_app_id = parts[0]
         self.github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
-        self.github_installation_id: Optional[str] = (parts[2:3] or [""])[0]
+        self.github_installation_id: Optional[str] = (
+            parts[2] if len(parts) >= 3 else None
+        )
 
         self.token_expires_at: Optional[datetime] = None
         self.claim_token()
