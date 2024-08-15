@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,7 +41,7 @@ class TestTokenManager:
 
         assert token_manager.rate_limit == 5000
         assert token_manager.rate_limit_remaining == 4999
-        assert token_manager.rate_limit_reset == 1372700873
+        assert token_manager.rate_limit_reset == datetime(2013, 7, 1, 17, 47, 53)
         assert token_manager.rate_limit_used == 1
 
     def test_is_valid_token_successful(self):
@@ -164,6 +164,135 @@ class TestAppTokenManager:
             token_manager.claim_token()
             assert token_manager.token == "valid_token"
             assert token_manager.token_expires_at == token_time
+
+    def test_has_calls_remaining_regenerates_a_token_if_close_to_expiry(self):
+        unexpired_time = datetime.now() + timedelta(days=1)
+        expired_time = datetime.now() - timedelta(days=1)
+        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
+            "tap_github.authenticator.generate_app_access_token",
+            return_value=("valid_token", unexpired_time),
+        ):
+            mock_response_headers = {
+                "X-RateLimit-Limit": "5000",
+                "X-RateLimit-Remaining": "4999",
+                "X-RateLimit-Reset": "1372700873",
+                "X-RateLimit-Used": "1",
+            }
+
+            token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
+            token_manager.logger = MagicMock()
+            token_manager.token_expires_at = expired_time
+            token_manager.update_rate_limit(mock_response_headers)
+
+            assert token_manager.has_calls_remaining()
+            # calling has_calls_remaining() will trigger the token generation function to be called again,
+            # so token_expires_at should have been reset back to the mocked unexpired_time
+            assert token_manager.token_expires_at == unexpired_time
+            token_manager.logger.info.assert_called_once()
+            assert (
+                "GitHub app token refresh succeeded."
+                in token_manager.logger.info.call_args[0][0]
+            )
+
+    def test_has_calls_remaining_logs_warning_if_token_regeneration_fails(self):
+        unexpired_time = datetime.now() + timedelta(days=1)
+        expired_time = datetime.now() - timedelta(days=1)
+        with patch.object(
+            AppTokenManager, "is_valid_token", return_value=True
+        ) as mock_is_valid, patch(
+            "tap_github.authenticator.generate_app_access_token",
+            return_value=("valid_token", unexpired_time),
+        ):
+            mock_response_headers = {
+                "X-RateLimit-Limit": "5000",
+                "X-RateLimit-Remaining": "4999",
+                "X-RateLimit-Reset": "1372700873",
+                "X-RateLimit-Used": "1",
+            }
+
+            token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
+            token_manager.logger = MagicMock()
+            token_manager.token_expires_at = expired_time
+            token_manager.update_rate_limit(mock_response_headers)
+
+            mock_is_valid.return_value = False
+            assert not token_manager.has_calls_remaining()
+            token_manager.logger.warn.assert_called_once()
+            assert (
+                "GitHub app token refresh failed."
+                in token_manager.logger.warn.call_args[0][0]
+            )
+
+    def test_has_calls_remaining_succeeds_if_token_new_and_never_used(self):
+        unexpired_time = datetime.now() + timedelta(days=1)
+        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
+            "tap_github.authenticator.generate_app_access_token",
+            return_value=("valid_token", unexpired_time),
+        ):
+            token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
+            assert token_manager.has_calls_remaining()
+
+    def test_has_calls_remaining_succeeds_if_time_and_requests_left(self):
+        unexpired_time = datetime.now() + timedelta(days=1)
+        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
+            "tap_github.authenticator.generate_app_access_token",
+            return_value=("valid_token", unexpired_time),
+        ):
+            mock_response_headers = {
+                "X-RateLimit-Limit": "5000",
+                "X-RateLimit-Remaining": "4999",
+                "X-RateLimit-Reset": "1372700873",
+                "X-RateLimit-Used": "1",
+            }
+
+            token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
+            token_manager.update_rate_limit(mock_response_headers)
+
+            assert token_manager.has_calls_remaining()
+
+    def test_has_calls_remaining_succeeds_if_time_left_and_reset_time_reached(self):
+        unexpired_time = datetime.now() + timedelta(days=1)
+        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
+            "tap_github.authenticator.generate_app_access_token",
+            return_value=("valid_token", unexpired_time),
+        ):
+            mock_response_headers = {
+                "X-RateLimit-Limit": "5000",
+                "X-RateLimit-Remaining": "1",
+                "X-RateLimit-Reset": "1372700873",
+                "X-RateLimit-Used": "4999",
+            }
+
+            token_manager = AppTokenManager(
+                "12345;;key\\ncontent;;67890", rate_limit_buffer=1000
+            )
+            token_manager.update_rate_limit(mock_response_headers)
+
+            assert token_manager.has_calls_remaining()
+
+    def test_has_calls_remaining_fails_if_time_left_and_few_calls_remaining_and_reset_time_not_reached(
+        self,
+    ):
+        unexpired_time = datetime.now() + timedelta(days=1)
+        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
+            "tap_github.authenticator.generate_app_access_token",
+            return_value=("valid_token", unexpired_time),
+        ):
+            mock_response_headers = {
+                "X-RateLimit-Limit": "5000",
+                "X-RateLimit-Remaining": "1",
+                "X-RateLimit-Reset": str(
+                    int((datetime.now() + timedelta(days=100)).timestamp())
+                ),
+                "X-RateLimit-Used": "4999",
+            }
+
+            token_manager = AppTokenManager(
+                "12345;;key\\ncontent;;67890", rate_limit_buffer=1000
+            )
+            token_manager.update_rate_limit(mock_response_headers)
+
+        assert not token_manager.has_calls_remaining()
 
 
 @pytest.fixture

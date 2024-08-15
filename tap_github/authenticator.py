@@ -3,7 +3,7 @@
 import logging
 import time
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -36,7 +36,7 @@ class TokenManager:
         self.logger = logger
         self.rate_limit = self.DEFAULT_RATE_LIMIT
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
-        self.rate_limit_reset: Optional[int] = None
+        self.rate_limit_reset: Optional[datetime] = None
         self.rate_limit_used = 0
         self.rate_limit_buffer = (
             rate_limit_buffer
@@ -47,7 +47,9 @@ class TokenManager:
     def update_rate_limit(self, response_headers: Any) -> None:
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
         self.rate_limit_remaining = int(response_headers["X-RateLimit-Remaining"])
-        self.rate_limit_reset = int(response_headers["X-RateLimit-Reset"])
+        self.rate_limit_reset = datetime.utcfromtimestamp(
+            int(response_headers["X-RateLimit-Reset"])
+        )
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
 
     def is_valid_token(self) -> bool:
@@ -84,7 +86,7 @@ class TokenManager:
             return True
         if (
             self.rate_limit_used > (self.rate_limit - self.rate_limit_buffer)
-            and self.rate_limit_reset > datetime.now().timestamp()
+            and self.rate_limit_reset > datetime.now()
         ):
             return False
         return True
@@ -159,7 +161,13 @@ class AppTokenManager(TokenManager):
     DEFAULT_RATE_LIMIT = 15000
     DEFAULT_EXPIRY_BUFFER_MINS = 10
 
-    def __init__(self, env_key: str, rate_limit_buffer: Optional[int] = None, **kwargs):
+    def __init__(
+        self,
+        env_key: str,
+        rate_limit_buffer: Optional[int] = None,
+        expiry_time_buffer: Optional[int] = None,
+        **kwargs,
+    ):
         if rate_limit_buffer is None:
             rate_limit_buffer = self.DEFAULT_RATE_LIMIT_BUFFER
         super().__init__(None, rate_limit_buffer=rate_limit_buffer, **kwargs)
@@ -170,6 +178,10 @@ class AppTokenManager(TokenManager):
         self.github_installation_id: Optional[str] = (
             parts[2] if len(parts) >= 3 else None
         )
+
+        if expiry_time_buffer is None:
+            expiry_time_buffer = self.DEFAULT_EXPIRY_BUFFER_MINS
+        self.expiry_time_buffer = expiry_time_buffer
 
         self.token_expires_at: Optional[datetime] = None
         self.claim_token()
@@ -204,6 +216,29 @@ class AppTokenManager(TokenManager):
             self.token = None
             self.token_expires_at = None
 
+    def has_calls_remaining(self) -> bool:
+        """Check if a token has capacity to make more calls.
+
+        Returns:
+            True if the token is valid and has enough api calls remaining.
+        """
+        if self.token_expires_at is not None:
+            close_to_expiry = datetime.now() > self.token_expires_at - timedelta(
+                minutes=self.expiry_time_buffer
+            )
+
+            if close_to_expiry:
+                self.claim_token()
+                if self.token is None:
+                    if self.logger:
+                        self.logger.warn("GitHub app token refresh failed.")
+                    return False
+                else:
+                    if self.logger:
+                        self.logger.info("GitHub app token refresh succeeded.")
+
+        return super().has_calls_remaining()
+
 
 class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
@@ -217,6 +252,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         env_dict = self.get_env()
         rate_limit_buffer = self._config.get("rate_limit_buffer", None)
+        expiry_time_buffer = self._config.get("expiry_time_buffer", None)
 
         personal_tokens: Set[str] = set()
         if "auth_token" in self._config:
@@ -255,7 +291,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             env_key = env_dict["GITHUB_APP_PRIVATE_KEY"]
             try:
                 app_token_manager = AppTokenManager(
-                    env_key, rate_limit_buffer=rate_limit_buffer, logger=self.logger
+                    env_key,
+                    rate_limit_buffer=rate_limit_buffer,
+                    expiry_time_buffer=expiry_time_buffer,
+                    logger=self.logger,
                 )
                 if app_token_manager.is_valid_token():
                     token_managers.append(app_token_manager)
