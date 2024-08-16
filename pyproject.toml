@@ -81,4 +81,5 @@ select = [
 	"UP",  # pyupgrade
 	"FA",  # flake8-future-annotations
 	"SIM", # flake8-simplify
+	"RUF", # Ruff-specific rules
 ]

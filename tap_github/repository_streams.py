@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, ClassVar, Iterable
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -296,11 +296,11 @@ class ReadmeStream(GitHubRestStream):
 
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
-    primary_keys = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [404]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -339,11 +339,11 @@ class ReadmeHtmlStream(GitHubRestStream):
 
     name = "readme_html"
     path = "/repos/{org}/{repo}/readme"
-    primary_keys = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [404]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
 
     @property
     def http_headers(self) -> dict:
@@ -377,11 +377,11 @@ class CommunityProfileStream(GitHubRestStream):
 
     name = "community_profile"
     path = "/repos/{org}/{repo}/community/profile"
-    primary_keys = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [404]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -466,10 +466,10 @@ class EventsStream(GitHubRestStream):
 
     name = "events"
     path = "/repos/{org}/{repo}/events"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
@@ -629,10 +629,10 @@ class EventsStream(GitHubRestStream):
 class MilestonesStream(GitHubRestStream):
     name = "milestones"
     path = "/repos/{org}/{repo}/milestones"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
     schema = th.PropertiesList(
@@ -664,9 +664,9 @@ class ReleasesStream(GitHubRestStream):
     name = "releases"
     path = "/repos/{org}/{repo}/releases"
     ignore_parent_replication_key = True
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     replication_key = "created_at"
 
     MAX_RESULTS_LIMIT = 10000
@@ -720,10 +720,10 @@ class ReleasesStream(GitHubRestStream):
 class LanguagesStream(GitHubRestStream):
     name = "languages"
     path = "/repos/{org}/{repo}/languages"
-    primary_keys = ["repo", "org", "language_name"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "language_name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""  # noqa: E501
@@ -749,10 +749,10 @@ class LanguagesStream(GitHubRestStream):
 class CollaboratorsStream(GitHubRestStream):
     name = "collaborators"
     path = "/repos/{org}/{repo}/collaborators"
-    primary_keys = ["id", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -788,10 +788,10 @@ class AssigneesStream(GitHubRestStream):
 
     name = "assignees"
     path = "/repos/{org}/{repo}/assignees"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -816,11 +816,11 @@ class IssuesStream(GitHubRestStream):
 
     name = "issues"
     path = "/repos/{org}/{repo}/issues"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     def get_url_params(
         self, context: dict | None, next_page_token: Any | None
@@ -922,14 +922,14 @@ class IssueCommentsStream(GitHubRestStream):
 
     name = "issue_comments"
     path = "/repos/{org}/{repo}/issues/comments"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
     # FIXME: this allows the tap to continue on server-side timeouts but means
     # we have gaps in our data
-    tolerated_http_errors = [502]
+    tolerated_http_errors: ClassVar[list[int]] = [502]
 
     # GitHub is not missing the "since" parameter on this endpoint.
     # But it is too expensive on large repos and results in a lot of server errors.
@@ -986,10 +986,10 @@ class IssueEventsStream(GitHubRestStream):
 
     name = "issue_events"
     path = "/repos/{org}/{repo}/issues/events"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
@@ -1041,10 +1041,10 @@ class CommitsStream(GitHubRestStream):
 
     name = "commits"
     path = "/repos/{org}/{repo}/commits"
-    primary_keys = ["node_id"]
+    primary_keys: ClassVar[list[str]] = ["node_id"]
     replication_key = "commit_timestamp"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
@@ -1113,10 +1113,10 @@ class CommitsStream(GitHubRestStream):
 class CommitCommentsStream(GitHubRestStream):
     name = "commit_comments"
     path = "/repos/{org}/{repo}/comments"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
     schema = th.PropertiesList(
@@ -1146,10 +1146,10 @@ class LabelsStream(GitHubRestStream):
 
     name = "labels"
     path = "/repos/{org}/{repo}/labels"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1172,11 +1172,11 @@ class PullRequestsStream(GitHubRestStream):
 
     name = "pull_requests"
     path = "/repos/{org}/{repo}/pulls"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
@@ -1334,9 +1334,9 @@ class PullRequestCommits(GitHubRestStream):
     name = "pull_request_commits"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
     ignore_parent_replication_key = False
-    primary_keys = ["node_id"]
+    primary_keys: ClassVar[list[str]] = ["node_id"]
     parent_stream_type = PullRequestsStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1421,10 +1421,10 @@ class PullRequestCommits(GitHubRestStream):
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1458,10 +1458,10 @@ class ReviewsStream(GitHubRestStream):
 class ReviewCommentsStream(GitHubRestStream):
     name = "review_comments"
     path = "/repos/{org}/{repo}/pulls/comments"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1511,11 +1511,11 @@ class ContributorsStream(GitHubRestStream):
 
     name = "contributors"
     path = "/repos/{org}/{repo}/contributors"
-    primary_keys = ["node_id", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["node_id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [204]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [204]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1563,11 +1563,11 @@ class AnonymousContributorsStream(GitHubRestStream):
 
     name = "anonymous_contributors"
     path = "/repos/{org}/{repo}/contributors"
-    primary_keys = ["email", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["email", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [204]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [204]
 
     def get_url_params(
         self, context: dict | None, next_page_token: Any | None
@@ -1602,9 +1602,9 @@ class StargazersStream(GitHubRestStream):
 
     name = "stargazers_rest"
     path = "/repos/{org}/{repo}/stargazers"
-    primary_keys = ["user_id", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["user_id", "repo", "org"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     replication_key = "starred_at"
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
@@ -1652,10 +1652,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 
     name = "stargazers"
     query_jsonpath = "$.data.repository.stargazers.edges.[*]"
-    primary_keys = ["user_id", "repo_id"]
+    primary_keys: ClassVar[list[str]] = ["user_id", "repo_id"]
     replication_key = "starred_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
     ignore_parent_replication_key = False
 
@@ -1758,13 +1758,13 @@ class StatsContributorsStream(GitHubRestStream):
 
     name = "stats_contributors"
     path = "/repos/{org}/{repo}/stats/contributors"
-    primary_keys = ["user_id", "week_start", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["user_id", "week_start", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     # Note - these queries are expensive and the API might return an HTTP 202 if the response  # noqa: E501
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
-    tolerated_http_errors = [202, 204]
+    tolerated_http_errors: ClassVar[list[int]] = [202, 204]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of flattened contributor activity."""  # noqa: E501
@@ -1816,9 +1816,9 @@ class ProjectsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/projects"
     ignore_parent_replication_key = True
     replication_key = "updated_at"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
@@ -1855,9 +1855,9 @@ class ProjectColumnsStream(GitHubRestStream):
     path = "/projects/{project_id}/columns"
     ignore_parent_replication_key = True
     replication_key = "updated_at"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = ProjectsStream
-    state_partitioning_keys = ["project_id", "repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["project_id", "repo", "org"]
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
@@ -1890,9 +1890,9 @@ class ProjectCardsStream(GitHubRestStream):
     path = "/projects/columns/{column_id}/cards"
     ignore_parent_replication_key = True
     replication_key = "updated_at"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = ProjectColumnsStream
-    state_partitioning_keys = ["project_id", "repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["project_id", "repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1923,11 +1923,11 @@ class WorkflowsStream(GitHubRestStream):
 
     name = "workflows"
     path = "/repos/{org}/{repo}/actions/workflows"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.workflows[*]"
 
     schema = th.PropertiesList(
@@ -1958,11 +1958,11 @@ class WorkflowRunsStream(GitHubRestStream):
 
     name = "workflow_runs"
     path = "/repos/{org}/{repo}/actions/runs"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.workflow_runs[*]"
 
     schema = th.PropertiesList(
@@ -2029,10 +2029,10 @@ class WorkflowRunJobsStream(GitHubRestStream):
 
     name = "workflow_run_jobs"
     path = "/repos/{org}/{repo}/actions/runs/{run_id}/jobs"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = WorkflowRunsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org", "run_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "run_id"]
     records_jsonpath = "$.jobs[*]"
 
     schema = th.PropertiesList(
@@ -2102,10 +2102,10 @@ class ExtraMetricsStream(GitHubRestStream):
 
     name = "extra_metrics"
     path = "/{org}/{repo}/"
-    primary_keys = ["repo_id"]
+    primary_keys: ClassVar[list[str]] = ["repo_id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
 
     @property
     def url_base(self) -> str:
@@ -2154,10 +2154,10 @@ class DependentsStream(GitHubRestStream):
 
     name = "dependents"
     path = "/{org}/{repo}/network/dependents"
-    primary_keys = ["repo_id", "dependent_name_with_owner"]
+    primary_keys: ClassVar[list[str]] = ["repo_id", "dependent_name_with_owner"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
 
     @property
     def url_base(self) -> str:
@@ -2214,9 +2214,14 @@ class DependenciesStream(GitHubGraphqlStream):
     # of a given repo. We use package_name instead of dependency_repo_id because
     # the latter changes as github's resolution improves, which would lead to invalid
     # duplicate values
-    primary_keys = ["repo_id", "package_name", "package_manager", "requirements"]
+    primary_keys: ClassVar[list[str]] = [
+        "repo_id",
+        "package_name",
+        "package_manager",
+        "requirements",
+    ]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True
 
     @property
@@ -2351,11 +2356,11 @@ class TrafficClonesStream(TrafficRestStream):
 
     name = "traffic_clones"
     path = "/repos/{org}/{repo}/traffic/clones"
-    primary_keys = ["repo", "org", "timestamp"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "timestamp"]
     replication_key = "timestamp"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.clones[*]"
     selected_by_default = False
 
@@ -2376,11 +2381,11 @@ class TrafficReferralPathsStream(TrafficRestStream):
 
     name = "traffic_referral_paths"
     path = "/repos/{org}/{repo}/traffic/popular/paths"
-    primary_keys = ["repo", "org", "path"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "path"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "[*]"
     selected_by_default = False
 
@@ -2402,11 +2407,11 @@ class TrafficReferrersStream(TrafficRestStream):
 
     name = "traffic_referrers"
     path = "/repos/{org}/{repo}/traffic/popular/referrers"
-    primary_keys = ["repo", "org", "referrer"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "referrer"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "[*]"
     selected_by_default = False
 
@@ -2427,11 +2432,11 @@ class TrafficPageViewsStream(TrafficRestStream):
 
     name = "traffic_pageviews"
     path = "/repos/{org}/{repo}/traffic/views"
-    primary_keys = ["repo", "org", "timestamp"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "timestamp"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.views[*]"
     selected_by_default = False
 

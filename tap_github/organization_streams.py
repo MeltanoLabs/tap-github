@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, ClassVar, Iterable
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
@@ -70,11 +70,11 @@ class TeamsStream(GitHubRestStream):
     """
 
     name = "teams"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     path = "/orgs/{org}/teams"
     ignore_parent_replication_key = True
     parent_stream_type = OrganizationStream
-    state_partitioning_keys = ["org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["org"]
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         new_context = {"team_slug": record["slug"]}
@@ -125,11 +125,11 @@ class TeamMembersStream(GitHubRestStream):
     """
 
     name = "team_members"
-    primary_keys = ["id", "team_slug"]
+    primary_keys: ClassVar[list[str]] = ["id", "team_slug"]
     path = "/orgs/{org}/teams/{team_slug}/members"
     ignore_parent_replication_key = True
     parent_stream_type = TeamsStream
-    state_partitioning_keys = ["team_slug", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["team_slug", "org"]
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         new_context = {"username": record["login"]}
@@ -165,9 +165,9 @@ class TeamRolesStream(GitHubRestStream):
     name = "team_roles"
     path = "/orgs/{org}/teams/{team_slug}/memberships/{username}"
     ignore_parent_replication_key = True
-    primary_keys = ["url"]
+    primary_keys: ClassVar[list[str]] = ["url"]
     parent_stream_type = TeamMembersStream
-    state_partitioning_keys = ["username", "team_slug", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["username", "team_slug", "org"]
 
     schema = th.PropertiesList(
         # Parent keys

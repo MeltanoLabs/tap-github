@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from typing import Any, ClassVar, Iterable
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -200,10 +200,10 @@ class StarredStream(GitHubRestStream):
     name = "starred"
     path = "/users/{username}/starred"
     # "repo_id" is the starred repo's id.
-    primary_keys = ["repo_id", "username"]
+    primary_keys: ClassVar[list[str]] = ["repo_id", "username"]
     parent_stream_type = UserStream
     # TODO - change partitioning key to user_id?
-    state_partitioning_keys = ["username"]
+    state_partitioning_keys: ClassVar[list[str]] = ["username"]
     replication_key = "starred_at"
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
@@ -278,12 +278,12 @@ class UserContributedToStream(GitHubGraphqlStream):
 
     name = "user_contributed_to"
     query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"
-    primary_keys = ["username", "name_with_owner"]
+    primary_keys: ClassVar[list[str]] = ["username", "name_with_owner"]
     replication_key = None
     parent_stream_type = UserStream
     # TODO - add user_id to schema
     # TODO - change partitioning key to user_id?
-    state_partitioning_keys = ["username"]
+    state_partitioning_keys: ClassVar[list[str]] = ["username"]
     ignore_parent_replication_key = True
 
     @property

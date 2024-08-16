@@ -72,7 +72,7 @@ class TokenManager:
             msg = (
                 f"A token could not be validated. "
                 f"{response.status_code} Client Error: "
-                f"{str(response.content)} (Reason: {response.reason})"
+                f"{response.content!s} (Reason: {response.reason})"
             )
             if self.logger is not None:
                 self.logger.warning(msg)
