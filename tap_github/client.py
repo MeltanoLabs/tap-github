@@ -7,7 +7,7 @@ import inspect
 import random
 import time
 from types import FrameType
-from typing import Any, Iterable, cast
+from typing import Any, ClassVar, Iterable, cast
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -49,9 +49,9 @@ class GitHubRestStream(RESTStream):
     def url_base(self) -> str:
         return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
 
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key: str | None = None
-    tolerated_http_errors: list[int] = []
+    tolerated_http_errors: ClassVar[list[int]] = []
 
     @property
     def http_headers(self) -> dict[str, str]:
@@ -187,7 +187,7 @@ class GitHubRestStream(RESTStream):
         """
         full_path = urlparse(response.url).path
         if response.status_code in (
-            self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
+            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
         ):
             msg = (
                 f"{response.status_code} Tolerated Status Code "
@@ -199,7 +199,7 @@ class GitHubRestStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
+                f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
             )
             # Retry on rate limiting
             if (
@@ -236,7 +236,7 @@ class GitHubRestStream(RESTStream):
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
+                f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
             )
             raise RetriableAPIError(msg, response)
 
@@ -244,7 +244,7 @@ class GitHubRestStream(RESTStream):
         """Parse the response and return an iterator of result rows."""
         # TODO - Split into handle_reponse and parse_response.
         if response.status_code in (
-            self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
+            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
         ):
             return
 

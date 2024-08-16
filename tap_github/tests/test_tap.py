@@ -102,7 +102,7 @@ def run_tap_with_config(
 def test_get_a_repository_in_repo_list_mode(
     capsys,
     repo_list_config,  # noqa: F811
-    skip_parent_streams,  # noqa: F811
+    skip_parent_streams,
 ):
     """
     Discover the catalog, and request 2 repository records.
@@ -170,7 +170,7 @@ def test_last_state_message_is_valid(capsys, repo_list_config):  # noqa: F811
 def test_get_a_user_in_user_usernames_mode(
     capsys,
     username_list_config,  # noqa: F811
-    skip_parent_streams,  # noqa: F811
+    skip_parent_streams,
 ):
     """
     Discover the catalog, and request 2 repository records
