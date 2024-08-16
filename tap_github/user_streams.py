@@ -105,7 +105,7 @@ class UserStream(GitHubRestStream):
         # Also remove repos which do not exist to avoid crashing further down
         # the line.
         for record in temp_stream.request_records({}):
-            for item in record.keys():
+            for item in record:
                 if item == "rateLimit":
                     continue
                 try:

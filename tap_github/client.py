@@ -74,14 +74,11 @@ class GitHubRestStream(RESTStream):
             return None
 
         # Leverage header links returned by the GitHub API.
-        if "next" not in response.links.keys():
+        if "next" not in response.links:
             return None
 
         resp_json = response.json()
-        if isinstance(resp_json, list):
-            results = resp_json
-        else:
-            results = resp_json.get("items")
+        results = resp_json if isinstance(resp_json, list) else resp_json.get("items")
 
         # Exit early if the response has no items. ? Maybe duplicative the "next" link check.  # noqa: E501
         if not results:
