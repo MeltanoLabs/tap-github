@@ -52,10 +52,7 @@ def username_list_config(request):
     @pytest.mark.username_list(['ericboucher', 'aaronsteers'])
     """
     marker = request.node.get_closest_marker("username_list")
-    if marker is None:
-        username_list = ["ericboucher", "aaronsteers"]
-    else:
-        username_list = marker.args[0]
+    username_list = ["ericboucher", "aaronsteers"] if marker is None else marker.args[0]
 
     return {
         "metrics_log_level": "warning",
@@ -72,10 +69,7 @@ def user_id_list_config(request):
     @pytest.mark.user_id_list(['ericboucher', 'aaronsteers'])
     """
     marker = request.node.get_closest_marker("user_id_list")
-    if marker is None:
-        user_id_list = [1, 2]
-    else:
-        user_id_list = marker.args[0]
+    user_id_list = [1, 2] if marker is None else marker.args[0]
 
     return {
         "metrics_log_level": "warning",

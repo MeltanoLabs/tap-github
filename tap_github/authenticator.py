@@ -86,12 +86,10 @@ class TokenManager:
         """
         if self.rate_limit_reset is None:
             return True
-        if (
-            self.rate_limit_used > (self.rate_limit - self.rate_limit_buffer)
-            and self.rate_limit_reset > datetime.now()
-        ):
-            return False
-        return True
+        return (
+            self.rate_limit_used <= (self.rate_limit - self.rate_limit_buffer)
+            or self.rate_limit_reset <= datetime.now()
+        )
 
 
 class PersonalTokenManager(TokenManager):
@@ -283,7 +281,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 logging.warn("A token was dismissed.")
 
         # Parse App level private key and generate a token
-        if "GITHUB_APP_PRIVATE_KEY" in env_dict.keys():
+        if "GITHUB_APP_PRIVATE_KEY" in env_dict:
             # To simplify settings, we use a single env-key formatted as follows:
             # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
             env_key = env_dict["GITHUB_APP_PRIVATE_KEY"]

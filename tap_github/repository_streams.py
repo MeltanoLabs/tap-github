@@ -118,7 +118,7 @@ class RepositoryStream(GitHubRestStream):
         # Also remove repos which do not exist to avoid crashing further down
         # the line.
         for record in temp_stream.request_records({}):
-            for item in record.keys():
+            for item in record:
                 if item == "rateLimit":
                     continue
                 try:
@@ -1007,7 +1007,7 @@ class IssueEventsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
-        if "issue" in row.keys():
+        if "issue" in row:
             row["issue_number"] = int(row["issue"].pop("number"))
             row["issue_url"] = row["issue"].pop("url")
         else:

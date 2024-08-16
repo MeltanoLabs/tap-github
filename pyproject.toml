@@ -74,10 +74,11 @@ markers = [
 [tool.ruff.lint]
 ignore = []
 select = [
-	"F",  # Pyflakes
-	"E",  # pycodestyle (errors)
-	"W",  # pycodestyle (warnings)
-	"I",  # isort
-	"UP", # pyupgrade
-	"FA", # flake8-future-annotations
+	"F",   # Pyflakes
+	"E",   # pycodestyle (errors)
+	"W",   # pycodestyle (warnings)
+	"I",   # isort
+	"UP",  # pyupgrade
+	"FA",  # flake8-future-annotations
+	"SIM", # flake8-simplify
 ]
