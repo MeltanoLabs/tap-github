@@ -635,6 +635,16 @@ class MilestonesStream(GitHubRestStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
+    def get_url_params(
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
+        params = super().get_url_params(context, next_page_token)
+        # Fetch all milestones, regardless of state (open, closed).
+        params["state"] = "all"
+        return params
+
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
