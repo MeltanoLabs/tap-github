@@ -901,6 +901,7 @@ class IssuesStream(GitHubRestStream):
             ),
         ),
         th.Property("user", user_object),
+        th.Property("closed_by", user_object),
         th.Property(
             "labels",
             th.ArrayType(label_object),
