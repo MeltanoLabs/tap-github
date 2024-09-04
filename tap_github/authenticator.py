@@ -357,16 +357,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             HTTP headers for authentication.
         """
         result = super().auth_headers
-
-        if self.last_private_key_token_refresh is not None:
-            # Refresh token once every 30 minutes if we have a private key
-            if (
-                datetime.now() - self.last_private_key_token_refresh
-            ).total_seconds() > 1800:
-                new_token = self.refresh_app_token()
-                if new_token:
-                    self.active_token = new_token
-
         if self.active_token:
             # Make sure that our token is still valid or update it.
             if not self.active_token.has_calls_remaining():
