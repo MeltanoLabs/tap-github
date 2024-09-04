@@ -304,6 +304,8 @@ class GitHubRestStream(RESTStream):
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
+    tolerated_graphql_error_types = ["NOT_FOUND"]
+
     @property
     def url_base(self) -> str:
         return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
@@ -441,4 +443,11 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         rj = response.json()
         if "errors" in rj:
             msg = rj["errors"]
-            raise FatalAPIError(f"Graphql error: {msg}", response)
+            for error in rj["errors"]:
+                if error["type"] in self.tolerated_graphql_error_types:
+                    self.logger.info(
+                        f"Tolerated Graphql Error: {error['message']} for path: {response.url}"
+                    )
+                else:
+                    raise FatalAPIError(f"Graphql error: {msg}", response)
+
