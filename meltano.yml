@@ -21,6 +21,8 @@ plugins:
       kind: array
     - name: rate_limit_buffer
       kind: integer
+    - name: expiry_time_buffer
+      kind: integer
     - name: searches
       kind: array
     - name: organizations
