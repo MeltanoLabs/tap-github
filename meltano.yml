@@ -17,6 +17,7 @@ plugins:
       kind: string
     - name: auth_token
       kind: password
+      sensitive: true
     - name: additional_auth_tokens
       kind: array
     - name: rate_limit_buffer
