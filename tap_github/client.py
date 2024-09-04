@@ -164,7 +164,7 @@ class GitHubRestStream(RESTStream):
         since = self.get_starting_timestamp(context)
         since_key = "since" if not self.use_fake_since_parameter else "fake_since"
         if self.replication_key and since:
-            params[since_key] = since
+            params[since_key] = since.isoformat(sep="T")
             # Leverage conditional requests to save API quotas
             # https://github.community/t/how-does-if-modified-since-work/139627
             self._http_headers["If-modified-since"] = email.utils.format_datetime(since)
@@ -249,7 +249,7 @@ class GitHubRestStream(RESTStream):
         if response.status_code in (
             self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
         ):
-            return []
+            return
 
         # Update token rate limit info and loop through tokens if needed.
         self.authenticator.update_rate_limit(response.headers)
@@ -303,6 +303,8 @@ class GitHubRestStream(RESTStream):
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
+
+    tolerated_graphql_error_types = ["NOT_FOUND"]
 
     @property
     def url_base(self) -> str:
@@ -401,7 +403,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
-            params["since"] = str(since)
+            params["since"] = since.isoformat(sep="T")
 
         return params
 
@@ -441,4 +443,11 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         rj = response.json()
         if "errors" in rj:
             msg = rj["errors"]
-            raise FatalAPIError(f"Graphql error: {msg}", response)
+            for error in rj["errors"]:
+                if error["type"] in self.tolerated_graphql_error_types:
+                    self.logger.info(
+                        f"Tolerated Graphql Error: {error['message']} for path: {response.url}"
+                    )
+                else:
+                    raise FatalAPIError(f"Graphql error: {msg}", response)
+

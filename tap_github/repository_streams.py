@@ -356,7 +356,7 @@ class ReadmeHtmlStream(GitHubRestStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the README to yield the html response instead of an object."""
         if response.status_code in self.tolerated_http_errors:
-            return []
+            return
 
         yield {"raw_html": response.text}
 
@@ -665,7 +665,7 @@ class ReleasesStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys = ["repo", "org"]
-    replication_key = "published_at"
+    replication_key = "created_at"
 
     MAX_RESULTS_LIMIT = 10000
 
@@ -726,7 +726,7 @@ class LanguagesStream(GitHubRestStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""
         if response.status_code in self.tolerated_http_errors:
-            return []
+            return
 
         languages_json = response.json()
         for key, value in languages_json.items():
@@ -747,7 +747,7 @@ class LanguagesStream(GitHubRestStream):
 class CollaboratorsStream(GitHubRestStream):
     name = "collaborators"
     path = "/repos/{org}/{repo}/collaborators"
-    primary_keys = ["id"]
+    primary_keys = ["id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys = ["repo", "org"]
@@ -1554,7 +1554,7 @@ class ContributorsStream(GitHubRestStream):
         # TODO: update this and validate_response when
         # https://github.com/meltano/sdk/pull/1754 is merged
         if response.status_code != 200:
-            return []
+            return
         yield from super().parse_response(response)
 
     def validate_response(self, response: requests.Response) -> None:
@@ -1993,6 +1993,7 @@ class WorkflowRunsStream(GitHubRestStream):
         th.Property("head_branch", th.StringType),
         th.Property("head_sha", th.StringType),
         th.Property("run_number", th.IntegerType),
+        th.Property("run_attempt", th.IntegerType),
         th.Property("event", th.StringType),
         th.Property("status", th.StringType),
         th.Property("conclusion", th.StringType),
@@ -2065,6 +2066,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
         th.Property("html_url", th.StringType),
         th.Property("status", th.StringType),
         th.Property("conclusion", th.StringType),
+        th.Property("created_at", th.DateTimeType),
         th.Property("started_at", th.DateTimeType),
         th.Property("completed_at", th.DateTimeType),
         th.Property("name", th.StringType),
@@ -2342,7 +2344,7 @@ class TrafficRestStream(GitHubRestStream):
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         if response.status_code != 200:
-            return []
+            return
 
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())

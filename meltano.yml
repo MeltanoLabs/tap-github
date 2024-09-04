@@ -17,9 +17,12 @@ plugins:
       kind: string
     - name: auth_token
       kind: password
+      sensitive: true
     - name: additional_auth_tokens
       kind: array
     - name: rate_limit_buffer
+      kind: integer
+    - name: expiry_time_buffer
       kind: integer
     - name: searches
       kind: array
