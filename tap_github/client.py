@@ -304,7 +304,7 @@ class GitHubRestStream(RESTStream):
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
-    tolerated_graphql_error_types = ["NOT_FOUND"]
+    tolerated_graphql_error_types = ["NOT_FOUND", "FORBIDDEN"]
 
     @property
     def url_base(self) -> str:
