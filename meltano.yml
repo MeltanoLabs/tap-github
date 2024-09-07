@@ -19,6 +19,8 @@ plugins:
       kind: password
     - name: additional_auth_tokens
       kind: array
+    - name: auth_app_keys
+      kind: array
     - name: rate_limit_buffer
       kind: integer
     - name: expiry_time_buffer

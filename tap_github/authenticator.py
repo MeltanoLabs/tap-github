@@ -270,37 +270,53 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 personal_tokens = personal_tokens.union(env_tokens)
 
-        token_managers: list[TokenManager] = []
+        personal_token_managers: list[TokenManager] = []
         for token in personal_tokens:
             token_manager = PersonalTokenManager(
                 token, rate_limit_buffer=rate_limit_buffer, logger=self.logger
             )
             if token_manager.is_valid_token():
-                token_managers.append(token_manager)
+                personal_token_managers.append(token_manager)
             else:
                 logging.warn("A token was dismissed.")
 
-        # Parse App level private key and generate a token
-        if "GITHUB_APP_PRIVATE_KEY" in env_dict:
-            # To simplify settings, we use a single env-key formatted as follows:
-            # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
-            env_key = env_dict["GITHUB_APP_PRIVATE_KEY"]
+        # Parse App level private keys and generate tokens
+        # To simplify settings, we use a single env-key formatted as follows:
+        # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
+
+        app_keys: set[str] = set()
+        if "auth_app_keys" in self._config:
+            app_keys = app_keys.union(self._config["auth_app_keys"])
+            self.logger.info(
+                f"Provided {len(app_keys)} app keys via config for authentication."
+            )
+        elif "GITHUB_APP_PRIVATE_KEY" in env_dict:
+            app_keys.add(env_dict["GITHUB_APP_PRIVATE_KEY"])
+            self.logger.info(
+                "Found 1 app key via environment variable for authentication."
+            )
+
+        app_token_managers: list[TokenManager] = []
+        for app_key in app_keys:
             try:
                 app_token_manager = AppTokenManager(
-                    env_key,
+                    app_key,
                     rate_limit_buffer=rate_limit_buffer,
                     expiry_time_buffer=expiry_time_buffer,
                     logger=self.logger,
                 )
                 if app_token_manager.is_valid_token():
-                    token_managers.append(app_token_manager)
+                    app_token_managers.append(app_token_manager)
             except ValueError as e:
                 self.logger.warn(
                     f"An error was thrown while preparing an app token: {e}"
                 )
 
-        self.logger.info(f"Tap will run with {len(token_managers)} auth tokens")
-        return token_managers
+        self.logger.info(
+            f"Tap will run with {len(personal_token_managers)} personal auth tokens "
+            f"and {len(app_token_managers)} app keys."
+        )
+        return personal_token_managers + app_token_managers
 
     def __init__(self, stream: RESTStream) -> None:
         """Init authenticator.
