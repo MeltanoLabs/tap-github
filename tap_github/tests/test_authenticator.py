@@ -356,6 +356,43 @@ class TestGitHubTokenAuthenticator:
             assert len(token_managers) == 2
             assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt2"]
 
+    def test_config_app_keys(self, mock_stream):
+        def generate_token_mock(app_id, private_key, installation_id):
+            return (f"installationtokenfor{app_id}", MagicMock())
+
+        with patch.object(TokenManager, "is_valid_token", return_value=True), patch(
+            "tap_github.authenticator.generate_app_access_token",
+            side_effect=generate_token_mock,
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_token": "gt5",
+                    "additional_auth_tokens": ["gt7", "gt8", "gt9"],
+                    "auth_app_keys": [
+                        "123;;gak1;;13",
+                        "456;;gak1;;46",
+                        "789;;gak1;;79",
+                    ],
+                }
+            )
+            auth = GitHubTokenAuthenticator(stream=stream)
+            token_managers = auth.prepare_tokens()
+
+            assert len(token_managers) == 7
+
+            app_token_managers = {
+                tm for tm in token_managers if isinstance(tm, AppTokenManager)
+            }
+            assert len(app_token_managers) == 3
+
+            app_tokens = {tm.token for tm in app_token_managers}
+            assert app_tokens == {
+                "installationtokenfor123",
+                "installationtokenfor456",
+                "installationtokenfor789",
+            }
+
     def test_env_app_key_only(self, mock_stream):
         with patch.object(
             GitHubTokenAuthenticator,
