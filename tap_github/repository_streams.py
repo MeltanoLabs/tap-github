@@ -641,8 +641,10 @@ class MilestonesStream(GitHubRestStream):
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
-        # Fetch all milestones, regardless of state (open, closed).
-        params["state"] = "all"
+
+        config_params = self.config.get("milestones") or {}
+        params["state"] = config_params.get("state") or "open"
+
         return params
 
     schema = th.PropertiesList(

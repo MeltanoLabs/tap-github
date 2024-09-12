@@ -83,6 +83,19 @@ class TapGitHub(Tap):
         th.Property("repositories", th.ArrayType(th.StringType)),
         th.Property("user_usernames", th.ArrayType(th.StringType)),
         th.Property("user_ids", th.ArrayType(th.StringType)),
+        th.Property(
+            "milestones",
+            th.ObjectType(
+                th.Property(
+                    "state",
+                    th.StringType,
+                    description=(
+                        "Configures which states are of interest. "
+                        "Must be one of [open, closed, all], defaults to open."
+                    ),
+                ),
+            ),
+        ),
         th.Property("start_date", th.DateTimeType),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
