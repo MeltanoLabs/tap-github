@@ -2124,6 +2124,14 @@ class ExtraMetricsStream(GitHubRestStream):
             row["org"] = context["org"]
         return row
 
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors."""
+        try:
+            super().validate_response(response)
+        except FatalAPIError as e:
+            self.logger.error(str(e))
+            raise
+
     @property
     def http_headers(self) -> dict:
         """Return the http headers needed.
