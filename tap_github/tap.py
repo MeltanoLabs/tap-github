@@ -93,8 +93,11 @@ class TapGitHub(Tap):
                         "Configures which states are of interest. "
                         "Must be one of [open, closed, all], defaults to open."
                     ),
+                    default="open",
+                    allowed_values=["open", "closed", "all"],
                 ),
             ),
+            description="Setting specific to the 'milestones' stream.",
         ),
         th.Property("start_date", th.DateTimeType),
         th.Property("stream_maps", th.ObjectType()),
