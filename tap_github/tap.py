@@ -96,6 +96,7 @@ class TapGitHub(Tap):
                     default="open",
                     allowed_values=["open", "closed", "all"],
                 ),
+                additional_properties=False,
             ),
             description="Setting specific to the 'milestones' stream.",
         ),
