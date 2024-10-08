@@ -18,6 +18,7 @@ from tap_github.repository_streams import (
     CommitsStream,
     CommunityProfileStream,
     ContributorsStream,
+    CustomPropertiesStream,
     DependenciesStream,
     DependentsStream,
     EventsStream,
@@ -75,6 +76,7 @@ class Streams(Enum):
             CommitsStream,
             CommunityProfileStream,
             ContributorsStream,
+            CustomPropertiesStream,
             DependenciesStream,
             DependentsStream,
             EventsStream,
@@ -118,7 +120,13 @@ class Streams(Enum):
     )
     ORGANIZATIONS = (
         {"organizations"},
-        [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
+        [
+            CustomPropertiesStream,
+            OrganizationStream,
+            TeamMembersStream,
+            TeamRolesStream,
+            TeamsStream,
+        ],
     )
 
     @classmethod
