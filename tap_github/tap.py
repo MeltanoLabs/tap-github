@@ -94,6 +94,30 @@ class TapGitHub(Tap):
                 "streams (such as repositories) if it is not selected but children are"
             ),
         ),
+        th.Property(
+            "stream_options",
+            th.ObjectType(
+                th.Property(
+                    "milestones",
+                    th.ObjectType(
+                        th.Property(
+                            "state",
+                            th.StringType,
+                            description=(
+                                "Configures which states are of interest. "
+                                "Must be one of [open, closed, all], defaults to open."
+                            ),
+                            default="open",
+                            allowed_values=["open", "closed", "all"],
+                        ),
+                        additional_properties=False,
+                    ),
+                    description="Options specific to the 'milestones' stream.",
+                ),
+                additional_properties=False,
+            ),
+            description="Options which change the behaviour of a specific stream.",
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[Stream]:

@@ -35,6 +35,15 @@ plugins:
       kind: array
     - name: user_ids
       kind: array
+    - name: stream_options.milestones.state
+      kind: options
+      options:
+      - label: Open
+        value: open
+      - label: Closed
+        value: closed
+      - label: All
+        value: all
     - name: start_date
       kind: date_iso8601
       value: '2010-01-01T00:00:00Z'
