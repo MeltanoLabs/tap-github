@@ -643,8 +643,8 @@ class MilestonesStream(GitHubRestStream):
         params = super().get_url_params(context, next_page_token)
         params["state"] = "open"
 
-        if "milestones" in self.config:
-            params.update(self.config["milestones"])
+        if "milestones" in self.config.get("stream_options", {}):
+            params.update(self.config["stream_options"]["milestones"])
 
         return params
 

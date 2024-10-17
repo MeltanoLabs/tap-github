@@ -83,23 +83,6 @@ class TapGitHub(Tap):
         th.Property("repositories", th.ArrayType(th.StringType)),
         th.Property("user_usernames", th.ArrayType(th.StringType)),
         th.Property("user_ids", th.ArrayType(th.StringType)),
-        th.Property(
-            "milestones",
-            th.ObjectType(
-                th.Property(
-                    "state",
-                    th.StringType,
-                    description=(
-                        "Configures which states are of interest. "
-                        "Must be one of [open, closed, all], defaults to open."
-                    ),
-                    default="open",
-                    allowed_values=["open", "closed", "all"],
-                ),
-                additional_properties=False,
-            ),
-            description="Setting specific to the 'milestones' stream.",
-        ),
         th.Property("start_date", th.DateTimeType),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
@@ -110,6 +93,30 @@ class TapGitHub(Tap):
                 "Set to true to skip API calls for the parent "
                 "streams (such as repositories) if it is not selected but children are"
             ),
+        ),
+        th.Property(
+            "stream_options",
+            th.ObjectType(
+                th.Property(
+                    "milestones",
+                    th.ObjectType(
+                        th.Property(
+                            "state",
+                            th.StringType,
+                            description=(
+                                "Configures which states are of interest. "
+                                "Must be one of [open, closed, all], defaults to open."
+                            ),
+                            default="open",
+                            allowed_values=["open", "closed", "all"],
+                        ),
+                        additional_properties=False,
+                    ),
+                    description="Options specific to the 'milestones' stream.",
+                ),
+                additional_properties=False,
+            ),
+            description="Options which change the behaviour of a specific stream.",
         ),
     ).to_dict()
 
