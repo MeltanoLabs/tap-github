@@ -1167,6 +1167,17 @@ test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "ini2toml[lite] (>=
 type = ["importlib-metadata (>=7.0.2)", "jaraco.develop (>=7.21)", "mypy (==1.11.*)", "pytest-mypy"]
 
 [[package]]
+name = "simpleeval"
+version = "0.9.13"
+description = "A simple, safe single expression evaluator library."
+optional = false
+python-versions = "*"
+files = [
+    {file = "simpleeval-0.9.13-py2.py3-none-any.whl", hash = "sha256:22a2701a5006e4188d125d34accf2405c2c37c93f6b346f2484b6422415ae54a"},
+    {file = "simpleeval-0.9.13.tar.gz", hash = "sha256:4a30f9cc01825fe4c719c785e3762623e350c4840d5e6855c2a8496baaa65fac"},
+]
+
+[[package]]
 name = "simplejson"
 version = "3.19.3"
 description = "Simple, fast, extensible JSON encoder/decoder for Python"
@@ -1287,13 +1298,13 @@ files = [
 
 [[package]]
 name = "singer-sdk"
-version = "0.32.0"
+version = "0.33.1"
 description = "A framework for building Singer taps"
 optional = false
 python-versions = ">=3.7.1,<4"
 files = [
-    {file = "singer_sdk-0.32.0-py3-none-any.whl", hash = "sha256:19b56e67bc9e6c7410e1830711894ae25d54609a72d06bef569d0c5a5a1b2b54"},
-    {file = "singer_sdk-0.32.0.tar.gz", hash = "sha256:af666788faa027869fa045859bd070b3d0df487c89fda18e7b683e8bb94b4ced"},
+    {file = "singer_sdk-0.33.1-py3-none-any.whl", hash = "sha256:2ba3fb9d7b8726c4d8cd66414fef71e117f52646e8aef35b4077ff8a8040587e"},
+    {file = "singer_sdk-0.33.1.tar.gz", hash = "sha256:25a9f06e54574a5a432519f11506591dfc4073237df39389ac41dcb0e19dace9"},
 ]
 
 [package.dependencies]
@@ -1314,6 +1325,7 @@ python-dotenv = ">=0.20,<0.22"
 pytz = ">=2022.2.1,<2024.0.0"
 PyYAML = ">=6.0"
 requests = ">=2.25.1"
+simpleeval = ">=0.9.13,<0.10.0"
 simplejson = ">=3.17.6"
 sqlalchemy = ">=1.4,<3.0"
 typing-extensions = ">=4.2.0"
@@ -1598,4 +1610,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8"
-content-hash = "1007769592dc3e618e2fc54a8a12599e785062166def5322efb11dfbbd95ec06"
+content-hash = "f3ee60c59c248b0ecf179b9aef4d0dc9c35d95c301b6df86e33fe3da3ecc5c75"
