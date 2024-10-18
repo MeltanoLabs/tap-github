@@ -359,24 +359,18 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         self.active_token.update_rate_limit(response_headers)
 
-    @property
-    def auth_headers(self) -> dict[str, str]:
-        """Return a dictionary of auth headers to be applied.
-
-        These will be merged with any `http_headers` specified in the stream.
-
-        Returns:
-            HTTP headers for authentication.
-        """
-        result = super().auth_headers
+    def authenticate_request(
+        self,
+        request: requests.PreparedRequest,
+    ) -> requests.PreparedRequest:
         if self.active_token:
             # Make sure that our token is still valid or update it.
             if not self.active_token.has_calls_remaining():
                 self.get_next_auth_token()
-            result["Authorization"] = f"token {self.active_token.token}"
+            request.headers["Authorization"] = f"token {self.active_token.token}"
         else:
             self.logger.info(
                 "No auth token detected. "
                 "For higher rate limits, please specify `auth_token` in config."
             )
-        return result
+        return request
