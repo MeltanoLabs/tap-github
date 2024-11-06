@@ -1937,7 +1937,7 @@ class WorkflowsStream(GitHubRestStream):
     name = "workflows"
     path = "/repos/{org}/{repo}/actions/workflows"
     primary_keys: ClassVar[list[str]] = ["id"]
-    replication_key = "updated_at"
+    replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -1972,7 +1972,7 @@ class WorkflowRunsStream(GitHubRestStream):
     name = "workflow_runs"
     path = "/repos/{org}/{repo}/actions/runs"
     primary_keys: ClassVar[list[str]] = ["id"]
-    replication_key = "updated_at"
+    replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
