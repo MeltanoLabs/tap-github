@@ -32,7 +32,7 @@ python-dateutil = "~=2.9"
 requests = "~=2.32.3"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = { version = "~=0.34.0", python = "<4" }
+singer-sdk = "~=0.35.0"
 
 [tool.poetry.dev-dependencies]
 pytest = ">=7.3.1"
