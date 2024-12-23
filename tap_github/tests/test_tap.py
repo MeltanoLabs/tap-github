@@ -118,7 +118,7 @@ def test_get_a_repository_in_repo_list_mode(
     )
     # Verify we got the right number of records
     # one per repo in the list only if we sync the "repositories" stream, 0 if not
-    assert captured_out.count('{"type": "RECORD", "stream": "repositories"') == len(
+    assert captured_out.count('{"type":"RECORD","stream":"repositories"') == len(
         repo_list_2_ids * (not skip_parent_streams)
     )
     # check that the tap corrects invalid case in config input
@@ -138,9 +138,9 @@ def test_last_state_message_is_valid(capsys, repo_list_config):  # noqa: F811
         capsys, repo_list_config, "repositories", single_stream=None
     )
     # capture the messages we're interested in
-    state_messages = re.findall(r'{"type": "STATE", "value":.*}', captured_out)
+    state_messages = re.findall(r'{"type":"STATE","value":.*}', captured_out)
     issue_comments_records = re.findall(
-        r'{"type": "RECORD", "stream": "issue_comments",.*}', captured_out
+        r'{"type":"RECORD","stream":"issue_comments",.*}', captured_out
     )
     assert state_messages is not None
     last_state_msg = state_messages[-1]
@@ -184,15 +184,15 @@ def test_get_a_user_in_user_usernames_mode(
     )
     # Verify we got the right number of records:
     # one per user in the list if we sync the root stream, 0 otherwise
-    assert captured_out.count('{"type": "RECORD", "stream": "users"') == len(
+    assert captured_out.count('{"type":"RECORD","stream":"users"') == len(
         username_list_config["user_usernames"] * (not skip_parent_streams)
     )
     # these 2 are inequalities as number will keep changing :)
-    assert captured_out.count('{"type": "RECORD", "stream": "starred"') > 150
-    assert captured_out.count('{"type": "RECORD", "stream": "user_contributed_to"') > 25
-    assert '{"username": "aaronsteers"' in captured_out
-    assert '{"username": "aaRONsTeeRS"' not in captured_out
-    assert '{"username": "EricBoucher"' not in captured_out
+    assert captured_out.count('{"type":"RECORD","stream":"starred"') > 150
+    assert captured_out.count('{"type":"RECORD","stream":"user_contributed_to"') > 25
+    assert '{"username":"aaronsteers"' in captured_out
+    assert '{"username":"aaRONsTeeRS"' not in captured_out
+    assert '{"username":"EricBoucher"' not in captured_out
 
 
 @pytest.mark.repo_list(["torvalds/linux"])
@@ -204,7 +204,7 @@ def test_large_list_of_contributors(capsys, repo_list_config):  # noqa: F811
     captured_out = run_tap_with_config(
         capsys, repo_list_config, skip_stream=None, single_stream="contributors"
     )
-    assert captured_out.count('{"type": "RECORD", "stream": "contributors"') == 0
+    assert captured_out.count('{"type":"RECORD","stream":"contributors"') == 0
 
 
 def test_web_tag_parse_counter():
