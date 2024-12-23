@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import requests
@@ -215,10 +215,10 @@ class TestAppTokenManager:
 
             mock_is_valid.return_value = False
             assert not token_manager.has_calls_remaining()
-            token_manager.logger.warn.assert_called_once()
-            assert (
-                "GitHub app token refresh failed."
-                in token_manager.logger.warn.call_args[0][0]
+            assert isinstance(token_manager.logger.warning, MagicMock)
+            token_manager.logger.warning.assert_has_calls(
+                [call("GitHub app token refresh failed.")],
+                any_order=True,
             )
 
     def test_has_calls_remaining_succeeds_if_token_new_and_never_used(self):
@@ -537,7 +537,7 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             auth.prepare_tokens()
 
-            mock_stream.logger.warn.assert_called_with(
+            mock_stream.logger.warning.assert_called_with(
                 "An error was thrown while preparing an app token: Invalid key format"
             )
 

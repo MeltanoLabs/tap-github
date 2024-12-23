@@ -227,7 +227,7 @@ class AppTokenManager(TokenManager):
                 self.claim_token()
                 if self.token is None:
                     if self.logger:
-                        self.logger.warn("GitHub app token refresh failed.")
+                        self.logger.warning("GitHub app token refresh failed.")
                     return False
                 else:
                     if self.logger:
@@ -278,7 +278,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             if token_manager.is_valid_token():
                 personal_token_managers.append(token_manager)
             else:
-                logging.warn("A token was dismissed.")
+                logging.warning("A token was dismissed.")
 
         # Parse App level private keys and generate tokens
         # To simplify settings, we use a single env-key formatted as follows:
@@ -308,7 +308,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 if app_token_manager.is_valid_token():
                     app_token_managers.append(app_token_manager)
             except ValueError as e:
-                self.logger.warn(
+                self.logger.warning(
                     f"An error was thrown while preparing an app token: {e}"
                 )
 
