@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -12,6 +12,10 @@ from tap_github.authenticator import (
     PersonalTokenManager,
     TokenManager,
 )
+
+
+def _now():
+    return datetime.now(tz=timezone.utc)
 
 
 class TestTokenManager:
@@ -40,7 +44,15 @@ class TestTokenManager:
 
         assert token_manager.rate_limit == 5000
         assert token_manager.rate_limit_remaining == 4999
-        assert token_manager.rate_limit_reset == datetime(2013, 7, 1, 17, 47, 53)
+        assert token_manager.rate_limit_reset == datetime(
+            2013,
+            7,
+            1,
+            17,
+            47,
+            53,
+            tzinfo=timezone.utc,
+        )
         assert token_manager.rate_limit_used == 1
 
     def test_is_valid_token_successful(self):
@@ -108,9 +120,7 @@ class TestTokenManager:
         mock_response_headers = {
             "X-RateLimit-Limit": "5000",
             "X-RateLimit-Remaining": "1",
-            "X-RateLimit-Reset": str(
-                int((datetime.now() + timedelta(days=100)).timestamp())
-            ),
+            "X-RateLimit-Reset": str(int((_now() + timedelta(days=100)).timestamp())),
             "X-RateLimit-Used": "4999",
         }
 
@@ -164,8 +174,8 @@ class TestAppTokenManager:
             assert token_manager.token_expires_at == token_time
 
     def test_has_calls_remaining_regenerates_a_token_if_close_to_expiry(self):
-        unexpired_time = datetime.now() + timedelta(days=1)
-        expired_time = datetime.now() - timedelta(days=1)
+        unexpired_time = _now() + timedelta(days=1)
+        expired_time = _now() - timedelta(days=1)
         with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
             "tap_github.authenticator.generate_app_access_token",
             return_value=("valid_token", unexpired_time),
@@ -193,8 +203,8 @@ class TestAppTokenManager:
             )
 
     def test_has_calls_remaining_logs_warning_if_token_regeneration_fails(self):
-        unexpired_time = datetime.now() + timedelta(days=1)
-        expired_time = datetime.now() - timedelta(days=1)
+        unexpired_time = _now() + timedelta(days=1)
+        expired_time = _now() - timedelta(days=1)
         with patch.object(
             AppTokenManager, "is_valid_token", return_value=True
         ) as mock_is_valid, patch(
@@ -222,7 +232,7 @@ class TestAppTokenManager:
             )
 
     def test_has_calls_remaining_succeeds_if_token_new_and_never_used(self):
-        unexpired_time = datetime.now() + timedelta(days=1)
+        unexpired_time = _now() + timedelta(days=1)
         with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
             "tap_github.authenticator.generate_app_access_token",
             return_value=("valid_token", unexpired_time),
@@ -231,7 +241,7 @@ class TestAppTokenManager:
             assert token_manager.has_calls_remaining()
 
     def test_has_calls_remaining_succeeds_if_time_and_requests_left(self):
-        unexpired_time = datetime.now() + timedelta(days=1)
+        unexpired_time = _now() + timedelta(days=1)
         with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
             "tap_github.authenticator.generate_app_access_token",
             return_value=("valid_token", unexpired_time),
@@ -249,7 +259,7 @@ class TestAppTokenManager:
             assert token_manager.has_calls_remaining()
 
     def test_has_calls_remaining_succeeds_if_time_left_and_reset_time_reached(self):
-        unexpired_time = datetime.now() + timedelta(days=1)
+        unexpired_time = _now() + timedelta(days=1)
         with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
             "tap_github.authenticator.generate_app_access_token",
             return_value=("valid_token", unexpired_time),
@@ -271,7 +281,7 @@ class TestAppTokenManager:
     def test_has_calls_remaining_fails_if_time_left_and_few_calls_remaining_and_reset_time_not_reached(  # noqa: E501
         self,
     ):
-        unexpired_time = datetime.now() + timedelta(days=1)
+        unexpired_time = _now() + timedelta(days=1)
         with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
             "tap_github.authenticator.generate_app_access_token",
             return_value=("valid_token", unexpired_time),
@@ -280,7 +290,7 @@ class TestAppTokenManager:
                 "X-RateLimit-Limit": "5000",
                 "X-RateLimit-Remaining": "1",
                 "X-RateLimit-Reset": str(
-                    int((datetime.now() + timedelta(days=100)).timestamp())
+                    int((_now() + timedelta(days=100)).timestamp())
                 ),
                 "X-RateLimit-Used": "4999",
             }
@@ -427,7 +437,10 @@ class TestGitHubTokenAuthenticator:
         ):
             stream = mock_stream
             stream.config.update(
-                {"auth_token": "gt5", "additional_auth_tokens": ["gt7", "gt8", "gt9"]}
+                {
+                    "auth_token": "gt5",
+                    "additional_auth_tokens": ["gt7", "gt8", "gt9"],
+                }
             )
             auth = GitHubTokenAuthenticator(stream=stream)
             token_managers = auth.prepare_tokens()
@@ -568,7 +581,10 @@ class TestGitHubTokenAuthenticator:
         ):
             stream = mock_stream
             stream.config.update(
-                {"auth_token": "gt5", "additional_auth_tokens": ["gt7", "gt8", "gt9"]}
+                {
+                    "auth_token": "gt5",
+                    "additional_auth_tokens": ["gt7", "gt8", "gt9"],
+                }
             )
             auth = GitHubTokenAuthenticator(stream=stream)
             token_managers = auth.prepare_tokens()
