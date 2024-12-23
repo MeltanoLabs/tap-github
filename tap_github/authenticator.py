@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
 from typing import Any
@@ -49,8 +49,9 @@ class TokenManager:
     def update_rate_limit(self, response_headers: Any) -> None:
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
         self.rate_limit_remaining = int(response_headers["X-RateLimit-Remaining"])
-        self.rate_limit_reset = datetime.utcfromtimestamp(
-            int(response_headers["X-RateLimit-Reset"])
+        self.rate_limit_reset = datetime.fromtimestamp(
+            int(response_headers["X-RateLimit-Reset"]),
+            tz=timezone.utc,
         )
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
 
@@ -86,10 +87,9 @@ class TokenManager:
         """
         if self.rate_limit_reset is None:
             return True
-        return (
-            self.rate_limit_used <= (self.rate_limit - self.rate_limit_buffer)
-            or self.rate_limit_reset <= datetime.now()
-        )
+        return self.rate_limit_used <= (
+            self.rate_limit - self.rate_limit_buffer
+        ) or self.rate_limit_reset <= datetime.now(tz=timezone.utc)
 
 
 class PersonalTokenManager(TokenManager):
@@ -126,7 +126,7 @@ def generate_app_access_token(
     github_private_key: str,
     github_installation_id: str | None = None,
 ) -> tuple[str, datetime]:
-    produced_at = datetime.now()
+    produced_at = datetime.now(tz=timezone.utc)
     jwt_token = generate_jwt_token(github_app_id, github_private_key)
 
     headers = {"Authorization": f"Bearer {jwt_token}"}
@@ -219,15 +219,15 @@ class AppTokenManager(TokenManager):
             True if the token is valid and has enough api calls remaining.
         """
         if self.token_expires_at is not None:
-            close_to_expiry = datetime.now() > self.token_expires_at - timedelta(
-                minutes=self.expiry_time_buffer
-            )
+            close_to_expiry = datetime.now(
+                tz=timezone.utc
+            ) > self.token_expires_at - timedelta(minutes=self.expiry_time_buffer)
 
             if close_to_expiry:
                 self.claim_token()
                 if self.token is None:
                     if self.logger:
-                        self.logger.warn("GitHub app token refresh failed.")
+                        self.logger.warning("GitHub app token refresh failed.")
                     return False
                 else:
                     if self.logger:
@@ -278,7 +278,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             if token_manager.is_valid_token():
                 personal_token_managers.append(token_manager)
             else:
-                logging.warn("A token was dismissed.")
+                logging.warning("A token was dismissed.")
 
         # Parse App level private keys and generate tokens
         # To simplify settings, we use a single env-key formatted as follows:
@@ -308,7 +308,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 if app_token_manager.is_valid_token():
                     app_token_managers.append(app_token_manager)
             except ValueError as e:
-                self.logger.warn(
+                self.logger.warning(
                     f"An error was thrown while preparing an app token: {e}"
                 )
 
