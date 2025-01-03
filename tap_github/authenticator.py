@@ -8,12 +8,14 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jwt
 import requests
 from singer_sdk.authenticators import APIAuthenticatorBase
-from singer_sdk.streams import RESTStream
+
+if TYPE_CHECKING:
+    from singer_sdk.streams import RESTStream
 
 
 class TokenManager:
@@ -307,7 +309,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 if app_token_manager.is_valid_token():
                     app_token_managers.append(app_token_manager)
-            except ValueError as e:
+            except ValueError as e:  # noqa: PERF203
                 self.logger.warning(
                     f"An error was thrown while preparing an app token: {e}"
                 )

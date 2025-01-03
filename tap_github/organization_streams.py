@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Iterable
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 
 from tap_github.client import GitHubRestStream
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class OrganizationStream(GitHubRestStream):

@@ -11,7 +11,6 @@ classifiers = [
 	"Intended Audience :: Developers",
 	"License :: OSI Approved :: Apache Software License",
 	"Operating System :: OS Independent",
-	"Programming Language :: Python :: 3.8",
 	"Programming Language :: Python :: 3.9",
 	"Programming Language :: Python :: 3.10",
 	"Programming Language :: Python :: 3.11",
@@ -28,7 +27,7 @@ classifiers = [
 beautifulsoup4 = "~=4.12.0"
 nested-lookup = "~=0.2.25"
 PyJWT = "2.9.0"
-python = ">=3.8"
+python = ">=3.9"
 python-dateutil = "~=2.9"
 requests = "~=2.32.3"
 # For local SDK dev:
@@ -62,17 +61,21 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.lint]
 ignore = []
 select = [
-	"F",   # Pyflakes
-	"E",   # pycodestyle (errors)
-	"W",   # pycodestyle (warnings)
-	"I",   # isort
-	"UP",  # pyupgrade
-	"FA",  # flake8-future-annotations
-	"SIM", # flake8-simplify
-	"RUF", # Ruff-specific rules
+	"F",   	# Pyflakes
+	"E",   	# pycodestyle (errors)
+	"W",   	# pycodestyle (warnings)
+	"I",   	# isort
+	"UP",  	# pyupgrade
+	"DTZ", 	# flake8-datetimez
+	"FA",  	# flake8-future-annotations
+	"SIM", 	# flake8-simplify
+	"TC",  	# flake8-type-checking
+	"PERF", # Perflint
+	"FURB", # refurb
+	"RUF", 	# Ruff-specific rules
 ]

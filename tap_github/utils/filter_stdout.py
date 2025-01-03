@@ -4,7 +4,8 @@ import contextlib
 import io
 import re
 import sys
-from typing import Pattern, TextIO
+from re import Pattern
+from typing import TextIO
 
 
 class FilterStdOutput:

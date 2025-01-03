@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-
-from singer_sdk.streams.core import Stream
+from typing import TYPE_CHECKING
 
 from tap_github.organization_streams import (
     OrganizationStream,
@@ -51,6 +50,9 @@ from tap_github.repository_streams import (
     WorkflowsStream,
 )
 from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
+
+if TYPE_CHECKING:
+    from singer_sdk.streams.core import Stream
 
 
 class Streams(Enum):
