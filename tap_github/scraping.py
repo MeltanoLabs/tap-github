@@ -9,11 +9,15 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Iterable, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 import requests
-from bs4 import NavigableString, Tag
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from bs4 import NavigableString, Tag
 
 used_by_regex = re.compile(" {3}Used by ")
 contributors_regex = re.compile(" {3}Contributors ")
@@ -30,12 +34,7 @@ def scrape_dependents(
     # Navigate through Package toggle if present
     base_url = urlparse(response.url).hostname or "github.com"
     options = soup.find_all("a", class_="select-menu-item")
-    links = []
-    if len(options) > 0:
-        for link in options:
-            links.append(link["href"])
-    else:
-        links.append(response.url)
+    links = [link["href"] for link in options] if len(options) > 0 else [response.url]
 
     logger.debug(links)
 

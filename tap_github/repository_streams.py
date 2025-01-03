@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Iterable
+from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
-import requests
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -20,6 +19,11 @@ from tap_github.schema_objects import (
     user_object,
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import requests
 
 
 class RepositoryStream(GitHubRestStream):

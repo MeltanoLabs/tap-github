@@ -154,9 +154,12 @@ class TestAppTokenManager:
             AppTokenManager("12345key\\ncontent")
 
     def test_generate_token_with_invalid_credentials(self):
-        with patch.object(AppTokenManager, "is_valid_token", return_value=False), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("some_token", MagicMock()),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=False),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("some_token", MagicMock()),
+            ),
         ):
             token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
             assert token_manager.token is None
@@ -164,9 +167,12 @@ class TestAppTokenManager:
 
     def test_successful_token_generation(self):
         token_time = MagicMock()
-        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", token_time),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", token_time),
+            ),
         ):
             token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
             token_manager.claim_token()
@@ -176,9 +182,12 @@ class TestAppTokenManager:
     def test_has_calls_remaining_regenerates_a_token_if_close_to_expiry(self):
         unexpired_time = _now() + timedelta(days=1)
         expired_time = _now() - timedelta(days=1)
-        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", unexpired_time),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", unexpired_time),
+            ),
         ):
             mock_response_headers = {
                 "X-RateLimit-Limit": "5000",
@@ -205,11 +214,14 @@ class TestAppTokenManager:
     def test_has_calls_remaining_logs_warning_if_token_regeneration_fails(self):
         unexpired_time = _now() + timedelta(days=1)
         expired_time = _now() - timedelta(days=1)
-        with patch.object(
-            AppTokenManager, "is_valid_token", return_value=True
-        ) as mock_is_valid, patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", unexpired_time),
+        with (
+            patch.object(
+                AppTokenManager, "is_valid_token", return_value=True
+            ) as mock_is_valid,
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", unexpired_time),
+            ),
         ):
             mock_response_headers = {
                 "X-RateLimit-Limit": "5000",
@@ -233,18 +245,24 @@ class TestAppTokenManager:
 
     def test_has_calls_remaining_succeeds_if_token_new_and_never_used(self):
         unexpired_time = _now() + timedelta(days=1)
-        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", unexpired_time),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", unexpired_time),
+            ),
         ):
             token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
             assert token_manager.has_calls_remaining()
 
     def test_has_calls_remaining_succeeds_if_time_and_requests_left(self):
         unexpired_time = _now() + timedelta(days=1)
-        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", unexpired_time),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", unexpired_time),
+            ),
         ):
             mock_response_headers = {
                 "X-RateLimit-Limit": "5000",
@@ -260,9 +278,12 @@ class TestAppTokenManager:
 
     def test_has_calls_remaining_succeeds_if_time_left_and_reset_time_reached(self):
         unexpired_time = _now() + timedelta(days=1)
-        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", unexpired_time),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", unexpired_time),
+            ),
         ):
             mock_response_headers = {
                 "X-RateLimit-Limit": "5000",
@@ -282,9 +303,12 @@ class TestAppTokenManager:
         self,
     ):
         unexpired_time = _now() + timedelta(days=1)
-        with patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("valid_token", unexpired_time),
+        with (
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("valid_token", unexpired_time),
+            ),
         ):
             mock_response_headers = {
                 "X-RateLimit-Limit": "5000",
@@ -314,20 +338,28 @@ def mock_stream():
 
 class TestGitHubTokenAuthenticator:
     def test_prepare_tokens_returns_empty_if_none_found(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator, "get_env", return_value={"GITHUB_TLJKJFDS": "gt1"}
-        ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={"GITHUB_TLJKJFDS": "gt1"},
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 0
 
     def test_config_auth_token_only(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={"OTHER_TOKEN": "blah", "NOT_THE_RIGHT_TOKEN": "meh"},
-        ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={"OTHER_TOKEN": "blah", "NOT_THE_RIGHT_TOKEN": "meh"},
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
             stream = mock_stream
             stream.config.update({"auth_token": "gt5"})
             auth = GitHubTokenAuthenticator(stream=stream)
@@ -337,11 +369,14 @@ class TestGitHubTokenAuthenticator:
             assert token_managers[0].token == "gt5"
 
     def test_config_additional_auth_tokens_only(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={"OTHER_TOKEN": "blah", "NOT_THE_RIGHT_TOKEN": "meh"},
-        ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={"OTHER_TOKEN": "blah", "NOT_THE_RIGHT_TOKEN": "meh"},
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
             stream = mock_stream
             stream.config.update({"additional_auth_tokens": ["gt7", "gt8", "gt9"]})
             auth = GitHubTokenAuthenticator(stream=stream)
@@ -351,15 +386,18 @@ class TestGitHubTokenAuthenticator:
             assert sorted({tm.token for tm in token_managers}) == ["gt7", "gt8", "gt9"]
 
     def test_env_personal_tokens_only(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={
-                "GITHUB_TOKEN1": "gt1",
-                "GITHUB_TOKENxyz": "gt2",
-                "OTHER_TOKEN": "blah",
-            },
-        ), patch.object(PersonalTokenManager, "is_valid_token", return_value=True):
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_TOKEN1": "gt1",
+                    "GITHUB_TOKENxyz": "gt2",
+                    "OTHER_TOKEN": "blah",
+                },
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
@@ -370,9 +408,12 @@ class TestGitHubTokenAuthenticator:
         def generate_token_mock(app_id, private_key, installation_id):
             return (f"installationtokenfor{app_id}", MagicMock())
 
-        with patch.object(TokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            side_effect=generate_token_mock,
+        with (
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                side_effect=generate_token_mock,
+            ),
         ):
             stream = mock_stream
             stream.config.update(
@@ -404,13 +445,20 @@ class TestGitHubTokenAuthenticator:
             }
 
     def test_env_app_key_only(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={"GITHUB_APP_PRIVATE_KEY": "123;;key", "OTHER_TOKEN": "blah"},
-        ), patch.object(AppTokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_APP_PRIVATE_KEY": "123;;key",
+                    "OTHER_TOKEN": "blah",
+                },
+            ),
+            patch.object(AppTokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
@@ -422,18 +470,22 @@ class TestGitHubTokenAuthenticator:
         # Expectations:
         # - the presence of additional_auth_tokens causes personal tokens in the environment to be ignored.  # noqa: E501
         # - the other types all coexist
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={
-                "GITHUB_TOKEN1": "gt1",
-                "GITHUB_TOKENxyz": "gt2",
-                "GITHUB_APP_PRIVATE_KEY": "123;;key;;install_id",
-                "OTHER_TOKEN": "blah",
-            },
-        ), patch.object(TokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_TOKEN1": "gt1",
+                    "GITHUB_TOKENxyz": "gt2",
+                    "GITHUB_APP_PRIVATE_KEY": "123;;key;;install_id",
+                    "OTHER_TOKEN": "blah",
+                },
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             stream = mock_stream
             stream.config.update(
@@ -457,18 +509,22 @@ class TestGitHubTokenAuthenticator:
     def test_all_token_types_except_additional_auth_tokens(self, mock_stream):
         # Expectations:
         # - in the absence of additional_auth_tokens, all the other types can coexist
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={
-                "GITHUB_TOKEN1": "gt1",
-                "GITHUB_TOKENxyz": "gt2",
-                "GITHUB_APP_PRIVATE_KEY": "123;;key;;install_id",
-                "OTHER_TOKEN": "blah",
-            },
-        ), patch.object(TokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_TOKEN1": "gt1",
+                    "GITHUB_TOKENxyz": "gt2",
+                    "GITHUB_APP_PRIVATE_KEY": "123;;key;;install_id",
+                    "OTHER_TOKEN": "blah",
+                },
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             stream = mock_stream
             stream.config.update(
@@ -488,17 +544,21 @@ class TestGitHubTokenAuthenticator:
             ]
 
     def test_auth_token_and_additional_auth_tokens_deduped(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={
-                "GITHUB_TOKEN1": "gt1",
-                "GITHUB_TOKENxyz": "gt2",
-                "OTHER_TOKEN": "blah",
-            },
-        ), patch.object(TokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_TOKEN1": "gt1",
+                    "GITHUB_TOKENxyz": "gt2",
+                    "OTHER_TOKEN": "blah",
+                },
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             stream = mock_stream
             stream.config.update(
@@ -514,18 +574,22 @@ class TestGitHubTokenAuthenticator:
             assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt8", "gt9"]
 
     def test_auth_token_and_env_tokens_deduped(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={
-                "GITHUB_TOKEN1": "gt1",
-                "GITHUB_TOKENa": "gt2",
-                "GITHUB_TOKENxyz": "gt2",
-                "OTHER_TOKEN": "blah",
-            },
-        ), patch.object(TokenManager, "is_valid_token", return_value=True), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_TOKEN1": "gt1",
+                    "GITHUB_TOKENa": "gt2",
+                    "GITHUB_TOKENxyz": "gt2",
+                    "OTHER_TOKEN": "blah",
+                },
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             stream = mock_stream
             stream.config.update({"auth_token": "gt1"})
@@ -540,11 +604,14 @@ class TestGitHubTokenAuthenticator:
         # - don"t crash
         # - print the error as a warning
         # - continue with any other obtained tokens
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={"GITHUB_APP_PRIVATE_KEY": "123garbagekey"},
-        ), patch("tap_github.authenticator.AppTokenManager") as mock_app_manager:
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={"GITHUB_APP_PRIVATE_KEY": "123garbagekey"},
+            ),
+            patch("tap_github.authenticator.AppTokenManager") as mock_app_manager,
+        ):
             mock_app_manager.side_effect = ValueError("Invalid key format")
 
             auth = GitHubTokenAuthenticator(stream=mock_stream)
@@ -555,13 +622,17 @@ class TestGitHubTokenAuthenticator:
             )
 
     def test_exclude_generated_app_token_if_invalid(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={"GITHUB_APP_PRIVATE_KEY": "123;;key"},
-        ), patch.object(AppTokenManager, "is_valid_token", return_value=False), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={"GITHUB_APP_PRIVATE_KEY": "123;;key"},
+            ),
+            patch.object(AppTokenManager, "is_valid_token", return_value=False),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             auth = GitHubTokenAuthenticator(stream=mock_stream)
             token_managers = auth.prepare_tokens()
@@ -569,15 +640,21 @@ class TestGitHubTokenAuthenticator:
             assert len(token_managers) == 0
 
     def test_prepare_tokens_returns_empty_if_all_tokens_invalid(self, mock_stream):
-        with patch.object(
-            GitHubTokenAuthenticator,
-            "get_env",
-            return_value={"GITHUB_TOKEN1": "gt1", "GITHUB_APP_PRIVATE_KEY": "123;;key"},
-        ), patch.object(
-            PersonalTokenManager, "is_valid_token", return_value=False
-        ), patch.object(AppTokenManager, "is_valid_token", return_value=False), patch(
-            "tap_github.authenticator.generate_app_access_token",
-            return_value=("installationtoken12345", MagicMock()),
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={
+                    "GITHUB_TOKEN1": "gt1",
+                    "GITHUB_APP_PRIVATE_KEY": "123;;key",
+                },
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=False),
+            patch.object(AppTokenManager, "is_valid_token", return_value=False),
+            patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("installationtoken12345", MagicMock()),
+            ),
         ):
             stream = mock_stream
             stream.config.update(

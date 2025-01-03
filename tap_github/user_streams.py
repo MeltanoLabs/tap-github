@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import re
-from typing import Any, ClassVar, Iterable
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import user_object
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class UserStream(GitHubRestStream):
