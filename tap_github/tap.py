@@ -13,20 +13,20 @@ from tap_github.streams import Streams
 
 
 class TapGitHub(Tap):
-    """GitHub tap class."""
+    """Singer tap for the GitHub API."""
 
     name = "tap-github"
     package_name = "meltanolabs-tap-github"
 
     @classproperty
-    def logger(cls) -> logging.Logger:
+    def logger(cls: type[TapGitHub]) -> logging.Logger:  # noqa: N805
         """Get logger.
 
         Returns:
             Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
         """
 
-        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()
+        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()  # noqa: N806
         assert (
             LOGLEVEL in logging._levelToName.values()
         ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"

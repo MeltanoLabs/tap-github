@@ -155,10 +155,8 @@ def test_last_state_message_is_valid(capsys, repo_list_config):  # noqa: F811
         ]
     )
     latest_updated_at = max(
-        map(
-            lambda record: isoparse(json.loads(record)["record"]["updated_at"]),
-            issue_comments_records,
-        )
+        isoparse(json.loads(record)["record"]["updated_at"])
+        for record in issue_comments_records
     )
     assert last_state_updated_at == latest_updated_at
 

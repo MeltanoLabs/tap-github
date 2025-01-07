@@ -14,6 +14,8 @@ from tap_github.schema_objects import user_object
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from singer_sdk.tap_base import Tap
+
 
 class UserStream(GitHubRestStream):
     """Defines 'User' stream."""
@@ -35,7 +37,7 @@ class UserStream(GitHubRestStream):
         if "user_usernames" in self.config:
             input_user_list = self.config["user_usernames"]
 
-            augmented_user_list = list()
+            augmented_user_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
             # seems closer to 1000, use half that to stay safe.
@@ -50,7 +52,7 @@ class UserStream(GitHubRestStream):
             return augmented_user_list
 
         elif "user_ids" in self.config:
-            return [{"id": id} for id in self.config["user_ids"]]
+            return [{"id": user_id} for user_id in self.config["user_ids"]]
         return None
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
@@ -76,13 +78,13 @@ class UserStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, user_list) -> None:
+            def __init__(self, tap: Tap, user_list: list[str]) -> None:
                 super().__init__(tap)
                 self.user_list = user_list
 
             @property
             def query(self) -> str:
-                chunks = list()
+                chunks = []
                 for i, user in enumerate(self.user_list):
                     # we use the `repositoryOwner` query which is the only one that
                     # works on both users and orgs with graphql. REST is less picky
@@ -96,10 +98,10 @@ class UserStream(GitHubRestStream):
         if len(user_list) < 1:
             return []
 
-        users_with_ids: list = list()
+        users_with_ids: list = []
         temp_stream = TempStream(self._tap, list(user_list))
 
-        databaseIdPattern: re.Pattern = re.compile(
+        database_id_pattern: re.Pattern = re.compile(
             r"https://avatars.githubusercontent.com/u/(\d+)?.*"
         )
         # replace manually provided org/repo values by the ones obtained
@@ -124,10 +126,10 @@ class UserStream(GitHubRestStream):
                     continue
                 # the databaseId (in graphql language) is not available on
                 # repositoryOwner, so we parse the avatarUrl to get it :/
-                m = databaseIdPattern.match(record[item]["avatarUrl"])
+                m = database_id_pattern.match(record[item]["avatarUrl"])
                 if m is not None:
-                    dbId = m.group(1)
-                    users_with_ids.append({"username": username, "user_id": dbId})
+                    db_id = m.group(1)
+                    users_with_ids.append({"username": username, "user_id": db_id})
                 else:
                     # If we get here, github's API is not returning what
                     # we expected, so it's most likely a breaking change on
