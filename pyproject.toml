@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "tap-github"
+name = "meltanolabs-tap-github"
 version = "1.10.0"
 description = "Singer tap for GitHub, built with the Singer SDK."
 authors = ["Meltano and Meltano Community <hello@meltano.com>"]
@@ -23,6 +23,9 @@ classifiers = [
 	"Programming Language :: Python :: 3.13",
 	"Programming Language :: Python :: Implementation :: CPython",
 	"Typing :: Typed",
+]
+packages = [
+	{ include = "tap_github", format = ["sdist", "wheel"] }
 ]
 
 [tool.poetry.urls]
