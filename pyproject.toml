@@ -11,6 +11,7 @@ homepage = "https://github.com/MeltanoLabs/tap-github"
 repository = "https://github.com/MeltanoLabs/tap-github"
 license = "Apache-2.0"
 keywords = ["Meltano", "Singer", "Meltano SDK", "Singer SDK", "ELT", "Github"]
+readme = "README.md"
 classifiers = [
 	"Intended Audience :: Developers",
 	"License :: OSI Approved :: Apache Software License",
