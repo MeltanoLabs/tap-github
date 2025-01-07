@@ -112,10 +112,10 @@ def parse_counter(tag: Tag | NavigableString | None) -> int:
         else:
             title_string = cast(str, title[0])
         return int(title_string.strip().replace(",", "").replace("+", ""))
-    except (KeyError, ValueError):
+    except (KeyError, ValueError) as e:
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
-        )
+        ) from e
 
 
 def scrape_metrics(
@@ -130,11 +130,11 @@ def scrape_metrics(
     try:
         issues = parse_counter(soup.find("span", id="issues-repo-tab-count"))
         prs = parse_counter(soup.find("span", id="pull-requests-repo-tab-count"))
-    except IndexError:
+    except IndexError as e:
         # These two items should exist. We raise an error if we could not find them.
         raise IndexError(
             "Could not find issues or prs info. Maybe the GitHub page format has changed?"  # noqa: E501
-        )
+        ) from e
 
     dependents_node = soup.find(string=used_by_regex)
     # verify that we didn't hit some random text in the page.

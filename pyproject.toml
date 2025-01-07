@@ -78,7 +78,13 @@ select = [
 	"E",    # pycodestyle (errors)
 	"W",    # pycodestyle (warnings)
 	"I",    # isort
+	"N",    # pep8-naming
 	"UP",   # pyupgrade
+	"YTT",  # flake8-2020
+	"ANN",  # flake8-annotations
+	"B",    # flake8-bugbear
+	"A",    # flake8-builtins
+	"C4",   # flake8-comprehensions
 	"DTZ",  # flake8-datetimez
 	"FA",   # flake8-future-annotations
 	"SIM",  # flake8-simplify
@@ -87,3 +93,6 @@ select = [
 	"FURB", # refurb
 	"RUF",  # Ruff-specific rules
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tap_github/tests/*" = ["ANN"]
