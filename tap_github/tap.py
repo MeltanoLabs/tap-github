@@ -16,6 +16,7 @@ class TapGitHub(Tap):
     """GitHub tap class."""
 
     name = "tap-github"
+    package_name = "meltanolabs-tap-github"
 
     @classproperty
     def logger(cls) -> logging.Logger:
