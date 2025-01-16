@@ -1238,6 +1238,7 @@ class PullRequestsStream(GitHubRestStream):
                 "repo": context["repo"],
                 "repo_id": context["repo_id"],
                 "pull_number": record["number"],
+                "pull_id": record["id"],
             }
         return {
             "pull_number": record["number"],
@@ -1430,6 +1431,62 @@ class PullRequestCommits(GitHubRestStream):
             row["pull_number"] = context["pull_number"]
         return row
 
+class PullRequestDiffs(GitHubRestStream):
+    name = "pull_request_diffs"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}"
+    primary_keys: ClassVar[list[str]] = ["pull_id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [406, 422, 502]
+    @property
+    def http_headers(self) -> dict:
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.diff"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
+        if response.status_code != 200:
+            return
+
+        content_length = int(response.headers.get("Content-Length"))
+        max_size = 41943040  # 40 MiB
+        if content_length > max_size:
+            self.logger.info(f"Skipping PR. The diff size ({content_length / 1024 / 1024:.2f} MiB) exceeded the maximum size limit of 40 MiB.")  # noqa: E501
+            return
+
+        yield {"diff": response.text}
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors."""
+        if response.status_code in self.tolerated_http_errors:
+            contents = response.json()
+            self.logger.info(f"Skipping PR due to {response.status_code} error: {contents['message']}")  # noqa: E501
+            return
+        super().validate_response(response)
+
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            # Get PR ID from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["pull_number"] = context["pull_number"]
+            row["pull_id"] = context["pull_id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("pull_number", th.IntegerType),
+        th.Property("pull_id", th.IntegerType),
+        # Rest
+        th.Property("diff", th.StringType),
+    ).to_dict()
 
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
