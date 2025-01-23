@@ -1431,6 +1431,7 @@ class PullRequestCommits(GitHubRestStream):
             row["pull_number"] = context["pull_number"]
         return row
 
+
 class PullRequestDiffsStream(GitHubRestStream):
     name = "pull_request_diffs"
     path = "/repos/{org}/{repo}/pulls/{pull_number}"
@@ -1439,6 +1440,7 @@ class PullRequestDiffsStream(GitHubRestStream):
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     tolerated_http_errors: ClassVar[list[int]] = [406, 422, 502]
+
     @property
     def http_headers(self) -> dict:
         headers = super().http_headers
@@ -1455,7 +1457,9 @@ class PullRequestDiffsStream(GitHubRestStream):
             content_length = int(content_length_str)
             max_size = 41943040  # 40 MiB
             if content_length > max_size:
-                self.logger.info(f"Skipping PR. The diff size ({content_length / 1024 / 1024:.2f} MiB) exceeded the maximum size limit of 40 MiB.")  # noqa: E501
+                self.logger.info(
+                    f"Skipping PR. The diff size ({content_length / 1024 / 1024:.2f} MiB) exceeded the maximum size limit of 40 MiB."  # noqa: E501
+                )
             return
 
         yield {"diff": response.text}
@@ -1464,7 +1468,9 @@ class PullRequestDiffsStream(GitHubRestStream):
         """Allow some specific errors."""
         if response.status_code in self.tolerated_http_errors:
             contents = response.json()
-            self.logger.info(f"Skipping PR due to {response.status_code} error: {contents['message']}")  # noqa: E501
+            self.logger.info(
+                f"Skipping PR due to {response.status_code} error: {contents['message']}"  # noqa: E501
+            )
             return
         super().validate_response(response)
 
@@ -1489,6 +1495,7 @@ class PullRequestDiffsStream(GitHubRestStream):
         # Rest
         th.Property("diff", th.StringType),
     ).to_dict()
+
 
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
