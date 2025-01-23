@@ -1431,7 +1431,7 @@ class PullRequestCommits(GitHubRestStream):
             row["pull_number"] = context["pull_number"]
         return row
 
-class PullRequestDiffs(GitHubRestStream):
+class PullRequestDiffsStream(GitHubRestStream):
     name = "pull_request_diffs"
     path = "/repos/{org}/{repo}/pulls/{pull_number}"
     primary_keys: ClassVar[list[str]] = ["pull_id"]
