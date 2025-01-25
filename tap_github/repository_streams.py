@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Iterable
+from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
-import requests
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -21,6 +20,11 @@ from tap_github.schema_objects import (
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import requests
+
 
 class RepositoryStream(GitHubRestStream):
     """Defines 'Repository' stream."""
@@ -31,7 +35,9 @@ class RepositoryStream(GitHubRestStream):
     replication_key = "updated_at"
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -80,13 +86,13 @@ class RepositoryStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, repo_list) -> None:
+            def __init__(self, tap, repo_list) -> None:  # noqa: ANN001
                 super().__init__(tap)
                 self.repo_list = repo_list
 
             @property
             def query(self) -> str:
-                chunks = list()
+                chunks = []
                 for i, repo in enumerate(self.repo_list):
                     chunks.append(
                         f'repo{i}: repository(name: "{repo[1]}", owner: "{repo[0]}") '
@@ -110,7 +116,7 @@ class RepositoryStream(GitHubRestStream):
         if len(repo_list) < 1:
             return []
 
-        repos_with_ids: list = list()
+        repos_with_ids: list = []
         temp_stream = TempStream(self._tap, list(repo_list))
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
@@ -162,10 +168,8 @@ class RepositoryStream(GitHubRestStream):
             ]
 
         if "repositories" in self.config:
-            split_repo_names = list(
-                map(lambda s: s.split("/"), self.config["repositories"])
-            )
-            augmented_repo_list = list()
+            split_repo_names = [s.split("/") for s in self.config["repositories"]]
+            augmented_repo_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
             # seems closer to 1000, use half that to stay safe.
@@ -636,7 +640,9 @@ class MilestonesStream(GitHubRestStream):
     ignore_parent_replication_key = True
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -836,7 +842,9 @@ class IssuesStream(GitHubRestStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -1194,7 +1202,9 @@ class PullRequestsStream(GitHubRestStream):
     use_fake_since_parameter = True
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -1649,7 +1659,9 @@ class AnonymousContributorsStream(GitHubRestStream):
     tolerated_http_errors: ClassVar[list[int]] = [204]
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
@@ -1688,7 +1700,7 @@ class StargazersStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
@@ -1738,7 +1750,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     # The parent repository object changes if the number of stargazers changes.
     ignore_parent_replication_key = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
@@ -1755,8 +1767,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         return row
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Any | None
-    ) -> Any | None:
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
         """
         Exit early if a since parameter is provided.
         """
@@ -2154,7 +2168,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
         th.Property("runner_group_name", th.StringType),
     ).to_dict()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         self._schema_emitted = False
 
@@ -2163,13 +2177,15 @@ class WorkflowRunJobsStream(GitHubRestStream):
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         params = super().get_url_params(context, next_page_token)
         params["filter"] = "all"
         return params
 
-    def _write_schema_message(self):
+    def _write_schema_message(self) -> None:
         """Write out a SCHEMA message with the stream schema."""
         if not self._schema_emitted:
             super()._write_schema_message()

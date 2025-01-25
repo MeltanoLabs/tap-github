@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-
-from singer_sdk.streams.core import Stream
+from typing import TYPE_CHECKING
 
 from tap_github.organization_streams import (
     OrganizationStream,
@@ -53,6 +52,9 @@ from tap_github.repository_streams import (
 )
 from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 
+if TYPE_CHECKING:
+    from singer_sdk.streams.core import Stream
+
 
 class Streams(Enum):
     """
@@ -62,7 +64,7 @@ class Streams(Enum):
     valid_queries: set[str]
     streams: list[type[Stream]]
 
-    def __init__(self, valid_queries: set[str], streams: list[type[Stream]]):
+    def __init__(self, valid_queries: set[str], streams: list[type[Stream]]) -> None:
         self.valid_queries = valid_queries
         self.streams = streams
 
@@ -124,5 +126,5 @@ class Streams(Enum):
     )
 
     @classmethod
-    def all_valid_queries(cls):
+    def all_valid_queries(cls) -> set[str]:
         return set.union(*[stream.valid_queries for stream in Streams])

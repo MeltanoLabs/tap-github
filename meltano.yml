@@ -1,6 +1,8 @@
 version: 1
 send_anonymous_usage_stats: false
 project_id: 96584f7b-a36c-46e0-b41a-7f9074293137
+venv:
+  backend: uv
 plugins:
   extractors:
   - name: tap-github

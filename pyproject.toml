@@ -1,23 +1,31 @@
 [tool.poetry]
-name = "tap-github"
-version = "1.4.2"
-description = "`tap-github` is Singer tap for GitHub, built with the Singer SDK."
-authors = ["Meltano and Meltano Community"]
+name = "meltanolabs-tap-github"
+version = "1.10.0"
+description = "Singer tap for GitHub, built with the Singer SDK."
+authors = ["Meltano and Meltano Community <hello@meltano.com>"]
+maintainers = [
+	"Meltano and Meltano Community <hello@meltano.com>",
+	"Edgar Ramírez-Mondragón <edgarrm358@gmail.com>",
+]
 homepage = "https://github.com/MeltanoLabs/tap-github"
 repository = "https://github.com/MeltanoLabs/tap-github"
-license = "Apache 2.0"
+license = "Apache-2.0"
 keywords = ["Meltano", "Singer", "Meltano SDK", "Singer SDK", "ELT", "Github"]
+readme = "README.md"
 classifiers = [
 	"Intended Audience :: Developers",
 	"License :: OSI Approved :: Apache Software License",
 	"Operating System :: OS Independent",
-	"Programming Language :: Python :: 3.8",
 	"Programming Language :: Python :: 3.9",
 	"Programming Language :: Python :: 3.10",
 	"Programming Language :: Python :: 3.11",
 	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
 	"Programming Language :: Python :: Implementation :: CPython",
 	"Typing :: Typed",
+]
+packages = [
+	{ include = "tap_github", format = ["sdist", "wheel"] }
 ]
 
 [tool.poetry.urls]
@@ -26,15 +34,15 @@ classifiers = [
 [tool.poetry.dependencies]
 beautifulsoup4 = "~=4.12.0"
 nested-lookup = "~=0.2.25"
-PyJWT = "2.9.0"
-python = ">=3.8"
+PyJWT = "2.10.1"
+python = ">=3.9"
 python-dateutil = "~=2.9"
 requests = "~=2.32.3"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = "~=0.35.0"
+singer-sdk = "~=0.43.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.1"
 requests-cache = ">=1.0.1"
 types-beautifulsoup4 = ">=4.12.0"
@@ -61,17 +69,30 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.lint]
 ignore = []
 select = [
-	"F",   # Pyflakes
-	"E",   # pycodestyle (errors)
-	"W",   # pycodestyle (warnings)
-	"I",   # isort
-	"UP",  # pyupgrade
-	"FA",  # flake8-future-annotations
-	"SIM", # flake8-simplify
-	"RUF", # Ruff-specific rules
+	"F",    # Pyflakes
+	"E",    # pycodestyle (errors)
+	"W",    # pycodestyle (warnings)
+	"I",    # isort
+	"N",    # pep8-naming
+	"UP",   # pyupgrade
+	"YTT",  # flake8-2020
+	"ANN",  # flake8-annotations
+	"B",    # flake8-bugbear
+	"A",    # flake8-builtins
+	"C4",   # flake8-comprehensions
+	"DTZ",  # flake8-datetimez
+	"FA",   # flake8-future-annotations
+	"SIM",  # flake8-simplify
+	"TC",   # flake8-type-checking
+	"PERF", # Perflint
+	"FURB", # refurb
+	"RUF",  # Ruff-specific rules
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tap_github/tests/*" = ["ANN"]

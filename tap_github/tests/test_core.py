@@ -23,9 +23,12 @@ from .fixtures import (  # noqa: F401
 def test_standard_tap_tests_for_search_mode(search_config):  # noqa: F811
     """Run standard tap tests from the SDK."""
     tests = get_standard_tap_tests(TapGitHub, config=search_config)
-    with patch(
-        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
-    ), nostdout():
+    with (
+        patch(
+            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+        ),
+        nostdout(),
+    ):
         for test in tests:
             test()
 
@@ -33,9 +36,12 @@ def test_standard_tap_tests_for_search_mode(search_config):  # noqa: F811
 def test_standard_tap_tests_for_repo_list_mode(repo_list_config):  # noqa: F811
     """Run standard tap tests from the SDK."""
     tests = get_standard_tap_tests(TapGitHub, config=repo_list_config)
-    with patch(
-        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
-    ), nostdout():
+    with (
+        patch(
+            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+        ),
+        nostdout(),
+    ):
         for test in tests:
             test()
 

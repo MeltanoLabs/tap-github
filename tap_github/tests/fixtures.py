@@ -105,7 +105,7 @@ def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) ->
     for child_stream in self.child_streams:
         # Use org:write access level credentials for collaborators stream
         if child_stream.name in ["collaborators"]:
-            ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")
+            ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")  # noqa: N806
             # TODO - Fix collaborators tests, likely by mocking API responses directly.
             # Currently we have to bypass them as they are failing frequently.
             if not ORG_LEVEL_TOKEN or no_sync:
@@ -113,7 +113,7 @@ def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) ->
                     'No "ORG_LEVEL_TOKEN" found. Skipping collaborators stream sync.'
                 )
                 continue
-            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # noqa: N806
             os.environ["GITHUB_TOKEN"] = ORG_LEVEL_TOKEN
             child_stream.sync(context=child_context)
             os.environ["GITHUB_TOKEN"] = SAVED_GTHUB_TOKEN or ""

@@ -7,11 +7,9 @@ import inspect
 import random
 import time
 from types import FrameType
-from typing import Any, ClassVar, Iterable, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from urllib.parse import parse_qs, urlparse
 
-import requests
-from backoff.types import Details
 from dateutil.parser import parse
 from nested_lookup import nested_lookup
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
@@ -19,6 +17,12 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.streams import GraphQLStream, RESTStream
 
 from tap_github.authenticator import GitHubTokenAuthenticator
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import requests
+    from backoff.types import Details
 
 EMPTY_REPO_ERROR_STATUS = 409
 
@@ -61,8 +65,10 @@ class GitHubRestStream(RESTStream):
         return headers
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Any | None
-    ) -> Any | None:
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
         """Return a token for identifying next page or None if no more pages."""
         if (
             previous_token
@@ -132,7 +138,9 @@ class GitHubRestStream(RESTStream):
         return (previous_token or 1) + 1
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
@@ -324,8 +332,10 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Any | None
-    ) -> Any | None:
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
         """
         Return a dict of cursors for identifying next page or None if no more pages.
 
@@ -366,7 +376,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         # We leverage previous_token to remember the pagination cursors
         # for indices below max_pagination_index.
-        next_page_cursors: dict[str, str] = dict()
+        next_page_cursors: dict[str, str] = {}
         for key, value in (previous_token or {}).items():
             # Only keep pagination info for indices below max_pagination_index.
             pagination_index = int(str(key).split("_")[1])
@@ -388,10 +398,12 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         return next_page_cursors
 
     def get_url_params(
-        self, context: dict | None, next_page_token: Any | None
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context.copy() if context else dict()
+        params = context.copy() if context else {}
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)

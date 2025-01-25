@@ -8,12 +8,14 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jwt
 import requests
 from singer_sdk.authenticators import APIAuthenticatorBase
-from singer_sdk.streams import RESTStream
+
+if TYPE_CHECKING:
+    from singer_sdk.streams import RESTStream
 
 
 class TokenManager:
@@ -31,8 +33,8 @@ class TokenManager:
         self,
         token: str | None,
         rate_limit_buffer: int | None = None,
-        logger: Any | None = None,
-    ):
+        logger: Any | None = None,  # noqa: ANN401
+    ) -> None:
         """Init TokenManager info."""
         self.token = token
         self.logger = logger
@@ -46,7 +48,7 @@ class TokenManager:
             else self.DEFAULT_RATE_LIMIT_BUFFER
         )
 
-    def update_rate_limit(self, response_headers: Any) -> None:
+    def update_rate_limit(self, response_headers: Any) -> None:  # noqa: ANN401
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
         self.rate_limit_remaining = int(response_headers["X-RateLimit-Remaining"])
         self.rate_limit_reset = datetime.fromtimestamp(
@@ -95,7 +97,12 @@ class TokenManager:
 class PersonalTokenManager(TokenManager):
     """A class to store token rate limiting information."""
 
-    def __init__(self, token: str, rate_limit_buffer: int | None = None, **kwargs):
+    def __init__(
+        self,
+        token: str,
+        rate_limit_buffer: int | None = None,
+        **kwargs,  # noqa: ANN003
+    ) -> None:
         """Init PersonalTokenRateLimit info."""
         super().__init__(token, rate_limit_buffer=rate_limit_buffer, **kwargs)
 
@@ -164,8 +171,8 @@ class AppTokenManager(TokenManager):
         env_key: str,
         rate_limit_buffer: int | None = None,
         expiry_time_buffer: int | None = None,
-        **kwargs,
-    ):
+        **kwargs,  # noqa: ANN003
+    ) -> None:
         if rate_limit_buffer is None:
             rate_limit_buffer = self.DEFAULT_RATE_LIMIT_BUFFER
         super().__init__(None, rate_limit_buffer=rate_limit_buffer, **kwargs)
@@ -182,7 +189,7 @@ class AppTokenManager(TokenManager):
         self.token_expires_at: datetime | None = None
         self.claim_token()
 
-    def claim_token(self):
+    def claim_token(self) -> None:
         """Updates the TokenManager's token and token_expires_at attributes.
 
         The outcome will be _either_ that self.token is updated to a newly claimed valid token and
@@ -240,7 +247,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
     """Base class for offloading API auth."""
 
     @staticmethod
-    def get_env():
+    def get_env():  # noqa: ANN205
         return dict(environ)
 
     def prepare_tokens(self) -> list[TokenManager]:
@@ -307,7 +314,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 )
                 if app_token_manager.is_valid_token():
                     app_token_managers.append(app_token_manager)
-            except ValueError as e:
+            except ValueError as e:  # noqa: PERF203
                 self.logger.warning(
                     f"An error was thrown while preparing an app token: {e}"
                 )
