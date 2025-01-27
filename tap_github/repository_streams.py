@@ -1462,13 +1462,14 @@ class PullRequestDiffsStream(GitHubRestStream):
         if response.status_code != 200:
             return
 
-        content_length_str = response.headers.get("Content-Length")
-        if content_length_str is not None:
+        if content_length_str := response.headers.get("Content-Length"):
             content_length = int(content_length_str)
-            max_size = 41943040  # 40 MiB
+            max_size = 41_943_040  # 40 MiB
             if content_length > max_size:
                 self.logger.info(
-                    f"Skipping PR. The diff size ({content_length / 1024 / 1024:.2f} MiB) exceeded the maximum size limit of 40 MiB."  # noqa: E501
+                    "Skipping PR. The diff size (%.2f MiB) exceeded the maximum size "
+                    "limit of 40 MiB.",
+                    content_length / 1024 / 1024,
                 )
             return
 
@@ -1479,7 +1480,9 @@ class PullRequestDiffsStream(GitHubRestStream):
         if response.status_code in self.tolerated_http_errors:
             contents = response.json()
             self.logger.info(
-                f"Skipping PR due to {response.status_code} error: {contents['message']}"  # noqa: E501
+                "Skipping PR due to %d error: %s",
+                response.status_code,
+                contents["message"],
             )
             return
         super().validate_response(response)
