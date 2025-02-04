@@ -311,7 +311,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
     @property
     def url_base(self) -> str:
-        return f'{self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)}/graphql'
+        return f"{self.config.get('api_url_base', self.DEFAULT_API_BASE_URL)}/graphql"
 
     # the jsonpath under which to fetch the list of records from the graphql response
     query_jsonpath: str = "$.data.[*]"
