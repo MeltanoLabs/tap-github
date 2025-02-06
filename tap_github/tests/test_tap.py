@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 import json
-import os
 import re
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +13,11 @@ from singer_sdk.helpers import _catalog as cat_helpers
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
 
-from .fixtures import alternative_sync_chidren, repo_list_config, username_list_config
+from .fixtures import (  # noqa: F401
+    alternative_sync_chidren,
+    repo_list_config,
+    username_list_config,
+)
 
 repo_list_2 = [
     "MeltanoLabs/tap-github",
@@ -42,7 +46,7 @@ repo_list_2_ids = [
 
 
 @pytest.mark.repo_list(repo_list_2)
-def test_validate_repo_list_config(repo_list_config):
+def test_validate_repo_list_config(repo_list_config):  # noqa: F811
     """Verify that the repositories list is parsed correctly"""
     repo_list_context = [
         {
@@ -58,7 +62,7 @@ def test_validate_repo_list_config(repo_list_config):
 
 
 def run_tap_with_config(
-    capsys, config_obj: dict, skip_stream: Optional[str], single_stream: Optional[str]
+    capsys, config_obj: dict, skip_stream: str | None, single_stream: str | None
 ) -> str:
     """
     Run the tap with the given config and capture stdout, optionally
@@ -96,7 +100,9 @@ def run_tap_with_config(
 @pytest.mark.parametrize("skip_parent_streams", [False, True])
 @pytest.mark.repo_list(repo_list_2)
 def test_get_a_repository_in_repo_list_mode(
-    capsys, repo_list_config, skip_parent_streams
+    capsys,
+    repo_list_config,  # noqa: F811
+    skip_parent_streams,
 ):
     """
     Discover the catalog, and request 2 repository records.
@@ -112,7 +118,7 @@ def test_get_a_repository_in_repo_list_mode(
     )
     # Verify we got the right number of records
     # one per repo in the list only if we sync the "repositories" stream, 0 if not
-    assert captured_out.count('{"type": "RECORD", "stream": "repositories"') == len(
+    assert captured_out.count('{"type":"RECORD","stream":"repositories"') == len(
         repo_list_2_ids * (not skip_parent_streams)
     )
     # check that the tap corrects invalid case in config input
@@ -121,7 +127,7 @@ def test_get_a_repository_in_repo_list_mode(
 
 
 @pytest.mark.repo_list(["MeltanoLabs/tap-github"])
-def test_last_state_message_is_valid(capsys, repo_list_config):
+def test_last_state_message_is_valid(capsys, repo_list_config):  # noqa: F811
     """
     Validate that the last state message is not a temporary one and contains the
     expected values for a stream with overridden state partitioning keys.
@@ -132,9 +138,9 @@ def test_last_state_message_is_valid(capsys, repo_list_config):
         capsys, repo_list_config, "repositories", single_stream=None
     )
     # capture the messages we're interested in
-    state_messages = re.findall(r'{"type": "STATE", "value":.*}', captured_out)
+    state_messages = re.findall(r'{"type":"STATE","value":.*}', captured_out)
     issue_comments_records = re.findall(
-        r'{"type": "RECORD", "stream": "issue_comments",.*}', captured_out
+        r'{"type":"RECORD","stream":"issue_comments",.*}', captured_out
     )
     assert state_messages is not None
     last_state_msg = state_messages[-1]
@@ -149,10 +155,8 @@ def test_last_state_message_is_valid(capsys, repo_list_config):
         ]
     )
     latest_updated_at = max(
-        map(
-            lambda record: isoparse(json.loads(record)["record"]["updated_at"]),
-            issue_comments_records,
-        )
+        isoparse(json.loads(record)["record"]["updated_at"])
+        for record in issue_comments_records
     )
     assert last_state_updated_at == latest_updated_at
 
@@ -162,7 +166,9 @@ def test_last_state_message_is_valid(capsys, repo_list_config):
 @pytest.mark.parametrize("skip_parent_streams", [False, True])
 @pytest.mark.username_list(["EricBoucher", "aaRONsTeeRS"])
 def test_get_a_user_in_user_usernames_mode(
-    capsys, username_list_config, skip_parent_streams
+    capsys,
+    username_list_config,  # noqa: F811
+    skip_parent_streams,
 ):
     """
     Discover the catalog, and request 2 repository records
@@ -176,19 +182,19 @@ def test_get_a_user_in_user_usernames_mode(
     )
     # Verify we got the right number of records:
     # one per user in the list if we sync the root stream, 0 otherwise
-    assert captured_out.count('{"type": "RECORD", "stream": "users"') == len(
+    assert captured_out.count('{"type":"RECORD","stream":"users"') == len(
         username_list_config["user_usernames"] * (not skip_parent_streams)
     )
     # these 2 are inequalities as number will keep changing :)
-    assert captured_out.count('{"type": "RECORD", "stream": "starred"') > 150
-    assert captured_out.count('{"type": "RECORD", "stream": "user_contributed_to"') > 25
-    assert '{"username": "aaronsteers"' in captured_out
-    assert '{"username": "aaRONsTeeRS"' not in captured_out
-    assert '{"username": "EricBoucher"' not in captured_out
+    assert captured_out.count('{"type":"RECORD","stream":"starred"') > 150
+    assert captured_out.count('{"type":"RECORD","stream":"user_contributed_to"') > 25
+    assert '{"username":"aaronsteers"' in captured_out
+    assert '{"username":"aaRONsTeeRS"' not in captured_out
+    assert '{"username":"EricBoucher"' not in captured_out
 
 
 @pytest.mark.repo_list(["torvalds/linux"])
-def test_large_list_of_contributors(capsys, repo_list_config):
+def test_large_list_of_contributors(capsys, repo_list_config):  # noqa: F811
     """
     Check that the github error message for very large lists of contributors
     is handled properly (does not return any records).
@@ -196,7 +202,7 @@ def test_large_list_of_contributors(capsys, repo_list_config):
     captured_out = run_tap_with_config(
         capsys, repo_list_config, skip_stream=None, single_stream="contributors"
     )
-    assert captured_out.count('{"type": "RECORD", "stream": "contributors"') == 0
+    assert captured_out.count('{"type":"RECORD","stream":"contributors"') == 0
 
 
 def test_web_tag_parse_counter():

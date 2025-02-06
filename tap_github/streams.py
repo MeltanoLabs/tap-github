@@ -1,7 +1,7 @@
-from enum import Enum
-from typing import List, Set, Type
+from __future__ import annotations
 
-from singer_sdk.streams.core import Stream
+from enum import Enum
+from typing import TYPE_CHECKING
 
 from tap_github.organization_streams import (
     OrganizationStream,
@@ -31,6 +31,7 @@ from tap_github.repository_streams import (
     ProjectColumnsStream,
     ProjectsStream,
     PullRequestCommits,
+    PullRequestDiffsStream,
     PullRequestsStream,
     ReadmeHtmlStream,
     ReadmeStream,
@@ -52,16 +53,19 @@ from tap_github.repository_streams import (
 from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 from tap_github.issue_transfer_streams import IssueTransfersStream
 
+if TYPE_CHECKING:
+    from singer_sdk.streams.core import Stream
+
 
 class Streams(Enum):
     """
     Represents all streams our tap supports, and which queries (by username, by organization, etc.) you can use.
-    """
+    """  # noqa: E501
 
-    valid_queries: Set[str]
-    streams: List[Type[Stream]]
+    valid_queries: set[str]
+    streams: list[type[Stream]]
 
-    def __init__(self, valid_queries: Set[str], streams: List[Type[Stream]]):
+    def __init__(self, valid_queries: set[str], streams: list[type[Stream]]) -> None:
         self.valid_queries = valid_queries
         self.streams = streams
 
@@ -88,6 +92,7 @@ class Streams(Enum):
             ProjectColumnsStream,
             ProjectsStream,
             PullRequestCommits,
+            PullRequestDiffsStream,
             PullRequestsStream,
             ReadmeHtmlStream,
             ReadmeStream,
@@ -126,5 +131,5 @@ class Streams(Enum):
     )
 
     @classmethod
-    def all_valid_queries(cls):
+    def all_valid_queries(cls) -> set[str]:
         return set.union(*[stream.valid_queries for stream in Streams])

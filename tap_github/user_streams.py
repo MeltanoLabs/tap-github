@@ -1,13 +1,20 @@
 """User Stream types classes for tap-github."""
 
+from __future__ import annotations
+
 import re
-from typing import Any, Dict, Iterable, List, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import user_object
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from singer_sdk.tap_base import Tap
 
 
 class UserStream(GitHubRestStream):
@@ -26,12 +33,12 @@ class UserStream(GitHubRestStream):
             return "/user/{id}"
 
     @property
-    def partitions(self) -> Optional[List[Dict]]:
+    def partitions(self) -> list[dict] | None:
         """Return a list of partitions."""
         if "user_usernames" in self.config:
             input_user_list = self.config["user_usernames"]
 
-            augmented_user_list = list()
+            augmented_user_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
             # seems closer to 1000, use half that to stay safe.
@@ -46,16 +53,16 @@ class UserStream(GitHubRestStream):
             return augmented_user_list
 
         elif "user_ids" in self.config:
-            return [{"id": id} for id in self.config["user_ids"]]
+            return [{"id": user_id} for user_id in self.config["user_ids"]]
         return None
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "username": record["login"],
             "user_id": record["id"],
         }
 
-    def get_user_ids(self, user_list: List[str]) -> List[Dict[str, str]]:
+    def get_user_ids(self, user_list: list[str]) -> list[dict[str, str]]:
         """Enrich the list of userse with their numeric ID from github.
 
         This helps maintain a stable id for context and bookmarks.
@@ -72,13 +79,13 @@ class UserStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, user_list) -> None:
+            def __init__(self, tap: Tap, user_list: list[str]) -> None:
                 super().__init__(tap)
                 self.user_list = user_list
 
             @property
             def query(self) -> str:
-                chunks = list()
+                chunks = []
                 for i, user in enumerate(self.user_list):
                     # we use the `repositoryOwner` query which is the only one that
                     # works on both users and orgs with graphql. REST is less picky
@@ -92,10 +99,10 @@ class UserStream(GitHubRestStream):
         if len(user_list) < 1:
             return []
 
-        users_with_ids: list = list()
+        users_with_ids: list = []
         temp_stream = TempStream(self._tap, list(user_list))
 
-        databaseIdPattern: re.Pattern = re.compile(
+        database_id_pattern: re.Pattern = re.compile(
             r"https://avatars.githubusercontent.com/u/(\d+)?.*"
         )
         # replace manually provided org/repo values by the ones obtained
@@ -104,7 +111,7 @@ class UserStream(GitHubRestStream):
         # Also remove repos which do not exist to avoid crashing further down
         # the line.
         for record in temp_stream.request_records({}):
-            for item in record.keys():
+            for item in record:
                 if item == "rateLimit":
                     continue
                 try:
@@ -120,10 +127,10 @@ class UserStream(GitHubRestStream):
                     continue
                 # the databaseId (in graphql language) is not available on
                 # repositoryOwner, so we parse the avatarUrl to get it :/
-                m = databaseIdPattern.match(record[item]["avatarUrl"])
+                m = database_id_pattern.match(record[item]["avatarUrl"])
                 if m is not None:
-                    dbId = m.group(1)
-                    users_with_ids.append({"username": username, "user_id": dbId})
+                    db_id = m.group(1)
+                    users_with_ids.append({"username": username, "user_id": db_id})
                 else:
                     # If we get here, github's API is not returning what
                     # we expected, so it's most likely a breaking change on
@@ -133,7 +140,7 @@ class UserStream(GitHubRestStream):
         self.logger.info(f"Running the tap on {len(users_with_ids)} users")
         return users_with_ids
 
-    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -199,10 +206,10 @@ class StarredStream(GitHubRestStream):
     name = "starred"
     path = "/users/{username}/starred"
     # "repo_id" is the starred repo's id.
-    primary_keys = ["repo_id", "username"]
+    primary_keys: ClassVar[list[str]] = ["repo_id", "username"]
     parent_stream_type = UserStream
     # TODO - change partitioning key to user_id?
-    state_partitioning_keys = ["username"]
+    state_partitioning_keys: ClassVar[list[str]] = ["username"]
     replication_key = "starred_at"
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
@@ -219,7 +226,7 @@ class StarredStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a repo_id top-level field to be used as state replication key.
         """
@@ -277,12 +284,12 @@ class UserContributedToStream(GitHubGraphqlStream):
 
     name = "user_contributed_to"
     query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"
-    primary_keys = ["username", "name_with_owner"]
+    primary_keys: ClassVar[list[str]] = ["username", "name_with_owner"]
     replication_key = None
     parent_stream_type = UserStream
     # TODO - add user_id to schema
     # TODO - change partitioning key to user_id?
-    state_partitioning_keys = ["username"]
+    state_partitioning_keys: ClassVar[list[str]] = ["username"]
     ignore_parent_replication_key = True
 
     @property
@@ -317,7 +324,7 @@ class UserContributedToStream(GitHubGraphqlStream):
               cost
             }
           }
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         th.Property("node_id", th.StringType),

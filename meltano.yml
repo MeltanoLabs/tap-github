@@ -1,6 +1,8 @@
 version: 1
 send_anonymous_usage_stats: false
 project_id: 96584f7b-a36c-46e0-b41a-7f9074293137
+venv:
+  backend: uv
 plugins:
   extractors:
   - name: tap-github
@@ -20,6 +22,8 @@ plugins:
       sensitive: true
     - name: additional_auth_tokens
       kind: array
+    - name: auth_app_keys
+      kind: array
     - name: rate_limit_buffer
       kind: integer
     - name: expiry_time_buffer
@@ -36,6 +40,15 @@ plugins:
       kind: array
     - name: issues_check_transfer
       kind: array
+    - name: stream_options.milestones.state
+      kind: options
+      options:
+      - label: Open
+        value: open
+      - label: Closed
+        value: closed
+      - label: All
+        value: all
     - name: start_date
       kind: date_iso8601
       value: '2010-01-01T00:00:00Z'

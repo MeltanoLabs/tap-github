@@ -3,23 +3,29 @@
 Inspired by https://github.com/dogsheep/github-to-sqlite/pull/70
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 import requests
-from bs4 import NavigableString, Tag
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from bs4 import NavigableString, Tag
 
 used_by_regex = re.compile(" {3}Used by ")
 contributors_regex = re.compile(" {3}Contributors ")
 
 
 def scrape_dependents(
-    response: requests.Response, logger: Optional[logging.Logger] = None
-) -> Iterable[Dict[str, Any]]:
+    response: requests.Response, logger: logging.Logger | None = None
+) -> Iterable[dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")
@@ -28,12 +34,7 @@ def scrape_dependents(
     # Navigate through Package toggle if present
     base_url = urlparse(response.url).hostname or "github.com"
     options = soup.find_all("a", class_="select-menu-item")
-    links = []
-    if len(options) > 0:
-        for link in options:
-            links.append(link["href"])
-    else:
-        links.append(response.url)
+    links = [link["href"] for link in options] if len(options) > 0 else [response.url]
 
     logger.debug(links)
 
@@ -41,7 +42,7 @@ def scrape_dependents(
         yield from _scrape_dependents(f"https://{base_url}/{link}", logger)
 
 
-def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, Any]]:
+def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, Any]]:
     # Optional dependency:
     from bs4 import BeautifulSoup
 
@@ -67,7 +68,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
 
         if not len(repo_names) == len(stars) == len(forks):
             raise IndexError(
-                "Could not find star and fork info. Maybe the GitHub page format has changed?"
+                "Could not find star and fork info. Maybe the GitHub page format has changed?"  # noqa: E501
             )
 
         repos = [
@@ -94,7 +95,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[Dict[str, A
             url = ""
 
 
-def parse_counter(tag: Union[Tag, NavigableString, None]) -> int:
+def parse_counter(tag: Tag | NavigableString | None) -> int:
     """
     Extract a count of [issues|PR|contributors...] from an HTML tag.
     For very high numbers, we only get an approximate value as github
@@ -111,15 +112,15 @@ def parse_counter(tag: Union[Tag, NavigableString, None]) -> int:
         else:
             title_string = cast(str, title[0])
         return int(title_string.strip().replace(",", "").replace("+", ""))
-    except (KeyError, ValueError):
+    except (KeyError, ValueError) as e:
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
-        )
+        ) from e
 
 
 def scrape_metrics(
-    response: requests.Response, logger: Optional[logging.Logger] = None
-) -> Iterable[Dict[str, Any]]:
+    response: requests.Response, logger: logging.Logger | None = None
+) -> Iterable[dict[str, Any]]:
     from bs4 import BeautifulSoup
 
     logger = logger or logging.getLogger("scraping")
@@ -129,18 +130,18 @@ def scrape_metrics(
     try:
         issues = parse_counter(soup.find("span", id="issues-repo-tab-count"))
         prs = parse_counter(soup.find("span", id="pull-requests-repo-tab-count"))
-    except IndexError:
+    except IndexError as e:
         # These two items should exist. We raise an error if we could not find them.
         raise IndexError(
-            "Could not find issues or prs info. Maybe the GitHub page format has changed?"
-        )
+            "Could not find issues or prs info. Maybe the GitHub page format has changed?"  # noqa: E501
+        ) from e
 
     dependents_node = soup.find(string=used_by_regex)
     # verify that we didn't hit some random text in the page.
     # sometimes the dependents section isn't shown on the page either
     dependents_node_parent = getattr(dependents_node, "parent", None)
     dependents: int = 0
-    if dependents_node_parent is not None and "href" in dependents_node_parent:
+    if dependents_node_parent is not None and "href" in dependents_node_parent:  # noqa: SIM102
         if dependents_node_parent["href"].endswith("/network/dependents"):
             dependents = parse_counter(getattr(dependents_node, "next_element", None))
 
@@ -148,7 +149,7 @@ def scrape_metrics(
     contributors_node = soup.find(string=contributors_regex)
     contributors_node_parent = getattr(contributors_node, "parent", None)
     contributors: int = 0
-    if contributors_node_parent is not None and "href" in contributors_node_parent:
+    if contributors_node_parent is not None and "href" in contributors_node_parent:  # noqa: SIM102
         if contributors_node_parent["href"].endswith("/graphs/contributors"):
             contributors = parse_counter(
                 getattr(contributors_node, "next_element", None),

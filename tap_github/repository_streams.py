@@ -1,9 +1,10 @@
 """Repository Stream types classes for tap-github."""
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
-import requests
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -19,6 +20,11 @@ from tap_github.schema_objects import (
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import requests
+
 
 class RepositoryStream(GitHubRestStream):
     """Defines 'Repository' stream."""
@@ -29,8 +35,10 @@ class RepositoryStream(GitHubRestStream):
     replication_key = "updated_at"
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -61,7 +69,7 @@ class RepositoryStream(GitHubRestStream):
         else:
             return "$[*]"
 
-    def get_repo_ids(self, repo_list: List[Tuple[str]]) -> List[Dict[str, str]]:
+    def get_repo_ids(self, repo_list: list[tuple[str]]) -> list[dict[str, str]]:
         """Enrich the list of repos with their numeric ID from github.
 
         This helps maintain a stable id for context and bookmarks.
@@ -78,13 +86,13 @@ class RepositoryStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, repo_list) -> None:
+            def __init__(self, tap, repo_list) -> None:  # noqa: ANN001
                 super().__init__(tap)
                 self.repo_list = repo_list
 
             @property
             def query(self) -> str:
-                chunks = list()
+                chunks = []
                 for i, repo in enumerate(self.repo_list):
                     chunks.append(
                         f'repo{i}: repository(name: "{repo[1]}", owner: "{repo[0]}") '
@@ -108,7 +116,7 @@ class RepositoryStream(GitHubRestStream):
         if len(repo_list) < 1:
             return []
 
-        repos_with_ids: list = list()
+        repos_with_ids: list = []
         temp_stream = TempStream(self._tap, list(repo_list))
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
@@ -116,7 +124,7 @@ class RepositoryStream(GitHubRestStream):
         # Also remove repos which do not exist to avoid crashing further down
         # the line.
         for record in temp_stream.request_records({}):
-            for item in record.keys():
+            for item in record:
                 if item == "rateLimit":
                     continue
                 try:
@@ -147,7 +155,7 @@ class RepositoryStream(GitHubRestStream):
         return repos_with_ids
 
     @property
-    def partitions(self) -> Optional[List[Dict[str, str]]]:
+    def partitions(self) -> list[dict[str, str]] | None:
         """Return a list of partitions.
 
         This is called before syncing records, we use it to fetch some additional
@@ -160,10 +168,8 @@ class RepositoryStream(GitHubRestStream):
             ]
 
         if "repositories" in self.config:
-            split_repo_names = list(
-                map(lambda s: s.split("/"), self.config["repositories"])
-            )
-            augmented_repo_list = list()
+            split_repo_names = [s.split("/") for s in self.config["repositories"]]
+            augmented_repo_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
             # seems closer to 1000, use half that to stay safe.
@@ -183,7 +189,7 @@ class RepositoryStream(GitHubRestStream):
             return [{"org": org} for org in self.config["organizations"]]
         return None
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
@@ -196,7 +202,7 @@ class RepositoryStream(GitHubRestStream):
             "repo_id": record["id"],
         }
 
-    def get_records(self, context: Optional[Dict]) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -294,11 +300,11 @@ class ReadmeStream(GitHubRestStream):
 
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
-    primary_keys = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [404]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -337,11 +343,11 @@ class ReadmeHtmlStream(GitHubRestStream):
 
     name = "readme_html"
     path = "/repos/{org}/{repo}/readme"
-    primary_keys = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [404]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
 
     @property
     def http_headers(self) -> dict:
@@ -375,11 +381,11 @@ class CommunityProfileStream(GitHubRestStream):
 
     name = "community_profile"
     path = "/repos/{org}/{repo}/community/profile"
-    primary_keys = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [404]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -464,15 +470,15 @@ class EventsStream(GitHubRestStream):
 
     name = "events"
     path = "/repos/{org}/{repo}/events"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
         Each row emitted should be a dictionary of property names to their values.
         """
@@ -482,11 +488,11 @@ class EventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
-        # TODO - We should think about the best approach to handle this. An alternative would be to
-        # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these
-        # objects to "target_". They are worth keeping, however, as they can be different from
+        # TODO - We should think about the best approach to handle this. An alternative would be to  # noqa: E501
+        # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these  # noqa: E501
+        # objects to "target_". They are worth keeping, however, as they can be different from  # noqa: E501
         # the parent stream, e.g. for fork/parent PR events.
         row["target_repo"] = row.pop("repo", None)
         row["target_org"] = row.pop("org", None)
@@ -627,11 +633,26 @@ class EventsStream(GitHubRestStream):
 class MilestonesStream(GitHubRestStream):
     name = "milestones"
     path = "/repos/{org}/{repo}/milestones"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
+
+    def get_url_params(
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream."
+        params = super().get_url_params(context, next_page_token)
+        params["state"] = "open"
+
+        if "milestones" in self.config.get("stream_options", {}):
+            params.update(self.config["stream_options"]["milestones"])
+
+        return params
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -662,9 +683,9 @@ class ReleasesStream(GitHubRestStream):
     name = "releases"
     path = "/repos/{org}/{repo}/releases"
     ignore_parent_replication_key = True
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     replication_key = "created_at"
 
     MAX_RESULTS_LIMIT = 10000
@@ -718,13 +739,13 @@ class ReleasesStream(GitHubRestStream):
 class LanguagesStream(GitHubRestStream):
     name = "languages"
     path = "/repos/{org}/{repo}/languages"
-    primary_keys = ["repo", "org", "language_name"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "language_name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""
+        """Parse the language response and reformat to return as an iterator of [{language_name: Python, bytes: 23}]."""  # noqa: E501
         if response.status_code in self.tolerated_http_errors:
             return
 
@@ -747,10 +768,10 @@ class LanguagesStream(GitHubRestStream):
 class CollaboratorsStream(GitHubRestStream):
     name = "collaborators"
     path = "/repos/{org}/{repo}/collaborators"
-    primary_keys = ["id", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -782,14 +803,14 @@ class CollaboratorsStream(GitHubRestStream):
 
 
 class AssigneesStream(GitHubRestStream):
-    """Defines 'Assignees' stream which returns possible assignees for issues/prs following GitHub's API convention."""
+    """Defines 'Assignees' stream which returns possible assignees for issues/prs following GitHub's API convention."""  # noqa: E501
 
     name = "assignees"
     path = "/repos/{org}/{repo}/assignees"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -810,24 +831,26 @@ class AssigneesStream(GitHubRestStream):
 
 
 class IssuesStream(GitHubRestStream):
-    """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""
+    """Defines 'Issues' stream which returns Issues and PRs following GitHub's API convention."""  # noqa: E501
 
     name = "issues"
     path = "/repos/{org}/{repo}/issues"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
         # Fetch all issues and PRs, regardless of state (OPEN, CLOSED, MERGED).
-        # To exclude PRs from the issues stream, you can use the Stream Maps in the config.
+        # To exclude PRs from the issues stream, you can use the Stream Maps in the config.  # noqa: E501
         # {
         #     // ..
         #     "stream_maps": {
@@ -850,7 +873,7 @@ class IssuesStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
@@ -935,20 +958,20 @@ class IssueCommentsStream(GitHubRestStream):
 
     name = "issue_comments"
     path = "/repos/{org}/{repo}/issues/comments"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
     # FIXME: this allows the tap to continue on server-side timeouts but means
     # we have gaps in our data
-    tolerated_http_errors = [502]
+    tolerated_http_errors: ClassVar[list[int]] = [502]
 
     # GitHub is not missing the "since" parameter on this endpoint.
     # But it is too expensive on large repos and results in a lot of server errors.
     use_fake_since_parameter = True
 
-    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -959,7 +982,7 @@ class IssueCommentsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
         if row["body"] is not None:
@@ -999,15 +1022,15 @@ class IssueEventsStream(GitHubRestStream):
 
     name = "issue_events"
     path = "/repos/{org}/{repo}/issues/events"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "created_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def get_records(self, context: Optional[Dict] = None) -> Iterable[Dict[str, Any]]:
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -1018,9 +1041,9 @@ class IssueEventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
-        if "issue" in row.keys() and row['issue'] is not None:
+        if "issue" in row:
             row["issue_number"] = int(row["issue"].pop("number"))
             row["issue_url"] = row["issue"].pop("url")
         else:
@@ -1054,13 +1077,13 @@ class CommitsStream(GitHubRestStream):
 
     name = "commits"
     path = "/repos/{org}/{repo}/commits"
-    primary_keys = ["node_id"]
+    primary_keys: ClassVar[list[str]] = ["node_id"]
     replication_key = "commit_timestamp"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a timestamp top-level field to be used as state replication key.
         It's not clear from github's API docs which time (author or committer)
@@ -1126,10 +1149,10 @@ class CommitsStream(GitHubRestStream):
 class CommitCommentsStream(GitHubRestStream):
     name = "commit_comments"
     path = "/repos/{org}/{repo}/comments"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
     schema = th.PropertiesList(
@@ -1159,10 +1182,10 @@ class LabelsStream(GitHubRestStream):
 
     name = "labels"
     path = "/repos/{org}/{repo}/labels"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1185,17 +1208,19 @@ class PullRequestsStream(GitHubRestStream):
 
     name = "pull_requests"
     path = "/repos/{org}/{repo}/pulls"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -1214,7 +1239,7 @@ class PullRequestsStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         if row["body"] is not None:
             # some pr bodies include control characters such as \x00
@@ -1233,13 +1258,14 @@ class PullRequestsStream(GitHubRestStream):
             row["reactions"]["minus_one"] = row["reactions"].pop("-1", None)
         return row
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         if context:
             return {
                 "org": context["org"],
                 "repo": context["repo"],
                 "repo_id": context["repo_id"],
                 "pull_number": record["number"],
+                "pull_id": record["id"],
             }
         return {
             "pull_number": record["number"],
@@ -1349,9 +1375,9 @@ class PullRequestCommits(GitHubRestStream):
     name = "pull_request_commits"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
     ignore_parent_replication_key = False
-    primary_keys = ["node_id"]
+    primary_keys: ClassVar[list[str]] = ["node_id"]
     parent_stream_type = PullRequestsStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1426,20 +1452,88 @@ class PullRequestCommits(GitHubRestStream):
         ),
     ).to_dict()
 
-    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None and "pull_number" in context:
             row["pull_number"] = context["pull_number"]
         return row
 
 
+class PullRequestDiffsStream(GitHubRestStream):
+    name = "pull_request_diffs"
+    path = "/repos/{org}/{repo}/pulls/{pull_number}"
+    primary_keys: ClassVar[list[str]] = ["pull_id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [406, 422, 502]
+
+    @property
+    def http_headers(self) -> dict:
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.diff"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
+        if response.status_code != 200:
+            return
+
+        if content_length_str := response.headers.get("Content-Length"):
+            content_length = int(content_length_str)
+            max_size = 41_943_040  # 40 MiB
+            if content_length > max_size:
+                self.logger.info(
+                    "Skipping PR. The diff size (%.2f MiB) exceeded the maximum size "
+                    "limit of 40 MiB.",
+                    content_length / 1024 / 1024,
+                )
+            return
+
+        yield {"diff": response.text}
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow some specific errors."""
+        if response.status_code in self.tolerated_http_errors:
+            contents = response.json()
+            self.logger.info(
+                "Skipping PR due to %d error: %s",
+                response.status_code,
+                contents["message"],
+            )
+            return
+        super().validate_response(response)
+
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            # Get PR ID from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["pull_number"] = context["pull_number"]
+            row["pull_id"] = context["pull_id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("pull_number", th.IntegerType),
+        th.Property("pull_id", th.IntegerType),
+        # Rest
+        th.Property("diff", th.StringType),
+    ).to_dict()
+
+
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1473,10 +1567,10 @@ class ReviewsStream(GitHubRestStream):
 class ReviewCommentsStream(GitHubRestStream):
     name = "review_comments"
     path = "/repos/{org}/{repo}/pulls/comments"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1526,11 +1620,11 @@ class ContributorsStream(GitHubRestStream):
 
     name = "contributors"
     path = "/repos/{org}/{repo}/contributors"
-    primary_keys = ["node_id", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["node_id", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [204]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [204]
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1563,7 +1657,7 @@ class ContributorsStream(GitHubRestStream):
             contents = response.json()
             if (
                 contents["message"]
-                == "The history or contributor list is too large to list contributors for this repository via the API."
+                == "The history or contributor list is too large to list contributors for this repository via the API."  # noqa: E501
             ):
                 self.logger.info(
                     "Skipping repo '%s'. The list of contributors is too large.",
@@ -1578,15 +1672,17 @@ class AnonymousContributorsStream(GitHubRestStream):
 
     name = "anonymous_contributors"
     path = "/repos/{org}/{repo}/contributors"
-    primary_keys = ["email", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["email", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [204]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [204]
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         assert context is not None, f"Context cannot be empty for '{self.name}' stream."
         params = super().get_url_params(context, next_page_token)
@@ -1613,22 +1709,22 @@ class AnonymousContributorsStream(GitHubRestStream):
 
 
 class StargazersStream(GitHubRestStream):
-    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""
+    """Defines 'Stargazers' stream. Warning: this stream does NOT track star deletions."""  # noqa: E501
 
     name = "stargazers_rest"
     path = "/repos/{org}/{repo}/stargazers"
-    primary_keys = ["user_id", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["user_id", "repo", "org"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     replication_key = "starred_at"
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
-            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."
+            "The stream 'stargazers_rest' is deprecated. Please use the Graphql version instead: 'stargazers'."  # noqa: E501
         )
 
     @property
@@ -1642,7 +1738,7 @@ class StargazersStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1663,18 +1759,18 @@ class StargazersStream(GitHubRestStream):
 
 
 class StargazersGraphqlStream(GitHubGraphqlStream):
-    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""
+    """Defines 'UserContributedToStream' stream. Warning: this stream 'only' gets the first 100 projects (by stars)."""  # noqa: E501
 
     name = "stargazers"
     query_jsonpath = "$.data.repository.stargazers.edges.[*]"
-    primary_keys = ["user_id", "repo_id"]
+    primary_keys: ClassVar[list[str]] = ["user_id", "repo_id"]
     replication_key = "starred_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
     ignore_parent_replication_key = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         # TODO - remove warning with next release.
         self.logger.warning(
@@ -1682,7 +1778,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
             "Looking for the older version? Use 'stargazers_rest'."
         )
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1691,8 +1787,10 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         return row
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
         """
         Exit early if a since parameter is provided.
         """
@@ -1708,7 +1806,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         except IndexError:
             since = ""
 
-        # If since parameter is present, try to exit early by looking at the last "starred_at".
+        # If since parameter is present, try to exit early by looking at the last "starred_at".  # noqa: E501
         # Noting that we are traversing in DESCENDING order by STARRED_AT.
         if since:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
@@ -1723,7 +1821,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
         return """
           query repositoryStargazers($repo: String! $org: String! $nextPageCursor_0: String) {
             repository(name: $repo owner: $org) {
@@ -1751,7 +1849,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
               cost
             }
           }
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1773,16 +1871,16 @@ class StatsContributorsStream(GitHubRestStream):
 
     name = "stats_contributors"
     path = "/repos/{org}/{repo}/stats/contributors"
-    primary_keys = ["user_id", "week_start", "repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["user_id", "week_start", "repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
-    # Note - these queries are expensive and the API might return an HTTP 202 if the response
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    # Note - these queries are expensive and the API might return an HTTP 202 if the response  # noqa: E501
     # has not been cached recently. https://docs.github.com/en/rest/reference/metrics#a-word-about-caching
-    tolerated_http_errors = [202, 204]
+    tolerated_http_errors: ClassVar[list[int]] = [202, 204]
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and return an iterator of flattened contributor activity."""
+        """Parse the response and return an iterator of flattened contributor activity."""  # noqa: E501
         replacement_keys = {
             "a": "additions",
             "c": "commits",
@@ -1794,7 +1892,7 @@ class StatsContributorsStream(GitHubRestStream):
             weekly_data = contributor_activity["weeks"]
             for week in weekly_data:
                 # no need to save weeks with no contributions or author.
-                # if a user has deleted their account, GitHub may surprisingly return author: None.
+                # if a user has deleted their account, GitHub may surprisingly return author: None.  # noqa: E501
                 author = contributor_activity["author"]
                 if (sum(week[key] for key in ["a", "c", "d"]) == 0) or (author is None):
                     continue
@@ -1831,12 +1929,11 @@ class ProjectsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/projects"
     ignore_parent_replication_key = True
     replication_key = "updated_at"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo", "org"]
-    tolerated_http_errors = [410]  # 410 Gone - projects are disabled
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "project_id": record.get("id"),
             "repo_id": context["repo_id"] if context else None,
@@ -1871,11 +1968,11 @@ class ProjectColumnsStream(GitHubRestStream):
     path = "/projects/{project_id}/columns"
     ignore_parent_replication_key = True
     replication_key = "updated_at"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = ProjectsStream
-    state_partitioning_keys = ["project_id", "repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["project_id", "repo", "org"]
 
-    def get_child_context(self, record: Dict, context: Optional[Dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "column_id": record["id"],
             "repo_id": context["repo_id"] if context else None,
@@ -1906,9 +2003,9 @@ class ProjectCardsStream(GitHubRestStream):
     path = "/projects/columns/{column_id}/cards"
     ignore_parent_replication_key = True
     replication_key = "updated_at"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = ProjectColumnsStream
-    state_partitioning_keys = ["project_id", "repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["project_id", "repo", "org"]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1939,11 +2036,11 @@ class WorkflowsStream(GitHubRestStream):
 
     name = "workflows"
     path = "/repos/{org}/{repo}/actions/workflows"
-    primary_keys = ["id"]
-    replication_key = "updated_at"
+    primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.workflows[*]"
 
     schema = th.PropertiesList(
@@ -1974,11 +2071,11 @@ class WorkflowRunsStream(GitHubRestStream):
 
     name = "workflow_runs"
     path = "/repos/{org}/{repo}/actions/runs"
-    primary_keys = ["id"]
-    replication_key = "updated_at"
+    primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.workflow_runs[*]"
 
     schema = th.PropertiesList(
@@ -2024,7 +2121,7 @@ class WorkflowRunsStream(GitHubRestStream):
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
-    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a child context object from the record and optional provided context.
         By default, will return context if provided and otherwise the record dict.
         Developers may override this behavior to send specific information to child
@@ -2045,10 +2142,10 @@ class WorkflowRunJobsStream(GitHubRestStream):
 
     name = "workflow_run_jobs"
     path = "/repos/{org}/{repo}/actions/runs/{run_id}/jobs"
-    primary_keys = ["id"]
+    primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = WorkflowRunsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org", "run_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "run_id"]
     records_jsonpath = "$.jobs[*]"
 
     schema = th.PropertiesList(
@@ -2091,7 +2188,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
         th.Property("runner_group_name", th.StringType),
     ).to_dict()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
         self._schema_emitted = False
 
@@ -2100,13 +2197,15 @@ class WorkflowRunJobsStream(GitHubRestStream):
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         params = super().get_url_params(context, next_page_token)
         params["filter"] = "all"
         return params
 
-    def _write_schema_message(self):
+    def _write_schema_message(self) -> None:
         """Write out a SCHEMA message with the stream schema."""
         if not self._schema_emitted:
             super()._write_schema_message()
@@ -2118,10 +2217,10 @@ class ExtraMetricsStream(GitHubRestStream):
 
     name = "extra_metrics"
     path = "/{org}/{repo}/"
-    primary_keys = ["repo_id"]
+    primary_keys: ClassVar[list[str]] = ["repo_id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
 
     @property
     def url_base(self) -> str:
@@ -2133,7 +2232,7 @@ class ExtraMetricsStream(GitHubRestStream):
         """Parse the repository main page to extract extra metrics."""
         yield from scrape_metrics(response, self.logger)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             row["repo"] = context["repo"]
@@ -2170,10 +2269,10 @@ class DependentsStream(GitHubRestStream):
 
     name = "dependents"
     path = "/{org}/{repo}/network/dependents"
-    primary_keys = ["repo_id", "dependent_name_with_owner"]
+    primary_keys: ClassVar[list[str]] = ["repo_id", "dependent_name_with_owner"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
 
     @property
     def url_base(self) -> str:
@@ -2182,13 +2281,13 @@ class DependentsStream(GitHubRestStream):
         )
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Get the response for the first page and scrape results, potentially iterating through pages."""
+        """Get the response for the first page and scrape results, potentially iterating through pages."""  # noqa: E501
         yield from scrape_dependents(response, self.logger)
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         new_row = {"dependent": row}
         new_row = super().post_process(new_row, context)
-        # we extract dependent_name_with_owner to be able to use it safely as a primary key,
+        # we extract dependent_name_with_owner to be able to use it safely as a primary key,  # noqa: E501
         # regardless of the target used.
         new_row["dependent_name_with_owner"] = row["name_with_owner"]
         return new_row
@@ -2230,9 +2329,14 @@ class DependenciesStream(GitHubGraphqlStream):
     # of a given repo. We use package_name instead of dependency_repo_id because
     # the latter changes as github's resolution improves, which would lead to invalid
     # duplicate values
-    primary_keys = ["repo_id", "package_name", "package_manager", "requirements"]
+    primary_keys: ClassVar[list[str]] = [
+        "repo_id",
+        "package_name",
+        "package_manager",
+        "requirements",
+    ]
     parent_stream_type = RepositoryStream
-    state_partitioning_keys = ["repo_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True
 
     @property
@@ -2245,7 +2349,7 @@ class DependenciesStream(GitHubGraphqlStream):
         headers["Accept"] = "application/vnd.github.hawkgirl-preview+json"
         return headers
 
-    def post_process(self, row: dict, context: Optional[Dict] = None) -> dict:
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Add a dependency_repo_id top-level field to be used as primary key.
         """
@@ -2261,8 +2365,8 @@ class DependenciesStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".
-        # Due to GrapQl nested-pagination limitations, we loop through the top level dependencyGraphManifests one by one.
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
+        # Due to GrapQl nested-pagination limitations, we loop through the top level dependencyGraphManifests one by one.  # noqa: E501
         return """
           query repositoryDependencies($repo: String! $org: String! $nextPageCursor_0: String $nextPageCursor_1: String) {
             repository(name: $repo owner: $org) {
@@ -2307,7 +2411,7 @@ class DependenciesStream(GitHubGraphqlStream):
             }
           }
 
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -2353,16 +2457,13 @@ class TrafficRestStream(GitHubRestStream):
         """Allow some specific errors.
         Do not raise exceptions if the error says "Must have push access to repository"
         as we actually expect these in this stream when we don't have write permissions into it.
-        """
-        try:
-            super().validate_response(response)
-        except FatalAPIError as e:
-            if "Must have push access to repository" in str(e):
-                self.logger.info(
-                    "We do not have permissions for this repository", exc_info=True
-                )
+        """  # noqa: E501
+        if response.status_code == 403:
+            contents = response.json()
+            if contents["message"] == "Resource not accessible by integration":
+                self.logger.info("Permissions missing to sync stream '%s'", self.name)
                 return
-            raise
+        super().validate_response(response)
 
 
 class TrafficClonesStream(TrafficRestStream):
@@ -2370,11 +2471,11 @@ class TrafficClonesStream(TrafficRestStream):
 
     name = "traffic_clones"
     path = "/repos/{org}/{repo}/traffic/clones"
-    primary_keys = ["repo", "org", "timestamp"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "timestamp"]
     replication_key = "timestamp"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.clones[*]"
 
     schema = th.PropertiesList(
@@ -2394,11 +2495,11 @@ class TrafficReferralPathsStream(TrafficRestStream):
 
     name = "traffic_referral_paths"
     path = "/repos/{org}/{repo}/traffic/popular/paths"
-    primary_keys = ["repo", "org", "path"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "path"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "[*]"
 
     schema = th.PropertiesList(
@@ -2419,11 +2520,11 @@ class TrafficReferrersStream(TrafficRestStream):
 
     name = "traffic_referrers"
     path = "/repos/{org}/{repo}/traffic/popular/referrers"
-    primary_keys = ["repo", "org", "referrer"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "referrer"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "[*]"
 
     schema = th.PropertiesList(
@@ -2443,11 +2544,11 @@ class TrafficPageViewsStream(TrafficRestStream):
 
     name = "traffic_pageviews"
     path = "/repos/{org}/{repo}/traffic/views"
-    primary_keys = ["repo", "org", "timestamp"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "timestamp"]
     replication_key = None
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.views[*]"
 
     schema = th.PropertiesList(

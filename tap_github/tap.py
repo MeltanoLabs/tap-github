@@ -1,8 +1,9 @@
 """GitHub tap class."""
 
+from __future__ import annotations
+
 import logging
 import os
-from typing import List
 
 from singer_sdk import Stream, Tap
 from singer_sdk import typing as th  # JSON schema typing helpers
@@ -12,19 +13,20 @@ from tap_github.streams import Streams
 
 
 class TapGitHub(Tap):
-    """GitHub tap class."""
+    """Singer tap for the GitHub API."""
 
     name = "tap-github"
+    package_name = "meltanolabs-tap-github"
 
     @classproperty
-    def logger(cls) -> logging.Logger:
+    def logger(cls: type[TapGitHub]) -> logging.Logger:  # noqa: N805
         """Get logger.
 
         Returns:
             Logger with local LOGLEVEL. LOGLEVEL from env takes priority.
         """
 
-        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()
+        LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()  # noqa: N806
         assert (
             LOGLEVEL in logging._levelToName.values()
         ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
@@ -44,12 +46,30 @@ class TapGitHub(Tap):
         th.Property(
             "additional_auth_tokens",
             th.ArrayType(th.StringType),
-            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",
+            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",  # noqa: E501
+        ),
+        th.Property(
+            "auth_app_keys",
+            th.ArrayType(th.StringType),
+            description=(
+                "List of GitHub App credentials to authenticate with. Each credential "
+                "can be constructed by combining an App ID and App private key into "
+                "the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----`."  # noqa: E501
+            ),
         ),
         th.Property(
             "rate_limit_buffer",
             th.IntegerType,
-            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",
+            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",  # noqa: E501
+        ),
+        th.Property(
+            "expiry_time_buffer",
+            th.IntegerType,
+            description=(
+                "When authenticating as a GitHub App, this buffer controls how many "
+                "minutes before expiry the GitHub app tokens will be refreshed. "
+                "Defaults to 10 minutes.",
+            ),
         ),
         th.Property(
             "searches",
@@ -75,9 +95,33 @@ class TapGitHub(Tap):
                 "streams (such as repositories) if it is not selected but children are"
             ),
         ),
+        th.Property(
+            "stream_options",
+            th.ObjectType(
+                th.Property(
+                    "milestones",
+                    th.ObjectType(
+                        th.Property(
+                            "state",
+                            th.StringType,
+                            description=(
+                                "Configures which states are of interest. "
+                                "Must be one of [open, closed, all], defaults to open."
+                            ),
+                            default="open",
+                            allowed_values=["open", "closed", "all"],
+                        ),
+                        additional_properties=False,
+                    ),
+                    description="Options specific to the 'milestones' stream.",
+                ),
+                additional_properties=False,
+            ),
+            description="Options which change the behaviour of a specific stream.",
+        ),
     ).to_dict()
 
-    def discover_streams(self) -> List[Stream]:
+    def discover_streams(self) -> list[Stream]:
         """Return a list of discovered streams for each query."""
 
         specified_options = {

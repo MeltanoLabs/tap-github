@@ -1,17 +1,15 @@
 """REST client handling, including GitHubStream base class."""
 
-import collections
+from __future__ import annotations
+
 import email.utils
 import inspect
 import random
-import re
 import time
 from types import FrameType
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from urllib.parse import parse_qs, urlparse
 
-import requests
-from backoff.types import Details
 from dateutil.parser import parse
 from nested_lookup import nested_lookup
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
@@ -20,6 +18,12 @@ from singer_sdk.streams import GraphQLStream, RESTStream
 
 from tap_github.authenticator import GitHubTokenAuthenticator
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import requests
+    from backoff.types import Details
+
 EMPTY_REPO_ERROR_STATUS = 409
 
 
@@ -27,17 +31,17 @@ class GitHubRestStream(RESTStream):
     """GitHub Rest stream class."""
 
     MAX_PER_PAGE = 100  # GitHub's limit is 100.
-    MAX_RESULTS_LIMIT: Optional[int] = None
+    MAX_RESULTS_LIMIT: int | None = None
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
     # GitHub is missing the "since" parameter on a few endpoints
-    # set this parameter to True if your stream needs to navigate data in descending order
+    # set this parameter to True if your stream needs to navigate data in descending order  # noqa: E501
     # and try to exit early on its own.
     # This only has effect on streams whose `replication_key` is `updated_at`.
     use_fake_since_parameter = False
 
-    _authenticator: Optional[GitHubTokenAuthenticator] = None
+    _authenticator: GitHubTokenAuthenticator | None = None
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
@@ -49,20 +53,22 @@ class GitHubRestStream(RESTStream):
     def url_base(self) -> str:
         return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
 
-    primary_keys = ["id"]
-    replication_key: Optional[str] = None
-    tolerated_http_errors: List[int] = []
+    primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key: str | None = None
+    tolerated_http_errors: ClassVar[list[int]] = []
 
     @property
-    def http_headers(self) -> Dict[str, str]:
+    def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
         headers["User-Agent"] = cast(str, self.config.get("user_agent", "tap-github"))
         return headers
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
         """Return a token for identifying next page or None if no more pages."""
         if (
             previous_token
@@ -74,22 +80,19 @@ class GitHubRestStream(RESTStream):
             return None
 
         # Leverage header links returned by the GitHub API.
-        if "next" not in response.links.keys():
+        if "next" not in response.links:
             return None
 
         resp_json = response.json()
-        if isinstance(resp_json, list):
-            results = resp_json
-        else:
-            results = resp_json.get("items")
+        results = resp_json if isinstance(resp_json, list) else resp_json.get("items")
 
-        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.
+        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.  # noqa: E501
         if not results:
             return None
 
-        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support
-        # the "since" parameter out of the box. So we use a workaround here to exit early.
-        # For such streams, we sort by descending dates (most recent first), and paginate
+        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support  # noqa: E501
+        # the "since" parameter out of the box. So we use a workaround here to exit early.  # noqa: E501
+        # For such streams, we sort by descending dates (most recent first), and paginate  # noqa: E501
         # "back in time" until we reach records before our "fake_since" parameter.
         if self.replication_key and self.use_fake_since_parameter:
             request_parameters = parse_qs(str(urlparse(response.request.url).query))
@@ -109,7 +112,7 @@ class GitHubRestStream(RESTStream):
                 else None
             )
 
-            # commit_timestamp is a constructed key which does not exist in the raw response
+            # commit_timestamp is a constructed key which does not exist in the raw response  # noqa: E501
             replication_date = (
                 results[-1][self.replication_key]
                 if self.replication_key != "commit_timestamp"
@@ -135,8 +138,10 @@ class GitHubRestStream(RESTStream):
         return (previous_token or 1) + 1
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
@@ -146,19 +151,19 @@ class GitHubRestStream(RESTStream):
             params["sort"] = "updated"
             params["direction"] = "desc" if self.use_fake_since_parameter else "asc"
 
-        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support
-        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.
+        # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support  # noqa: E501
+        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.  # noqa: E501
         elif self.replication_key in ["starred_at", "created_at"]:
             params["sort"] = "created"
             params["direction"] = "desc"
 
-        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp
+        # Warning: /commits endpoint accept "since" but results are ordered by descending commit_timestamp  # noqa: E501
         elif self.replication_key == "commit_timestamp":
             params["direction"] = "desc"
 
         elif self.replication_key:
             self.logger.warning(
-                f"The replication key '{self.replication_key}' is not fully supported by this client yet."
+                f"The replication key '{self.replication_key}' is not fully supported by this client yet."  # noqa: E501
             )
 
         since = self.get_starting_timestamp(context)
@@ -190,7 +195,7 @@ class GitHubRestStream(RESTStream):
         """
         full_path = urlparse(response.url).path
         if response.status_code in (
-            self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
+            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
         ):
             msg = (
                 f"{response.status_code} Tolerated Status Code "
@@ -202,7 +207,7 @@ class GitHubRestStream(RESTStream):
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
+                f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
             )
             # Retry on rate limiting
             if (
@@ -227,7 +232,7 @@ class GitHubRestStream(RESTStream):
             if (
                 response.status_code == 401
                 # if the token is invalid, we are also told about it
-                and not "bad credentials" in str(response.content).lower()
+                and "bad credentials" not in str(response.content).lower()
             ):
                 raise RetriableAPIError(msg, response)
 
@@ -239,7 +244,7 @@ class GitHubRestStream(RESTStream):
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{str(response.content)} (Reason: {response.reason}) for path: {full_path}"
+                f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
             )
             raise RetriableAPIError(msg, response)
 
@@ -247,7 +252,7 @@ class GitHubRestStream(RESTStream):
         """Parse the response and return an iterator of result rows."""
         # TODO - Split into handle_reponse and parse_response.
         if response.status_code in (
-            self.tolerated_http_errors + [EMPTY_REPO_ERROR_STATUS]
+            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
         ):
             return
 
@@ -265,7 +270,7 @@ class GitHubRestStream(RESTStream):
 
         yield from results
 
-    def post_process(self, row: dict, context: Optional[Dict[str, str]] = None) -> dict:
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
         if context is not None and "repo_id" in context:
             row["repo_id"] = context["repo_id"]
@@ -295,8 +300,8 @@ class GitHubRestStream(RESTStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: Optional[dict],
-    ) -> Dict[str, int]:
+        context: dict | None,
+    ) -> dict[str, int]:
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
 
@@ -329,8 +334,10 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
         """
         Return a dict of cursors for identifying next page or None if no more pages.
 
@@ -354,7 +361,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             with_keys=True,
         )
 
-        has_next_page_indices: List[int] = []
+        has_next_page_indices: list[int] = []
         # Iterate over all the items and filter items with hasNextPage = True.
         for key, value in next_page_results.items():
             # Check if key is even then add pair to new dictionary
@@ -371,7 +378,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
         # We leverage previous_token to remember the pagination cursors
         # for indices below max_pagination_index.
-        next_page_cursors: Dict[str, str] = dict()
+        next_page_cursors: dict[str, str] = {}
         for key, value in (previous_token or {}).items():
             # Only keep pagination info for indices below max_pagination_index.
             pagination_index = int(str(key).split("_")[1])
@@ -393,10 +400,12 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         return next_page_cursors
 
     def get_url_params(
-        self, context: Optional[Dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context.copy() if context else dict()
+        params = context.copy() if context else {}
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)
@@ -411,8 +420,8 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: Optional[dict],
-    ) -> Dict[str, int]:
+        context: dict | None,
+    ) -> dict[str, int]:
         """Return the cost of the last graphql API call."""
         costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())
         # calculate_sync_cost is called before the main response parsing.

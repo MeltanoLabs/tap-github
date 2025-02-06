@@ -52,10 +52,7 @@ def username_list_config(request):
     @pytest.mark.username_list(['ericboucher', 'aaronsteers'])
     """
     marker = request.node.get_closest_marker("username_list")
-    if marker is None:
-        username_list = ["ericboucher", "aaronsteers"]
-    else:
-        username_list = marker.args[0]
+    username_list = ["ericboucher", "aaronsteers"] if marker is None else marker.args[0]
 
     return {
         "metrics_log_level": "warning",
@@ -72,10 +69,7 @@ def user_id_list_config(request):
     @pytest.mark.user_id_list(['ericboucher', 'aaronsteers'])
     """
     marker = request.node.get_closest_marker("user_id_list")
-    if marker is None:
-        user_id_list = [1, 2]
-    else:
-        user_id_list = marker.args[0]
+    user_id_list = [1, 2] if marker is None else marker.args[0]
 
     return {
         "metrics_log_level": "warning",
@@ -111,7 +105,7 @@ def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) ->
     for child_stream in self.child_streams:
         # Use org:write access level credentials for collaborators stream
         if child_stream.name in ["collaborators"]:
-            ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")
+            ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")  # noqa: N806
             # TODO - Fix collaborators tests, likely by mocking API responses directly.
             # Currently we have to bypass them as they are failing frequently.
             if not ORG_LEVEL_TOKEN or no_sync:
@@ -119,7 +113,7 @@ def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) ->
                     'No "ORG_LEVEL_TOKEN" found. Skipping collaborators stream sync.'
                 )
                 continue
-            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # noqa: N806
             os.environ["GITHUB_TOKEN"] = ORG_LEVEL_TOKEN
             child_stream.sync(context=child_context)
             os.environ["GITHUB_TOKEN"] = SAVED_GTHUB_TOKEN or ""
