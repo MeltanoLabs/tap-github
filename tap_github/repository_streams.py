@@ -1932,6 +1932,7 @@ class ProjectsStream(GitHubRestStream):
     primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors = [410]  # 410 Gone - projects are disabled
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
