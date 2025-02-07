@@ -353,10 +353,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 self.logger.info("Switching to fresh auth token")
                 return
 
-        raise RuntimeError(
-            "All GitHub tokens have hit their rate limit. Stopping here."
-        )
-
     def update_rate_limit(
         self, response_headers: requests.models.CaseInsensitiveDict
     ) -> None:

@@ -216,7 +216,8 @@ class GitHubRestStream(RESTStream):
             ):
                 # Update token
                 self.authenticator.get_next_auth_token()
-                # Raise an error to force a retry with the new token.
+                # Wait about a minute and retry
+                time.sleep(60 + 30 * random.random())
                 raise RetriableAPIError(msg, response)
 
             # Retry on secondary rate limit
