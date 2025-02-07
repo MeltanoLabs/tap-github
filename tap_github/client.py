@@ -214,10 +214,10 @@ class GitHubRestStream(RESTStream):
                 response.status_code == 403
                 and "rate limit exceeded" in str(response.content).lower()
             ):
-                # Update token
-                self.authenticator.get_next_auth_token()
                 # Wait about 15 minutes and retry
                 time.sleep((60 * 15) + 30 * random.random())
+                # Update token
+                self.authenticator.get_next_auth_token()
                 raise RetriableAPIError(msg, response)
 
             # Retry on secondary rate limit
