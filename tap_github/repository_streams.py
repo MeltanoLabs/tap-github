@@ -1449,7 +1449,7 @@ class PullRequestDiffsStream(GitHubRestStream):
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-    tolerated_http_errors: ClassVar[list[int]] = [406, 422, 502]
+    tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 502]
 
     @property
     def http_headers(self) -> dict:
