@@ -5,9 +5,10 @@ from __future__ import annotations
 import email.utils
 import inspect
 import random
+import backoff
 import time
 from types import FrameType
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast, Generator
 from urllib.parse import parse_qs, urlparse
 
 from dateutil.parser import parse
@@ -307,6 +308,16 @@ class GitHubRestStream(RESTStream):
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
 
+    def backoff_max_tries(self) -> int:  # noqa: PLR6301
+        """The number of attempts before giving up when retrying requests.
+        """
+        return 10
+    
+    
+    def backoff_wait_generator(self) -> Generator[float, None, None]:  # noqa: PLR6301
+        """The wait generator used by the backoff decorator on request failure.
+        """
+        return backoff.expo(factor=4)
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
