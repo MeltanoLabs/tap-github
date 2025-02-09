@@ -232,9 +232,10 @@ class GitHubRestStream(RESTStream):
             # The GitHub API randomly returns 401 Unauthorized errors, so we try again.
             if (
                 response.status_code == 401
-                # if the token is invalid, we are also told about it
-                and "bad credentials" not in str(response.content).lower()
             ):
+                if "bad credentials" in str(response.content).lower():
+                    # Update token
+                    self.authenticator.get_next_auth_token()
                 raise RetriableAPIError(msg, response)
 
             # all other errors are fatal
