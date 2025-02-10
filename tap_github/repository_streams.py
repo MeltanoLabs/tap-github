@@ -1588,11 +1588,18 @@ class ReviewsStream(GitHubGraphqlStream):
         """
         row = super().post_process(row, context)
         row["id"] = int(row["id"])
+        if context is not None:
+            # Get PR ID from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["pull_number"] = context["pull_number"]
         return row
 
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
         th.Property("org", th.StringType),
         th.Property("pull_number", th.IntegerType),
         # Stargazer Info
