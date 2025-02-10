@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
+import datetime
+import pytz
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -1266,12 +1268,16 @@ class PullRequestsStream(GitHubRestStream):
                 "repo_id": context["repo_id"],
                 "pull_number": record["number"],
                 "pull_id": record["id"],
+                "created_at": record["created_at"],
+                "closed_at": record["closed_at"],
             }
         return {
             "pull_number": record["number"],
             "org": record["base"]["user"]["login"],
             "repo": record["base"]["repo"]["name"],
             "repo_id": record["base"]["repo"]["id"],
+            "created_at": record["created_at"],
+            "closed_at": record["closed_at"],
         }
 
     schema = th.PropertiesList(
@@ -1457,6 +1463,7 @@ class PullRequestCommits(GitHubRestStream):
         if context is not None and "pull_number" in context:
             row["pull_number"] = context["pull_number"]
         return row
+    
 
 
 class PullRequestDiffsStream(GitHubRestStream):
@@ -1532,8 +1539,10 @@ class ReviewsStream(GitHubRestStream):
     path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
     primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = PullRequestsStream
+    replication_key = "submitted_at"
     ignore_parent_replication_key = False
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "pull_number"]
+    use_fake_since_parameter = True
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1562,6 +1571,19 @@ class ReviewsStream(GitHubRestStream):
         th.Property("commit_id", th.StringType),
         th.Property("author_association", th.StringType),
     ).to_dict()
+    
+    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
+        """Filter out PRs that are closed for at least 7 days and have been synced to reduce API costs"""
+        threshold_closed = datetime.datetime.now(pytz.UTC) - datetime.timedelta(days = 7)
+        
+        if (context
+            and 'closed_at' in context
+            and parse(context['created_at']) <= self.get_starting_timestamp(context)
+            and parse(context['closed_at']) < threshold_closed):
+            self.logger.debug(f"PR Closed and synced. Skipping '{self.name}' for PR '{context['repo']}/{context['pull_number']}'.")
+            return []
+
+        return super().get_records(context)
 
 
 class ReviewCommentsStream(GitHubRestStream):
