@@ -1270,6 +1270,7 @@ class PullRequestsStream(GitHubRestStream):
                 "pull_id": record["id"],
                 "created_at": record["created_at"],
                 "closed_at": record["closed_at"],
+                "node_id": record["node_id"],
             }
         return {
             "pull_number": record["number"],
@@ -1278,6 +1279,7 @@ class PullRequestsStream(GitHubRestStream):
             "repo_id": record["base"]["repo"]["id"],
             "created_at": record["created_at"],
             "closed_at": record["closed_at"],
+            "node_id": record["node_id"],
         }
 
     schema = th.PropertiesList(
@@ -1533,44 +1535,80 @@ class PullRequestDiffsStream(GitHubRestStream):
         th.Property("diff", th.StringType),
     ).to_dict()
 
-
-class ReviewsStream(GitHubRestStream):
+class ReviewsStream(GitHubGraphqlStream):
     name = "reviews"
-    path = "/repos/{org}/{repo}/pulls/{pull_number}/reviews"
-    primary_keys: ClassVar[list[str]] = ["id"]
-    parent_stream_type = PullRequestsStream
+    query_jsonpath = "$.data.repository.pullRequest.reviews.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = ["org", "repo", "pull_number", "id"]
     replication_key = "submitted_at"
+    parent_stream_type = PullRequestsStream
+    state_partitioning_keys: ClassVar[list[str]] = ["org", "repo", "pull_number"]
+    # The parent PR changes if there is a new review
     ignore_parent_replication_key = False
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "pull_number"]
-    use_fake_since_parameter = True
+
+    @property
+    def query(self) -> str:
+        """Return dynamic GraphQL query."""
+        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
+        # Will get only the first 100 reviews per PR, should be enough for most cases.
+        return """
+        query repositoryReviews($repo: String! $org: String!, $pull_number:Int!) {
+        repository(owner:$org name:$repo) {
+            pullRequest(number:$pull_number){ 
+            reviews (first:100){
+                nodes{
+                node_id: id
+                id: fullDatabaseId
+                body
+                state
+                url
+                submitted_at: submittedAt
+                commit{
+                    id
+                }
+                author{
+                    login
+                    avatar_url: avatarUrl
+                    html_url: url
+                }
+                author_association: authorAssociation
+                }
+            }
+            }
+        }
+        rateLimit {
+            cost
+        }
+        }
+        """  # noqa: E501
+        
+    
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Add a user_id top-level field to be used as state replication key.
+        """
+        row = super().post_process(row, context)
+        row["id"] = int(row["id"])
+        return row
 
     schema = th.PropertiesList(
-        # Parent keys
-        th.Property("pull_number", th.IntegerType),
-        th.Property("org", th.StringType),
+        # Parent Keys
         th.Property("repo", th.StringType),
-        th.Property("repo_id", th.IntegerType),
-        # Rest
-        th.Property("id", th.IntegerType),
+        th.Property("org", th.StringType),
+        th.Property("pull_number", th.IntegerType),
+        # Stargazer Info
         th.Property("node_id", th.StringType),
-        th.Property("user", user_object),
+        th.Property("id", th.IntegerType),
         th.Property("body", th.StringType),
         th.Property("state", th.StringType),
-        th.Property("html_url", th.StringType),
-        th.Property("pull_request_url", th.StringType),
-        th.Property(
-            "_links",
-            th.ObjectType(
-                th.Property("html", th.ObjectType(th.Property("href", th.StringType))),
-                th.Property(
-                    "pull_request", th.ObjectType(th.Property("href", th.StringType))
-                ),
-            ),
-        ),
-        th.Property("submitted_at", th.DateTimeType),
-        th.Property("commit_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("commit", th.ObjectType(
+            th.Property("id", th.StringType),
+        )),
+        th.Property("author", user_object),
         th.Property("author_association", th.StringType),
+        th.Property("submitted_at", th.DateTimeType),
     ).to_dict()
+    
     
     def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
         """Filter out PRs that are closed for at least 7 days and have been synced to reduce API costs"""
@@ -1578,13 +1616,12 @@ class ReviewsStream(GitHubRestStream):
         
         if (context
             and 'closed_at' in context
-            and parse(context['created_at']) <= self.get_starting_timestamp(context)
+            and self.get_starting_timestamp(context) > parse(self.config['start_date']).replace(tzinfo=pytz.UTC)
             and parse(context['closed_at']) < threshold_closed):
             self.logger.debug(f"PR Closed and synced. Skipping '{self.name}' for PR '{context['repo']}/{context['pull_number']}'.")
             return []
-
+        
         return super().get_records(context)
-
 
 class ReviewCommentsStream(GitHubRestStream):
     name = "review_comments"

@@ -466,7 +466,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         if "errors" in rj:
             msg = rj["errors"]
             for error in rj["errors"]:
-                if error["type"] in self.tolerated_graphql_error_types:
+                if error.get("type") in self.tolerated_graphql_error_types:
                     self.logger.info(
                         f"Tolerated Graphql Error: {error['message']} for path: {response.url}"
                     )
