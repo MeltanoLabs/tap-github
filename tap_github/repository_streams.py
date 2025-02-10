@@ -1624,7 +1624,7 @@ class ReviewsStream(GitHubGraphqlStream):
         if (context
             and 'closed_at' in context
             and self.get_starting_timestamp(context) > parse(self.config['start_date']).replace(tzinfo=pytz.UTC)
-            and parse(context['closed_at']) < threshold_closed):
+            and (context['closed_at'] is None or parse(context['closed_at']) < threshold_closed)):
             self.logger.debug(f"PR Closed and synced. Skipping '{self.name}' for PR '{context['repo']}/{context['pull_number']}'.")
             return []
         
