@@ -1537,13 +1537,11 @@ class PullRequestDiffsStream(GitHubRestStream):
 
 class ReviewsStream(GitHubGraphqlStream):
     name = "reviews"
-    query_jsonpath = "$.data.repository.pullRequest.reviews.nodes.[*]"
+    query_jsonpath = "$.data.repository.pullRequests.nodes.[*].reviews.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["org", "repo", "pull_number", "id"]
-    replication_key = "submitted_at"
-    parent_stream_type = PullRequestsStream
-    state_partitioning_keys: ClassVar[list[str]] = ["org", "repo", "pull_number"]
-    # The parent PR changes if there is a new review
-    ignore_parent_replication_key = False
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    ignore_parent_replication_key = True
 
     @property
     def query(self) -> str:
@@ -1551,26 +1549,36 @@ class ReviewsStream(GitHubGraphqlStream):
         # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
         # Will get only the first 100 reviews per PR, should be enough for most cases.
         return """
-        query repositoryReviews($repo: String! $org: String!, $pull_number:Int!) {
+        query repositoryReviews($repo: String! $org: String! $nextPageCursor_0: String) {
         repository(owner:$org name:$repo) {
-            pullRequest(number:$pull_number){ 
-            reviews (first:100){
-                nodes{
-                node_id: id
-                id: fullDatabaseId
-                body
-                state
-                url
-                submitted_at: submittedAt
-                commit{
-                    id
-                }
-                author{
-                    login
-                    avatar_url: avatarUrl
-                    html_url: url
-                }
-                author_association: authorAssociation
+            pullRequests(first:100 orderBy:{field:UPDATED_AT, direction:DESC} after: $nextPageCursor_0){ 
+            pageInfo {
+              hasNextPage_0: hasNextPage
+              startCursor_0: startCursor
+              endCursor_0: endCursor
+            }
+            nodes{
+                reviews (first:100){
+                    nodes {
+                    node_id: id
+                    id: fullDatabaseId
+                    body
+                    state
+                    url
+                    submitted_at: submittedAt
+                    commit{
+                        id
+                    }
+                    author{
+                        login
+                        avatar_url: avatarUrl
+                        html_url: url
+                    }
+                    author_association: authorAssociation
+                    pullRequest{
+                        number
+                    }
+                    }
                 }
             }
             }
@@ -1593,7 +1601,7 @@ class ReviewsStream(GitHubGraphqlStream):
             row["org"] = context["org"]
             row["repo"] = context["repo"]
             row["repo_id"] = context["repo_id"]
-            row["pull_number"] = context["pull_number"]
+        row["pull_number"] = row['pullRequest']['number']
         return row
 
     schema = th.PropertiesList(
@@ -1602,7 +1610,7 @@ class ReviewsStream(GitHubGraphqlStream):
         th.Property("repo_id", th.IntegerType),
         th.Property("org", th.StringType),
         th.Property("pull_number", th.IntegerType),
-        # Stargazer Info
+        # Review Info
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("body", th.StringType),
