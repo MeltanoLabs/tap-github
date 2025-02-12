@@ -12,6 +12,7 @@ from tap_github.organization_streams import (
 from tap_github.repository_streams import (
     AnonymousContributorsStream,
     AssigneesStream,
+    BranchesStream,
     CollaboratorsStream,
     CommitCommentsStream,
     CommitsStream,
@@ -73,6 +74,7 @@ class Streams(Enum):
         [
             AnonymousContributorsStream,
             AssigneesStream,
+            BranchesStream,
             CollaboratorsStream,
             CommitCommentsStream,
             CommitsStream,
