@@ -2143,11 +2143,13 @@ class WorkflowsStream(GitHubRestStream):
 
 class WorkflowRunsStream(GitHubRestStream):
     """Defines 'workflow_runs' stream."""
+    
+    MAX_PER_PAGE=1000
 
     name = "workflow_runs"
     path = "/repos/{org}/{repo}/actions/runs"
     primary_keys: ClassVar[list[str]] = ["id"]
-    replication_key = None
+    replication_key = "created_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -2192,6 +2194,19 @@ class WorkflowRunsStream(GitHubRestStream):
         th.Property("workflow_url", th.StringType),
     ).to_dict()
 
+    def get_url_params(
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        params: dict = {"per_page": self.MAX_PER_PAGE}
+        if next_page_token:
+            params["page"] = next_page_token
+        params["status"] = "completed"
+        since = self.get_starting_timestamp(context)
+        params['created'] = f'>{since.isoformat(sep="T")}'
+        return params
+    
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
