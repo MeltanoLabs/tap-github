@@ -1471,7 +1471,7 @@ class PullRequestDiffsStream(GitHubRestStream):
                     "limit of 40 MiB.",
                     content_length / 1024 / 1024,
                 )
-            return
+                return
 
         yield {"diff": response.text}
 
