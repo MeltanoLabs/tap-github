@@ -2590,3 +2590,33 @@ class BranchesStream(GitHubRestStream):
         ),
         th.Property("protection_url", th.StringType),
     ).to_dict()
+
+
+class TagsStream(GitHubRestStream):
+    """A stream dedicated to fetching tags in a repository."""
+
+    name = "tags"
+    path = "/repos/{org}/{repo}/tags"
+    primary_keys: ClassVar[list[str]] = ["repo", "org"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Tag Keys
+        th.Property("name", th.StringType),
+        th.Property(
+            "commit",
+            th.ObjectType(
+                th.Property("sha", th.StringType),
+                th.Property("url", th.StringType),
+            ),
+        ),
+        th.Property("zipball_url", th.StringType),
+        th.Property("tarball_url", th.StringType),
+        th.Property("node_id", th.StringType),
+    ).to_dict()
