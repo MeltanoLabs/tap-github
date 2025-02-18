@@ -1449,7 +1449,8 @@ class PullRequestDiffsStream(GitHubRestStream):
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-    tolerated_http_errors: ClassVar[list[int]] = [406, 422, 502]
+    # Known Github API errors
+    tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 502]
 
     @property
     def http_headers(self) -> dict:
@@ -1460,6 +1461,16 @@ class PullRequestDiffsStream(GitHubRestStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
         if response.status_code != 200:
+            contents = response.json()
+            self.logger.info(
+                "Skipping PR due to %d error: %s",
+                response.status_code,
+                contents["message"],
+            )
+            yield {
+                "success": False,
+                "error_message": contents["message"],
+            }
             return
 
         if content_length_str := response.headers.get("Content-Length"):
@@ -1471,21 +1482,13 @@ class PullRequestDiffsStream(GitHubRestStream):
                     "limit of 40 MiB.",
                     content_length / 1024 / 1024,
                 )
-            return
+                yield {
+                    "success": False,
+                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
+                }
+                return
 
-        yield {"diff": response.text}
-
-    def validate_response(self, response: requests.Response) -> None:
-        """Allow some specific errors."""
-        if response.status_code in self.tolerated_http_errors:
-            contents = response.json()
-            self.logger.info(
-                "Skipping PR due to %d error: %s",
-                response.status_code,
-                contents["message"],
-            )
-            return
-        super().validate_response(response)
+        yield {"diff": response.text, "success": True}
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)
@@ -1507,6 +1510,8 @@ class PullRequestDiffsStream(GitHubRestStream):
         th.Property("pull_id", th.IntegerType),
         # Rest
         th.Property("diff", th.StringType),
+        th.Property("success", th.BooleanType),
+        th.Property("error_message", th.StringType),
     ).to_dict()
 
 
