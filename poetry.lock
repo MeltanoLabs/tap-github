@@ -1497,13 +1497,13 @@ urllib3 = ">=2"
 
 [[package]]
 name = "types-simplejson"
-version = "3.19.0.20241221"
+version = "3.20.0.20250218"
 description = "Typing stubs for simplejson"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 files = [
-    {file = "types_simplejson-3.19.0.20241221-py3-none-any.whl", hash = "sha256:179dfaef8c357156c781fa47cfdfcd953a7953fc375dfe9ab19a20054a828980"},
-    {file = "types_simplejson-3.19.0.20241221.tar.gz", hash = "sha256:114af9db0f49ad15755d2b6ad8e6fd04b5a493815e2fc1e011729d4650defc70"},
+    {file = "types_simplejson-3.20.0.20250218-py3-none-any.whl", hash = "sha256:dbe00ea8497f8ba2f91dd9654d7064613cc09df545e5a008e8240fc6a407e98f"},
+    {file = "types_simplejson-3.20.0.20250218.tar.gz", hash = "sha256:5c5c46f67690f211d628d5182546b43ea9ff03936efd759549ac1795b213e3e7"},
 ]
 
 [[package]]
@@ -1570,4 +1570,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9"
-content-hash = "95400d8130d166907eb60575e9c87c8d4e0a8c3578a9271e9c936f1e2af19bc9"
+content-hash = "1cbc0d9c3c7baa585594ffaf30182de22e7b7c00f42922090e1ba5f78aa0088c"
