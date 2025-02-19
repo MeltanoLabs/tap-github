@@ -2560,7 +2560,7 @@ class BranchesStream(GitHubRestStream):
 
     name = "branches"
     path = "/repos/{org}/{repo}/branches"
-    primary_keys: ClassVar[list[str]] = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -2602,7 +2602,7 @@ class TagsStream(GitHubRestStream):
 
     name = "tags"
     path = "/repos/{org}/{repo}/tags"
-    primary_keys: ClassVar[list[str]] = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
