@@ -1079,6 +1079,14 @@ class CommitsStream(GitHubRestStream):
         row["commit_timestamp"] = row["commit"]["committer"]["date"]
         return row
 
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "commit_id": record["sha"]
+        }
+
     schema = th.PropertiesList(
         th.Property("org", th.StringType),
         th.Property("repo", th.StringType),
@@ -1161,6 +1169,73 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
+class CommitDiffsStream(GitHubRestStream):
+    name = "commit_diffs"
+    path = "/repos/{org}/{repo}/commits/{commit_id}"
+    primary_keys: ClassVar[list[str]] = ["commit_id"]
+    parent_stream_type = CommitsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    @property
+    def http_headers(self) -> dict:
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.diff"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
+        if response.status_code != 200:
+            contents = response.json()
+            self.logger.info(
+                "Skipping commit due to %d error: %s",
+                response.status_code,
+                contents["message"],
+            )
+            yield {
+                "success": False,
+                "error_message": contents["message"],
+            }
+            return
+
+        if content_length_str := response.headers.get("Content-Length"):
+            content_length = int(content_length_str)
+            max_size = 41_943_040  # 40 MiB
+            if content_length > max_size:
+                self.logger.info(
+                    "Skipping commit. The diff size (%.2f MiB) exceeded the maximum"
+                    " size limit of 40 MiB.",
+                    content_length / 1024 / 1024,
+                )
+                yield {
+                    "success": False,
+                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
+                }
+                return
+
+        yield {"diff": response.text, "success": True}
+
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            # Get commit ID (sha) from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["commit_id"] = context["commit_id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        # Rest
+        th.Property("diff", th.StringType),
+        th.Property("success", th.BooleanType),
+        th.Property("error_message", th.StringType),
+    ).to_dict()
 
 class LabelsStream(GitHubRestStream):
     """Defines 'labels' stream."""
@@ -1354,13 +1429,22 @@ class PullRequestsStream(GitHubRestStream):
     ).to_dict()
 
 
-class PullRequestCommits(GitHubRestStream):
+class PullRequestCommitsStream(GitHubRestStream):
     name = "pull_request_commits"
     path = "/repos/{org}/{repo}/pulls/{pull_number}/commits"
     ignore_parent_replication_key = False
     primary_keys: ClassVar[list[str]] = ["node_id"]
     parent_stream_type = PullRequestsStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "pull_number": context["pull_number"] if context else None,
+            "commit_id": record["sha"],
+        }
 
     schema = th.PropertiesList(
         # Parent keys
@@ -1514,6 +1598,75 @@ class PullRequestDiffsStream(GitHubRestStream):
         th.Property("error_message", th.StringType),
     ).to_dict()
 
+class PullRequestCommitDiffsStream(GitHubRestStream):
+    name = "pull_request_commit_diffs"
+    path = "/repos/{org}/{repo}/commits/{commit_id}"
+    primary_keys: ClassVar[list[str]] = ["commit_id"]
+    parent_stream_type = PullRequestCommitsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    @property
+    def http_headers(self) -> dict:
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.diff"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
+        if response.status_code != 200:
+            contents = response.json()
+            self.logger.info(
+                "Skipping commit due to %d error: %s",
+                response.status_code,
+                contents["message"],
+            )
+            yield {
+                "success": False,
+                "error_message": contents["message"],
+            }
+            return
+
+        if content_length_str := response.headers.get("Content-Length"):
+            content_length = int(content_length_str)
+            max_size = 41_943_040  # 40 MiB
+            if content_length > max_size:
+                self.logger.info(
+                    "Skipping commit. The diff size (%.2f MiB) exceeded the maximum"
+                    " size limit of 40 MiB.",
+                    content_length / 1024 / 1024,
+                )
+                yield {
+                    "success": False,
+                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
+                }
+                return
+
+        yield {"diff": response.text, "success": True}
+
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            # Get commit ID (sha) from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["pull_number"] = context["pull_number"]
+            row["commit_id"] = context["commit_id"]
+        return row
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("pull_number", th.IntegerType),
+        th.Property("commit_id", th.StringType),
+        # Rest
+        th.Property("diff", th.StringType),
+        th.Property("success", th.BooleanType),
+        th.Property("error_message", th.StringType),
+    ).to_dict()
 
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
