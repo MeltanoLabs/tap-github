@@ -2632,7 +2632,7 @@ class DeploymentsStream(GitHubRestStream):
 
     name = "deployments"
     path = "/repos/{org}/{repo}/deployments"
-    primary_keys: ClassVar[list[str]] = ["repo", "org", "node_id"]
+    primary_keys: ClassVar[list[str]] = ["node_id"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -2703,7 +2703,7 @@ class DeploymentStatusesStream(GitHubRestStream):
 
     name = "deployment_statuses"
     path = "/repos/{org}/{repo}/deployments/{deployment_id}/statuses"
-    primary_keys: ClassVar[list[str]] = ["repo", "org", "deployment_id"]
+    primary_keys: ClassVar[list[str]] = ["node_id"]
     parent_stream_type = DeploymentsStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "deployment_id"]
