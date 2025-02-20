@@ -294,7 +294,7 @@ class ReadmeStream(GitHubRestStream):
     """
     A stream dedicated to fetching the object version of a README.md.
 
-    Inclduding its content, base64 encoded of the readme in GitHub flavored Markdown.
+    Including its content, base64 encoded of the readme in GitHub flavored Markdown.
     For html, see ReadmeHtmlStream.
     """
 
@@ -2649,7 +2649,7 @@ class DeploymentsStream(GitHubRestStream):
         th.Property("sha", th.StringType),
         th.Property("ref", th.StringType),
         th.Property("task", th.StringType),
-        th.Property("payload", th.AnyType),
+        th.Property("payload", th.StringType),
         th.Property("original_environment", th.StringType),
         th.Property("environment", th.StringType),
         th.Property("description", th.StringType),
