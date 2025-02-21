@@ -1551,6 +1551,69 @@ class ReviewsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
+class PullRequestLabelEventsStream(GitHubRestStream):
+    """A stream dedicated to fetching label events (added/removed) for pull requests in a repository.
+    Note: This stream uses the issues timeline API since GitHub treats PRs as issues internally."""
+
+    name = "pull_request_label_events"
+    path = "/repos/{org}/{repo}/issues/{pull_number}/timeline"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    parent_stream_type = PullRequestsStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "pull_number"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and filter for label events only."""
+        for event in super().parse_response(response):
+            if event.get("event") == "labeled" or event.get("event") == "unlabeled":
+                yield event
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Event Keys
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("event", th.StringType),
+        th.Property("commit_id", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property(
+            "actor",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property(
+            "label",
+            th.ObjectType(
+                th.Property("name", th.StringType),
+                th.Property("color", th.StringType),
+            ),
+        ),
+        th.Property("performed_via_github_app", th.StringType),
+    ).to_dict()
+
 
 class ReviewCommentsStream(GitHubRestStream):
     name = "review_comments"
