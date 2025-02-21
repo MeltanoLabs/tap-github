@@ -1574,6 +1574,7 @@ class PullRequestLabelEventsStream(GitHubRestStream):
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
         th.Property("repo_id", th.IntegerType),
+        th.Property("pull_number", th.IntegerType),
         # Event Keys
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
