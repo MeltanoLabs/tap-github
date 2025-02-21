@@ -2625,7 +2625,7 @@ class TagsStream(GitHubRestStream):
         th.Property("tarball_url", th.StringType),
         th.Property("node_id", th.StringType),
     ).to_dict()
-    
+
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a child context object from the record and optional provided context.
         By default, will return context if provided and otherwise the record dict.
@@ -2638,10 +2638,11 @@ class TagsStream(GitHubRestStream):
             "tag_name": record["name"],
             "repo_id": context["repo_id"] if context else None,
         }
-    
+
+
 class GetTagShasStream(GitHubRestStream):
     """A stream dedicated to fetching tag shas of a tag in a repository.
-    
+
     API docs: https://docs.github.com/en/rest/git/refs#get-a-reference
     """
 
