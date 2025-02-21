@@ -2625,6 +2625,53 @@ class TagsStream(GitHubRestStream):
         th.Property("tarball_url", th.StringType),
         th.Property("node_id", th.StringType),
     ).to_dict()
+    
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        """Return a child context object from the record and optional provided context.
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "tag_name": record["name"],
+            "repo_id": context["repo_id"] if context else None,
+        }
+    
+class GetTagShasStream(GitHubRestStream):
+    """A stream dedicated to fetching tag shas of a tag in a repository.
+    
+    API docs: https://docs.github.com/en/rest/git/refs#get-a-reference
+    """
+
+    name = "get_tag_shas"
+    path = "/repos/{org}/{repo}/git/ref/tags/{tag_name}"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    parent_stream_type = TagsStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "tag_name"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("tag_name", th.StringType),
+        # Tag Sha Details
+        th.Property("ref", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property(
+            "object",
+            th.ObjectType(
+                th.Property("type", th.StringType),
+                th.Property("sha", th.StringType),
+                th.Property("url", th.StringType),
+            ),
+        ),
+    ).to_dict()
 
 
 class DeploymentsStream(GitHubRestStream):
