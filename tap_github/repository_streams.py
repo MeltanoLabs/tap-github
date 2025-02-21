@@ -1551,6 +1551,7 @@ class ReviewsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
+
 class PullRequestLabelEventsStream(GitHubRestStream):
     """A stream dedicated to fetching label events (added/removed) for pull requests in a repository.
     Note: This stream uses the issues timeline API since GitHub treats PRs as issues internally."""
