@@ -67,18 +67,17 @@ class OrganizationStream(GitHubRestStream):
     ).to_dict()
 
 
-class OrgMembersStream(GitHubRestStream):
+class OrganizationMembersStream(GitHubRestStream):
     """
     API Reference: https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#list-organization-members
     """
 
-    name = "org_members"
+    name = "organization_members"
     primary_keys: ClassVar[list[str]] = ["id"]
     path = "/orgs/{org}/members"
     ignore_parent_replication_key = True
     parent_stream_type = OrganizationStream
     state_partitioning_keys: ClassVar[list[str]] = ["org"]
-
     schema = th.PropertiesList(
         # Parent keys
         th.Property("org", th.StringType),
