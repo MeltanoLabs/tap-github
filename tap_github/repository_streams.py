@@ -1028,9 +1028,9 @@ class IssueEventsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
-        if "issue" in row and row["issue"] is not None:
-            row["issue_number"] = int(row["issue"].pop("number"))
-            row["issue_url"] = row["issue"].pop("url")
+        if issue := row.get("issue"):
+            row["issue_number"] = int(issue.pop("number"))
+            row["issue_url"] = issue.pop("url")
         else:
             self.logger.debug(
                 f"No issue assosciated with event {row['id']} - {row['event']}."
