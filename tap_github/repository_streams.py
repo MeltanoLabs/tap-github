@@ -1252,6 +1252,7 @@ class PullRequestsStream(GitHubRestStream):
             }
         return {
             "pull_number": record["number"],
+            "pull_id": record["id"],
             "org": record["base"]["user"]["login"],
             "repo": record["base"]["repo"]["name"],
             "repo_id": record["base"]["repo"]["id"],
@@ -1525,6 +1526,7 @@ class ReviewsStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         # Parent keys
+        th.Property("pull_id", th.IntegerType),
         th.Property("pull_number", th.IntegerType),
         th.Property("org", th.StringType),
         th.Property("repo", th.StringType),
@@ -1550,6 +1552,17 @@ class ReviewsStream(GitHubRestStream):
         th.Property("commit_id", th.StringType),
         th.Property("author_association", th.StringType),
     ).to_dict()
+
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            # Get PR ID from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["pull_number"] = context["pull_number"]
+            row["pull_id"] = context["pull_id"]
+        return row
 
 
 class ReviewCommentsStream(GitHubRestStream):
