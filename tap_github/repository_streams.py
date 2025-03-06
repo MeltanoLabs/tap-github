@@ -1084,7 +1084,7 @@ class CommitsStream(GitHubRestStream):
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
             "repo_id": context["repo_id"] if context else None,
-            "commit_id": record["sha"]
+            "commit_id": record["sha"],
         }
 
     schema = th.PropertiesList(
@@ -1169,6 +1169,7 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
+
 class CommitDiffsStream(GitHubRestStream):
     name = "commit_diffs"
     path = "/repos/{org}/{repo}/commits/{commit_id}"
@@ -1236,6 +1237,7 @@ class CommitDiffsStream(GitHubRestStream):
         th.Property("success", th.BooleanType),
         th.Property("error_message", th.StringType),
     ).to_dict()
+
 
 class LabelsStream(GitHubRestStream):
     """Defines 'labels' stream."""
@@ -1598,6 +1600,7 @@ class PullRequestDiffsStream(GitHubRestStream):
         th.Property("error_message", th.StringType),
     ).to_dict()
 
+
 class PullRequestCommitDiffsStream(GitHubRestStream):
     name = "pull_request_commit_diffs"
     path = "/repos/{org}/{repo}/commits/{commit_id}"
@@ -1667,6 +1670,7 @@ class PullRequestCommitDiffsStream(GitHubRestStream):
         th.Property("success", th.BooleanType),
         th.Property("error_message", th.StringType),
     ).to_dict()
+
 
 class ReviewsStream(GitHubRestStream):
     name = "reviews"
