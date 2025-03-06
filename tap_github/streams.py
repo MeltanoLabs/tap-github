@@ -4,6 +4,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from tap_github.organization_streams import (
+    OrganizationMembersStream,
     OrganizationStream,
     TeamMembersStream,
     TeamRolesStream,
@@ -21,6 +22,8 @@ from tap_github.repository_streams import (
     ContributorsStream,
     DependenciesStream,
     DependentsStream,
+    DeploymentsStream,
+    DeploymentStatusesStream,
     EventsStream,
     ExtraMetricsStream,
     IssueCommentsStream,
@@ -86,6 +89,8 @@ class Streams(Enum):
             ContributorsStream,
             DependenciesStream,
             DependentsStream,
+            DeploymentsStream,
+            DeploymentStatusesStream,
             EventsStream,
             IssueCommentsStream,
             IssueEventsStream,
@@ -130,7 +135,13 @@ class Streams(Enum):
     )
     ORGANIZATIONS = (
         {"organizations"},
-        [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
+        [
+            OrganizationStream,
+            OrganizationMembersStream,
+            TeamMembersStream,
+            TeamRolesStream,
+            TeamsStream,
+        ],
     )
 
     @classmethod

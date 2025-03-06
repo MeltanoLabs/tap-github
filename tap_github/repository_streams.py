@@ -294,7 +294,7 @@ class ReadmeStream(GitHubRestStream):
     """
     A stream dedicated to fetching the object version of a README.md.
 
-    Inclduding its content, base64 encoded of the readme in GitHub flavored Markdown.
+    Including its content, base64 encoded of the readme in GitHub flavored Markdown.
     For html, see ReadmeHtmlStream.
     """
 
@@ -1028,9 +1028,9 @@ class IssueEventsStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         row = super().post_process(row, context)
-        if "issue" in row:
-            row["issue_number"] = int(row["issue"].pop("number"))
-            row["issue_url"] = row["issue"].pop("url")
+        if issue := row.get("issue"):
+            row["issue_number"] = int(issue.pop("number"))
+            row["issue_url"] = issue.pop("url")
         else:
             self.logger.debug(
                 f"No issue assosciated with event {row['id']} - {row['event']}."
@@ -1329,6 +1329,7 @@ class PullRequestsStream(GitHubRestStream):
             }
         return {
             "pull_number": record["number"],
+            "pull_id": record["id"],
             "org": record["base"]["user"]["login"],
             "repo": record["base"]["repo"]["name"],
             "repo_id": record["base"]["repo"]["id"],
@@ -1682,6 +1683,7 @@ class ReviewsStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         # Parent keys
+        th.Property("pull_id", th.IntegerType),
         th.Property("pull_number", th.IntegerType),
         th.Property("org", th.StringType),
         th.Property("repo", th.StringType),
@@ -1707,6 +1709,17 @@ class ReviewsStream(GitHubRestStream):
         th.Property("commit_id", th.StringType),
         th.Property("author_association", th.StringType),
     ).to_dict()
+
+    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+        row = super().post_process(row, context)
+        if context is not None:
+            # Get PR ID from context
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["pull_number"] = context["pull_number"]
+            row["pull_id"] = context["pull_id"]
+        return row
 
 
 class ReviewCommentsStream(GitHubRestStream):
@@ -2717,7 +2730,7 @@ class BranchesStream(GitHubRestStream):
 
     name = "branches"
     path = "/repos/{org}/{repo}/branches"
-    primary_keys: ClassVar[list[str]] = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -2759,7 +2772,7 @@ class TagsStream(GitHubRestStream):
 
     name = "tags"
     path = "/repos/{org}/{repo}/tags"
-    primary_keys: ClassVar[list[str]] = ["repo", "org"]
+    primary_keys: ClassVar[list[str]] = ["repo", "org", "name"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -2781,4 +2794,132 @@ class TagsStream(GitHubRestStream):
         th.Property("zipball_url", th.StringType),
         th.Property("tarball_url", th.StringType),
         th.Property("node_id", th.StringType),
+    ).to_dict()
+
+
+class DeploymentsStream(GitHubRestStream):
+    """A stream dedicated to fetching deployments in a repository."""
+
+    name = "deployments"
+    path = "/repos/{org}/{repo}/deployments"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Deployment Keys
+        th.Property("url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("ref", th.StringType),
+        th.Property("task", th.StringType),
+        th.Property("payload", th.StringType),
+        th.Property("original_environment", th.StringType),
+        th.Property("environment", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("statuses_url", th.StringType),
+        th.Property("repository_url", th.StringType),
+        th.Property("transient_environment", th.BooleanType),
+        th.Property("production_environment", th.BooleanType),
+    ).to_dict()
+
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        """Return a child context object from the record and optional provided context.
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "deployment_id": record["id"],
+            "repo_id": context["repo_id"] if context else None,
+        }
+
+
+class DeploymentStatusesStream(GitHubRestStream):
+    """A stream dedicated to fetching deployment statuses in a repository."""
+
+    name = "deployment_statuses"
+    path = "/repos/{org}/{repo}/deployments/{deployment_id}/statuses"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    parent_stream_type = DeploymentsStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "deployment_id"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("deployment_id", th.IntegerType),
+        # Deployment Status Keys
+        th.Property("url", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("state", th.StringType),
+        th.Property(
+            "creator",
+            th.ObjectType(
+                th.Property("login", th.StringType),
+                th.Property("id", th.IntegerType),
+                th.Property("node_id", th.StringType),
+                th.Property("avatar_url", th.StringType),
+                th.Property("gravatar_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("followers_url", th.StringType),
+                th.Property("following_url", th.StringType),
+                th.Property("gists_url", th.StringType),
+                th.Property("starred_url", th.StringType),
+                th.Property("subscriptions_url", th.StringType),
+                th.Property("organizations_url", th.StringType),
+                th.Property("repos_url", th.StringType),
+                th.Property("events_url", th.StringType),
+                th.Property("received_events_url", th.StringType),
+                th.Property("type", th.StringType),
+                th.Property("site_admin", th.BooleanType),
+            ),
+        ),
+        th.Property("description", th.StringType),
+        th.Property("environment", th.StringType),
+        th.Property("target_url", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("deployment_url", th.StringType),
+        th.Property("repository_url", th.StringType),
+        th.Property("environment_url", th.StringType),
+        th.Property("log_url", th.StringType),
     ).to_dict()
