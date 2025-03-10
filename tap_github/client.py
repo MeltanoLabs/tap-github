@@ -306,6 +306,52 @@ class GitHubRestStream(RESTStream):
         return {"rest": 1, "graphql": 0, "search": 0}
 
 
+class GitHubDiffStream(GitHubRestStream):
+    """Base class for GitHub diff streams."""
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed for diff requests."""
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.diff"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response to yield the diff text instead of an object
+        and prevent buffer overflow."""
+        if response.status_code != 200:
+            contents = response.json()
+            self.logger.info(
+                "Skipping %s due to %d error: %s",
+                self.name.replace("_", " "),
+                response.status_code,
+                contents["message"],
+            )
+            yield {
+                "success": False,
+                "error_message": contents["message"],
+            }
+            return
+
+        if content_length_str := response.headers.get("Content-Length"):
+            content_length = int(content_length_str)
+            max_size = 41_943_040  # 40 MiB
+            if content_length > max_size:
+                self.logger.info(
+                    "Skipping %s. The diff size (%.2f MiB) exceeded the maximum"
+                    " size limit of 40 MiB.",
+                    self.name.replace("_", " "),
+                    content_length / 1024 / 1024,
+                )
+                yield {
+                    "success": False,
+                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
+                }
+                return
+
+        yield {"diff": response.text, "success": True}
+
+
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
