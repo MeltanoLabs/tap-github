@@ -305,6 +305,7 @@ class GitHubRestStream(RESTStream):
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
 
+
 class GitHubDiffStream(GitHubRestStream):
     """Base class for GitHub diff streams."""
 

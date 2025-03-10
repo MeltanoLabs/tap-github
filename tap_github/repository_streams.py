@@ -1169,6 +1169,7 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
+
 class CommitDiffsStream(GitHubDiffStream):
     name = "commit_diffs"
     path = "/repos/{org}/{repo}/commits/{commit_id}"
@@ -1523,6 +1524,7 @@ class PullRequestDiffsStream(GitHubDiffStream):
         th.Property("success", th.BooleanType),
         th.Property("error_message", th.StringType),
     ).to_dict()
+
 
 class PullRequestCommitDiffsStream(GitHubDiffStream):
     name = "pull_request_commit_diffs"
