@@ -10,7 +10,7 @@ from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
-from tap_github.client import GitHubGraphqlStream, GitHubRestStream
+from tap_github.client import GitHubDiffStream, GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
     files_object,
     label_object,
@@ -1169,52 +1169,13 @@ class CommitCommentsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
-
-class CommitDiffsStream(GitHubRestStream):
+class CommitDiffsStream(GitHubDiffStream):
     name = "commit_diffs"
     path = "/repos/{org}/{repo}/commits/{commit_id}"
     primary_keys: ClassVar[list[str]] = ["commit_id"]
     parent_stream_type = CommitsStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-
-    @property
-    def http_headers(self) -> dict:
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.v3.diff"
-        return headers
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
-        if response.status_code != 200:
-            contents = response.json()
-            self.logger.info(
-                "Skipping commit due to %d error: %s",
-                response.status_code,
-                contents["message"],
-            )
-            yield {
-                "success": False,
-                "error_message": contents["message"],
-            }
-            return
-
-        if content_length_str := response.headers.get("Content-Length"):
-            content_length = int(content_length_str)
-            max_size = 41_943_040  # 40 MiB
-            if content_length > max_size:
-                self.logger.info(
-                    "Skipping commit. The diff size (%.2f MiB) exceeded the maximum"
-                    " size limit of 40 MiB.",
-                    content_length / 1024 / 1024,
-                )
-                yield {
-                    "success": False,
-                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
-                }
-                return
-
-        yield {"diff": response.text, "success": True}
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)
@@ -1529,7 +1490,7 @@ class PullRequestCommitsStream(GitHubRestStream):
         return row
 
 
-class PullRequestDiffsStream(GitHubRestStream):
+class PullRequestDiffsStream(GitHubDiffStream):
     name = "pull_request_diffs"
     path = "/repos/{org}/{repo}/pulls/{pull_number}"
     primary_keys: ClassVar[list[str]] = ["pull_id"]
@@ -1538,44 +1499,6 @@ class PullRequestDiffsStream(GitHubRestStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     # Known Github API errors
     tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 502]
-
-    @property
-    def http_headers(self) -> dict:
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.v3.diff"
-        return headers
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
-        if response.status_code != 200:
-            contents = response.json()
-            self.logger.info(
-                "Skipping PR due to %d error: %s",
-                response.status_code,
-                contents["message"],
-            )
-            yield {
-                "success": False,
-                "error_message": contents["message"],
-            }
-            return
-
-        if content_length_str := response.headers.get("Content-Length"):
-            content_length = int(content_length_str)
-            max_size = 41_943_040  # 40 MiB
-            if content_length > max_size:
-                self.logger.info(
-                    "Skipping PR. The diff size (%.2f MiB) exceeded the maximum size "
-                    "limit of 40 MiB.",
-                    content_length / 1024 / 1024,
-                )
-                yield {
-                    "success": False,
-                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
-                }
-                return
-
-        yield {"diff": response.text, "success": True}
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)
@@ -1601,52 +1524,13 @@ class PullRequestDiffsStream(GitHubRestStream):
         th.Property("error_message", th.StringType),
     ).to_dict()
 
-
-class PullRequestCommitDiffsStream(GitHubRestStream):
+class PullRequestCommitDiffsStream(GitHubDiffStream):
     name = "pull_request_commit_diffs"
     path = "/repos/{org}/{repo}/commits/{commit_id}"
     primary_keys: ClassVar[list[str]] = ["commit_id"]
     parent_stream_type = PullRequestCommitsStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-
-    @property
-    def http_headers(self) -> dict:
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.v3.diff"
-        return headers
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response to yield the diff text instead of an object and prevent buffer overflow."""  # noqa: E501
-        if response.status_code != 200:
-            contents = response.json()
-            self.logger.info(
-                "Skipping commit due to %d error: %s",
-                response.status_code,
-                contents["message"],
-            )
-            yield {
-                "success": False,
-                "error_message": contents["message"],
-            }
-            return
-
-        if content_length_str := response.headers.get("Content-Length"):
-            content_length = int(content_length_str)
-            max_size = 41_943_040  # 40 MiB
-            if content_length > max_size:
-                self.logger.info(
-                    "Skipping commit. The diff size (%.2f MiB) exceeded the maximum"
-                    " size limit of 40 MiB.",
-                    content_length / 1024 / 1024,
-                )
-                yield {
-                    "success": False,
-                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
-                }
-                return
-
-        yield {"diff": response.text, "success": True}
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)
