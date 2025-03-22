@@ -16,8 +16,8 @@ from tap_github.schema_objects import (
     label_object,
     milestone_object,
     reactions_object,
-    user_object,
     reactions_type_object,
+    user_object,
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
