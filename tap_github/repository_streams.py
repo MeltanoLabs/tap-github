@@ -18,6 +18,7 @@ from tap_github.schema_objects import (
     reactions_object,
     reactions_type_object,
     user_object,
+    reaction_type_object,
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
@@ -2113,14 +2114,14 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("answer", answer_object),
         th.Property("answer_chosen_by", user_object),
         th.Property("upvote_count", th.IntegerType),
-        th.Property("reactions", reactions_type_object),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 
 class DiscussionCommentsStream(GitHubGraphqlStream):
     """Defines stream fetching discussion comments from each repository."""
 
-    name = "discussions_comments"
+    name = "discussion_comments"
     query_jsonpath = "$.data.repository.discussions.nodes.[*].comments.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["node_id"]  # id is renamed to node_id
     replication_key = "updated_at"
@@ -2287,7 +2288,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
         th.Property("replies", replies_array),
-        th.Property("reactions", reactions_type_object),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 

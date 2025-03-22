@@ -60,7 +60,7 @@ reactions_object = th.ObjectType(
     th.Property("eyes", th.IntegerType),
 )
 
-reactions_type_object = th.ObjectType(
+reaction_type_object = th.ObjectType(
     th.Property("reaction_type", th.StringType),
     th.Property("reacted_at", th.DateTimeType),
     th.Property("user", user_object),
