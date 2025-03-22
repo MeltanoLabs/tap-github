@@ -17,6 +17,7 @@ from tap_github.schema_objects import (
     milestone_object,
     reactions_object,
     user_object,
+    reactions_type_object,
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
@@ -1933,8 +1934,10 @@ class DiscussionsStream(GitHubGraphqlStream):
 
     @property
     def query(self) -> str:
-        """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        """
         return """
           query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String) {
             repository(name: $repo, owner: $org) {
@@ -1957,18 +1960,16 @@ class DiscussionsStream(GitHubGraphqlStream):
                   answer_chosen_at: answerChosenAt
                   updated_at: updatedAt
                   closed_at: closedAt
-
                   created_via_email: createdViaEmail
-
                   author {
-                  ... on User{
-                    node_id: id
-                    id: databaseId
-                    login
-                    avatar_url: avatarUrl
-                    html_url: url
-                    type: __typename
-                    site_admin: isSiteAdmin
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      login
+                      avatar_url: avatarUrl
+                      html_url: url
+                      type: __typename
+                      site_admin: isSiteAdmin
                     }
                   }
                   author_association: authorAssociation
@@ -2001,7 +2002,20 @@ class DiscussionsStream(GitHubGraphqlStream):
                     node_id: id
                     body
                     author {
-                    ... on User{
+                      ... on User {
+                        node_id: id
+                        id: databaseId
+                        login
+                        avatar_url: avatarUrl
+                        html_url: url
+                        type: __typename
+                        site_admin: isSiteAdmin
+                      }
+                    }
+                    author_association: authorAssociation
+                  }
+                  answer_chosen_by: answerChosenBy {
+                    ... on User {
                       node_id: id
                       id: databaseId
                       login
@@ -2009,19 +2023,6 @@ class DiscussionsStream(GitHubGraphqlStream):
                       html_url: url
                       type: __typename
                       site_admin: isSiteAdmin
-                      }
-                    }
-                    author_association: authorAssociation
-                  }
-                  answer_chosen_by: answerChosenBy {
-                  ... on User{
-                    node_id: id
-                    id: databaseId
-                    login
-                    avatar_url: avatarUrl
-                    html_url: url
-                    type: __typename
-                    site_admin: isSiteAdmin
                     }
                   }
                   upvote_count: upvoteCount
@@ -2031,7 +2032,15 @@ class DiscussionsStream(GitHubGraphqlStream):
                         reaction_type: content
                         reacted_at: createdAt
                         user {
-                          login
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                            site_admin: isSiteAdmin
+                          }
                         }
                       }
                     }
@@ -2074,14 +2083,6 @@ class DiscussionsStream(GitHubGraphqlStream):
         )
     )
 
-    reactions_array = th.ArrayType(
-        th.ObjectType(
-            th.Property("reaction_type", th.StringType),
-            th.Property("reacted_at", th.DateTimeType),
-            th.Property("user", th.ObjectType(th.Property("login", th.StringType))),
-        )
-    )
-
     schema = th.PropertiesList(
         # Parent Keys
         th.Property("repo", th.StringType),
@@ -2112,81 +2113,11 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("answer", answer_object),
         th.Property("answer_chosen_by", user_object),
         th.Property("upvote_count", th.IntegerType),
-        th.Property("reactions", reactions_array),
+        th.Property("reactions", reactions_type_object),
     ).to_dict()
 
 
-class DiscussionCategoriesStream(GitHubGraphqlStream):
-    """Defines stream fetching discussions categories from each repository."""
-
-    name = "discussion_categories"
-    query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["node_id"]
-    replication_key = "updated_at"
-    parent_stream_type = RepositoryStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-    ignore_parent_replication_key = False
-    use_fake_since_parameter = True
-
-    def get_url_params(
-        self,
-        context: dict | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(context, next_page_token)
-        self.logger.info(f"URL Params: {params}")
-        self.logger.info(f"Context: {context}")
-        self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
-        return params
-
-    @property
-    def query(self) -> str:
-        """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id".  # noqa: E501
-
-        return """
-            query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
-            repository(name: $repo, owner: $org) {
-                discussionCategories(first: 100, after: $nextPageCursor_0) {
-                pageInfo {
-                  hasNextPage_0: hasNextPage
-                  startCursor_0: startCursor
-                  endCursor_0: endCursor
-                }
-                nodes {
-                node_id: id
-                slug
-                name
-                description
-                is_answerable: isAnswerable
-                emoji
-                created_at: createdAt
-                updated_at: updatedAt
-                }
-            }
-            }
-            }
-            """  # noqa: E501
-
-    schema = th.PropertiesList(
-        # Parent Keys
-        th.Property("repo", th.StringType),
-        th.Property("org", th.StringType),
-        th.Property("repo_id", th.IntegerType),
-        # Categories Info
-        th.Property("node_id", th.StringType),
-        th.Property("slug", th.StringType),
-        th.Property("name", th.StringType),
-        th.Property("description", th.StringType),
-        th.Property("is_answerable", th.BooleanType),
-        th.Property("emoji", th.StringType),
-        th.Property("created_at", th.DateTimeType),
-        th.Property("updated_at", th.DateTimeType),
-    ).to_dict()
-
-
-class DiscussionsCommentsStream(GitHubGraphqlStream):
+class DiscussionCommentsStream(GitHubGraphqlStream):
     """Defines stream fetching discussion comments from each repository."""
 
     name = "discussions_comments"
@@ -2212,96 +2143,106 @@ class DiscussionsCommentsStream(GitHubGraphqlStream):
 
     @property
     def query(self) -> str:
-        """Return dynamic GraphQL query."""
-        # Graphql id is equivalent to REST node_id. To keep the tap consistent, we rename "id" to "node_id" and "databaseId" to "id".  # noqa: E501
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        """
         return """
-        query DiscussionsComments($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
-        repository(name: $repo, owner: $org) {
-            discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
-            pageInfo {
-                hasNextPage_0: hasNextPage
-                startCursor_0: startCursor
-                endCursor_0: endCursor
-            }
-            nodes {
-                comments(first: 100, after: $nextPageCursor_1) {
+          query DiscussionsComments($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
+            repository(name: $repo, owner: $org) {
+              discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
-                    hasNextPage_1: hasNextPage
-                    startCursor_1: startCursor
-                    endCursor_1: endCursor
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
                 }
                 nodes {
-                    node_id:id
-                    id:databaseId
-                    discussion {
-                    node_id: id
-                    number
+                  comments(first: 100, after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
                     }
-                    author {
-                    ... on User {
-                        node_id: id
-                        id: databaseId
-                        login
-                        avatar_url: avatarUrl
-                        html_url: url
-                        type: __typename
-                        site_admin: isSiteAdmin
-                    }
-                    }
-                    author_association: authorAssociation
-                    body
-                    body_html: bodyHTML
-                    body_text: bodyText
-                    created_at: createdAt
-                    published_at: publishedAt
-                    last_edited_at: lastEditedAt
-                    updated_at: updatedAt
-                    created_via_email: createdViaEmail
-                    deleted_at: deletedAt
-                    includes_created_edit: includesCreatedEdit
-                    is_answer: isAnswer
-                    is_minimized: isMinimized
-                    minimized_reason: minimizedReason
-                    upvote_count: upvoteCount
-                    html_url: url
-                    resource_path: resourcePath
-                    editor {
-                    ... on User {
-                        node_id: id
-                        id: databaseId
-                        login
-                        avatar_url: avatarUrl
-                        html_url: url
-                        type: __typename
-                        site_admin: isSiteAdmin
-                    }
-                    }
-                    replies(first: 10) {
                     nodes {
-                        comment_id: id
-                        replyTo {
-                        replyTo_id: id
+                      node_id: id
+                      id: databaseId
+                      discussion {
+                        node_id: id
+                        number
+                      }
+                      author {
+                        ... on User {
+                          node_id: id
+                          id: databaseId
+                          login
+                          avatar_url: avatarUrl
+                          html_url: url
+                          type: __typename
+                          site_admin: isSiteAdmin
                         }
-                    }
-                    }
-                    reactions(first: 10) {
-                    nodes {
-                        reaction_type: content
-                        reacted_at: createdAt
-                        user {
+                      }
+                      author_association: authorAssociation
+                      body
+                      body_html: bodyHTML
+                      body_text: bodyText
+                      created_at: createdAt
+                      published_at: publishedAt
+                      last_edited_at: lastEditedAt
+                      updated_at: updatedAt
+                      created_via_email: createdViaEmail
+                      deleted_at: deletedAt
+                      includes_created_edit: includesCreatedEdit
+                      is_answer: isAnswer
+                      is_minimized: isMinimized
+                      minimized_reason: minimizedReason
+                      upvote_count: upvoteCount
+                      html_url: url
+                      resource_path: resourcePath
+                      editor {
+                        ... on User {
+                          node_id: id
+                          id: databaseId
+                          login
+                          avatar_url: avatarUrl
+                          html_url: url
+                          type: __typename
+                          site_admin: isSiteAdmin
+                        }
+                      }
+                      replies(first: 10) {
+                        nodes {
+                          comment_id: id
+                          replyTo {
+                            replyTo_id: id
+                          }
+                        }
+                      }
+                      reactions(first: 10) {
+                        nodes {
+                          reaction_type: content
+                          reacted_at: createdAt
+                          user {
+                          ... on User {
+                            node_id: id
+                            id: databaseId
                             login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                            site_admin: isSiteAdmin
+                          }
+                          }
                         }
+                      }
                     }
-                    }
+                  }
                 }
-                }
+              }
             }
+            rateLimit {
+              cost
             }
-        }
-        rateLimit {
-            cost
-        }
-        } """  # noqa: E501
+          } """  # noqa: E501
 
     discussion_object = th.ObjectType(
         th.Property("node_id", th.StringType),
@@ -2314,14 +2255,6 @@ class DiscussionsCommentsStream(GitHubGraphqlStream):
             th.Property(
                 "replyTo", th.ObjectType(th.Property("replyTo_id", th.IntegerType))
             ),
-        )
-    )
-
-    reactions_array = th.ArrayType(
-        th.ObjectType(
-            th.Property("reaction_type", th.StringType),
-            th.Property("reacted_at", th.DateTimeType),
-            th.Property("user", th.ObjectType(th.Property("login", th.StringType))),
         )
     )
 
@@ -2354,7 +2287,79 @@ class DiscussionsCommentsStream(GitHubGraphqlStream):
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
         th.Property("replies", replies_array),
-        th.Property("reactions", reactions_array),
+        th.Property("reactions", reactions_type_object),
+    ).to_dict()
+
+
+class DiscussionCategoriesStream(GitHubGraphqlStream):
+    """Defines stream fetching discussions categories from each repository."""
+
+    name = "discussion_categories"
+    query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    ignore_parent_replication_key = False
+    use_fake_since_parameter = True
+
+    def get_url_params(
+        self,
+        context: dict | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = super().get_url_params(context, next_page_token)
+        self.logger.info(f"URL Params: {params}")
+        self.logger.info(f"Context: {context}")
+        self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
+        return params
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        """
+
+        return """
+          query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
+            repository(name: $repo, owner: $org) {
+              discussionCategories(first: 100, after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  node_id: id
+                  slug
+                  name
+                  description
+                  is_answerable: isAnswerable
+                  emoji
+                  created_at: createdAt
+                  updated_at: updatedAt
+                }
+              }
+            }
+          }
+        """  # noqa: E501
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Categories Info
+        th.Property("node_id", th.StringType),
+        th.Property("slug", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property("is_answerable", th.BooleanType),
+        th.Property("emoji", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
 
