@@ -2333,7 +2333,8 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     def query(self) -> str:
         """
         Return dynamic GraphQL query.
-        Note: To keep the tap consistent, we rename id to node_id. There is no databaseId for the discussionCategories object.
+        Note: To keep the tap consistent, we rename id to node_id.
+        There is no databaseId for the discussionCategories object.
         """
 
         return """
