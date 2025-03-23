@@ -1962,13 +1962,16 @@ class DiscussionsStream(GitHubGraphqlStream):
                   closed_at: closedAt
                   created_via_email: createdViaEmail
                   author {
-                    ... on User {
-                      node_id: id
-                      id: databaseId
+                    ... on Actor {
                       login
                       avatar_url: avatarUrl
                       html_url: url
                       type: __typename
+                      resource_path: resourcePath
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
                       site_admin: isSiteAdmin
                     }
                   }
@@ -2002,26 +2005,32 @@ class DiscussionsStream(GitHubGraphqlStream):
                     node_id: id
                     body
                     author {
-                      ... on User {
-                        node_id: id
-                        id: databaseId
+                      ... on Actor {
                         login
                         avatar_url: avatarUrl
                         html_url: url
                         type: __typename
+                        resource_path: resourcePath
+                      }
+                      ... on User {
+                        node_id: id
+                        id: databaseId
                         site_admin: isSiteAdmin
                       }
                     }
                     author_association: authorAssociation
                   }
                   answer_chosen_by: answerChosenBy {
-                    ... on User {
-                      node_id: id
-                      id: databaseId
+                    ... on Actor {
                       login
                       avatar_url: avatarUrl
                       html_url: url
                       type: __typename
+                      resource_path: resourcePath
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
                       site_admin: isSiteAdmin
                     }
                   }
@@ -2032,15 +2041,13 @@ class DiscussionsStream(GitHubGraphqlStream):
                         reaction_type: content
                         reacted_at: createdAt
                         user {
-                          ... on User {
-                            node_id: id
-                            id: databaseId
-                            login
-                            avatar_url: avatarUrl
-                            html_url: url
-                            type: __typename
-                            site_admin: isSiteAdmin
-                          }
+                          node_id: id
+                          id: databaseId
+                          login
+                          avatar_url: avatarUrl
+                          html_url: url
+                          type: __typename
+                          site_admin: isSiteAdmin
                         }
                       }
                     }
@@ -2171,13 +2178,16 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                         number
                       }
                       author {
-                        ... on User {
-                          node_id: id
-                          id: databaseId
+                        ... on Actor {
                           login
                           avatar_url: avatarUrl
                           html_url: url
                           type: __typename
+                          resource_path: resourcePath
+                        }
+                        ... on User {
+                          node_id: id
+                          id: databaseId
                           site_admin: isSiteAdmin
                         }
                       }
@@ -2199,13 +2209,16 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                       html_url: url
                       resource_path: resourcePath
                       editor {
-                        ... on User {
-                          node_id: id
-                          id: databaseId
+                        ... on Actor {
                           login
                           avatar_url: avatarUrl
                           html_url: url
                           type: __typename
+                          resource_path: resourcePath
+                        }
+                        ... on User {
+                          node_id: id
+                          id: databaseId
                           site_admin: isSiteAdmin
                         }
                       }
@@ -2222,7 +2235,6 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                           reaction_type: content
                           reacted_at: createdAt
                           user {
-                          ... on User {
                             node_id: id
                             id: databaseId
                             login
@@ -2230,7 +2242,6 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                             html_url: url
                             type: __typename
                             site_admin: isSiteAdmin
-                          }
                           }
                         }
                       }
