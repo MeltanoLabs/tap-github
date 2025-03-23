@@ -2129,7 +2129,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
 
     name = "discussion_comments"
     query_jsonpath = "$.data.repository.discussions.nodes.[*].comments.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["node_id"]  # id is renamed to node_id
+    primary_keys: ClassVar[list[str]] = ["id"]  # id is renamed to node_id
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
@@ -2157,7 +2157,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         return """
           query DiscussionsComments($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
             repository(name: $repo, owner: $org) {
-              discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+              discussions(first: 20, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
@@ -2171,12 +2171,13 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                       endCursor_1: endCursor
                     }
                     nodes {
-                      node_id: id
-                      id: databaseId
-                      discussion {
-                        node_id: id
-                        number
+                        discussion {
+                        discussion_node_id: node_id
+                        discussion_number: number
+                        discussion_id: databaseId
                       }
+                      comment_node_id: node_id
+                      comment_id: databaseId
                       author {
                         ... on Actor {
                           login
@@ -2224,10 +2225,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                       }
                       replies(first: 10) {
                         nodes {
-                          comment_id: id
-                          replyTo {
-                            replyTo_id: id
-                          }
+                          reply_comment_id: databaseId
                         }
                       }
                       reactions(first: 10) {
@@ -2256,18 +2254,18 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
           } """  # noqa: E501
 
     discussion_object = th.ObjectType(
-        th.Property("node_id", th.StringType),
-        th.Property("number", th.IntegerType),
+        th.Property("discussion_node_id", th.StringType),
+        th.Property("discussion_number", th.IntegerType),
+        th.Property("discussion_id", th.IntegerType),
     )
 
-    replies_array = th.ArrayType(
+    replies_array = th.ArrayType(th.ObjectType(
+      th.Property("nodes", th.ArrayType(
         th.ObjectType(
-            th.Property("comment_id", th.IntegerType),
-            th.Property(
-                "replyTo", th.ObjectType(th.Property("replyTo_id", th.IntegerType))
-            ),
-        )
-    )
+          th.Property("reply_comment_id", th.IntegerType),
+          )
+        ))
+    ) )
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2275,9 +2273,9 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("org", th.StringType),
         th.Property("repo_id", th.IntegerType),
         # Discussions comments keys
-        th.Property("node_id", th.StringType),
-        th.Property("id", th.IntegerType),
         th.Property("discussion", discussion_object),
+        th.Property("comment_node_id", th.StringType),
+        th.Property("comment_id", th.IntegerType),
         th.Property("author", user_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
@@ -2330,7 +2328,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     def query(self) -> str:
         """
         Return dynamic GraphQL query.
-        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        Note: To keep the tap consistent, we rename id to node_id. There is no databaseId for the discussionCategories object.
         """
 
         return """
