@@ -2259,13 +2259,18 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("discussion_id", th.IntegerType),
     )
 
-    replies_array = th.ArrayType(th.ObjectType(
-      th.Property("nodes", th.ArrayType(
+    replies_array = th.ArrayType(
         th.ObjectType(
-          th.Property("reply_comment_id", th.IntegerType),
-          )
-        ))
-    ) )
+            th.Property(
+                "nodes",
+                th.ArrayType(
+                    th.ObjectType(
+                        th.Property("reply_comment_id", th.IntegerType),
+                    )
+                ),
+            )
+        )
+    )
 
     schema = th.PropertiesList(
         # Parent keys
