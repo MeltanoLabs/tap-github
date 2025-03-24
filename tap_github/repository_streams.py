@@ -1932,6 +1932,16 @@ class DiscussionsStream(GitHubGraphqlStream):
         self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
         return params
 
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """Transform nested arrays for reactions."""
+        row = super().post_process(row, context)
+
+        # Transform reactions array
+        if "reactions" in row and isinstance(row["reactions"], dict) and "nodes" in row["reactions"]:
+            row["reactions"] = row["reactions"]["nodes"]
+
+        return row
+
     @property
     def query(self) -> str:
         """
@@ -2148,6 +2158,20 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
         return params
 
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """Transform nested arrays for replies and reactions."""
+        row = super().post_process(row, context)
+
+        # Transform replies array
+        if "replies" in row and isinstance(row["replies"], dict) and "nodes" in row["replies"]:
+            row["replies"] = row["replies"]["nodes"]
+
+        # Transform reactions array
+        if "reactions" in row and isinstance(row["reactions"], dict) and "nodes" in row["reactions"]:
+            row["reactions"] = row["reactions"]["nodes"]
+
+        return row
+
     @property
     def query(self) -> str:
         """
@@ -2259,14 +2283,9 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("discussion_id", th.IntegerType),
     )
 
-    replies_object = th.ObjectType(
-        th.Property(
-            "nodes",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("reply_comment_id", th.IntegerType),
-                )
-            ),
+    replies_array = th.ArrayType(
+        th.ObjectType(
+            th.Property("reply_comment_id", th.IntegerType),
         )
     )
 
@@ -2298,13 +2317,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
-        th.Property("replies", replies_object),
-        th.Property(
-            "reactions",
-            th.ObjectType(
-                th.Property("nodes", th.ArrayType(reaction_type_object)),
-            ),
-        ),
+        th.Property("replies", replies_array),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 
