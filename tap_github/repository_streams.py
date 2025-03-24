@@ -1932,16 +1932,6 @@ class DiscussionsStream(GitHubGraphqlStream):
         self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
         return params
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
-        """Transform nested arrays for reactions."""
-        row = super().post_process(row, context)
-
-        # Transform reactions array
-        if "reactions" in row and isinstance(row["reactions"], dict) and "nodes" in row["reactions"]:
-            row["reactions"] = row["reactions"]["nodes"]
-
-        return row
-
     @property
     def query(self) -> str:
         """
@@ -2045,21 +2035,11 @@ class DiscussionsStream(GitHubGraphqlStream):
                     }
                   }
                   upvote_count: upvoteCount
-                  reactions(first: 100) {
-                    edges {
-                      node {
-                        reaction_type: content
-                        reacted_at: createdAt
-                        user {
-                          node_id: id
-                          id: databaseId
-                          login
-                          avatar_url: avatarUrl
-                          html_url: url
-                          type: __typename
-                          site_admin: isSiteAdmin
-                        }
-                      }
+                  reactionGroups {
+                    content
+                    createdAt
+                    reactors {
+                      totalCount: total_count
                     }
                   }
                 }
@@ -2130,7 +2110,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("answer", answer_object),
         th.Property("answer_chosen_by", user_object),
         th.Property("upvote_count", th.IntegerType),
-        th.Property("reactions", th.ArrayType(reaction_type_object)),
+        th.Property("reactions", reactions_object),
     ).to_dict()
 
 
@@ -2157,20 +2137,6 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         self.logger.info(f"Context: {context}")
         self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
         return params
-
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
-        """Transform nested arrays for replies and reactions."""
-        row = super().post_process(row, context)
-
-        # Transform replies array
-        if "replies" in row and isinstance(row["replies"], dict) and "nodes" in row["replies"]:
-            row["replies"] = row["replies"]["nodes"]
-
-        # Transform reactions array
-        if "reactions" in row and isinstance(row["reactions"], dict) and "nodes" in row["reactions"]:
-            row["reactions"] = row["reactions"]["nodes"]
-
-        return row
 
     @property
     def query(self) -> str:
@@ -2247,23 +2213,17 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                           site_admin: isSiteAdmin
                         }
                       }
-                      replies(first: 10) {
-                        nodes {
-                          reply_comment_id: databaseId
+                      replyTo {
+                        reply_comment_id: databaseId
+                      }
+                      reactionGroups {
+                        content
+                        createdAt
+                        reactors {
+                          totalCount: total_count
                         }
                       }
-                      reactions(first: 10) {
-                        nodes {
-                          reaction_type: content
-                          reacted_at: createdAt
-                          user {
-                            node_id: id
-                            id: databaseId
-                            login
-                            avatar_url: avatarUrl
-                            html_url: url
-                            type: __typename
-                            site_admin: isSiteAdmin
+                    }
                           }
                         }
                       }
@@ -2283,10 +2243,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("discussion_id", th.IntegerType),
     )
 
-    replies_array = th.ArrayType(
-        th.ObjectType(
-            th.Property("reply_comment_id", th.IntegerType),
-        )
+    reply_to_array = th.ObjectType(
+        th.Property("reply_comment_id", th.IntegerType),
     )
 
     schema = th.PropertiesList(
@@ -2317,8 +2275,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
-        th.Property("replies", replies_array),
-        th.Property("reactions", th.ArrayType(reaction_type_object)),
+        th.Property("replyTo", reply_to_array),
+        th.Property("reactions", reactions_object),
     ).to_dict()
 
 
