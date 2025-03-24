@@ -15,7 +15,6 @@ from tap_github.schema_objects import (
     files_object,
     label_object,
     milestone_object,
-    reaction_type_object,
     reactions_object,
     user_object,
 )
