@@ -2260,11 +2260,14 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     )
 
     replies_object = th.ObjectType(
-        th.Property("nodes", th.ArrayType(
-            th.ObjectType(
-                th.Property("reply_comment_id", th.IntegerType),
-            )
-        ))
+        th.Property(
+            "nodes",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("reply_comment_id", th.IntegerType),
+                )
+            ),
+        )
     )
 
     schema = th.PropertiesList(
@@ -2296,9 +2299,12 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
         th.Property("replies", replies_object),
-        th.Property("reactions", th.ObjectType(
-            th.Property("nodes", th.ArrayType(reaction_type_object)),
-        )),
+        th.Property(
+            "reactions",
+            th.ObjectType(
+                th.Property("nodes", th.ArrayType(reaction_type_object)),
+            ),
+        ),
     ).to_dict()
 
 
