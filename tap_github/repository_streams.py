@@ -15,6 +15,7 @@ from tap_github.schema_objects import (
     files_object,
     label_object,
     milestone_object,
+    reaction_type_object,
     reactions_object,
     user_object,
 )
@@ -1931,6 +1932,18 @@ class DiscussionsStream(GitHubGraphqlStream):
         self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
         return params
 
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Transform the labels array to flatten the nested structure.
+        """
+        row = super().post_process(row, context)
+
+        # Transform labels from nodes structure to flat array
+        if "labels" in row and "nodes" in row["labels"]:
+            row["labels"] = row["labels"]["nodes"]
+
+        return row
+
     @property
     def query(self) -> str:
         """
@@ -1982,8 +1995,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                     description
                   }
                   labels(first: 100) {
-                    edges {
-                      node {
+                      nodes {
                         node_id: id
                         created_at: createdAt
                         name
@@ -1993,7 +2005,6 @@ class DiscussionsStream(GitHubGraphqlStream):
                         color
                         default: isDefault
                       }
-                    }
                   }
                   locked
                   active_lock_reason: activeLockReason
@@ -2034,11 +2045,19 @@ class DiscussionsStream(GitHubGraphqlStream):
                     }
                   }
                   upvote_count: upvoteCount
-                  reactionGroups {
-                    content
-                    createdAt
-                    reactors {
-                      total_count: totalCount
+                  reactions(first: 100) {
+                    nodes {
+                      reaction_type: content
+                      reacted_at: createdAt
+                      user {
+                        node_id: id
+                        id: databaseId
+                        login
+                        avatar_url: avatarUrl
+                        html_url: url
+                        type: __typename
+                        site_admin: isSiteAdmin
+                      }
                     }
                   }
                 }
@@ -2109,7 +2128,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("answer", answer_object),
         th.Property("answer_chosen_by", user_object),
         th.Property("upvote_count", th.IntegerType),
-        th.Property("reactions", reactions_object),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 
@@ -2212,14 +2231,27 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                           site_admin: isSiteAdmin
                         }
                       }
-                      replyTo {
-                        reply_comment_id: databaseId
+                      replies(first: 10) {
+                        nodes {
+                          reply_id: id
+                          replyTo {
+                            replyTo_id: id
+                          }
+                        }
                       }
-                      reactionGroups {
-                        content
-                        createdAt
-                        reactors {
-                          total_count: totalCount
+                      reactions(first: 10) {
+                        nodes {
+                          reaction_type: content
+                          reacted_at: createdAt
+                          user {
+                            node_id: id
+                            id: databaseId
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                            site_admin: isSiteAdmin
+                          }
                         }
                       }
                     }
@@ -2230,7 +2262,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
             rateLimit {
               cost
             }
-          }"""  # noqa: E501
+          } """  # noqa: E501
 
     discussion_object = th.ObjectType(
         th.Property("discussion_node_id", th.StringType),
@@ -2238,9 +2270,13 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("discussion_id", th.IntegerType),
     )
 
-    reply_to_array = th.ObjectType(
-        th.Property("reply_comment_id", th.IntegerType),
-    )
+    replies_array = th.ArrayType(th.ObjectType(
+      th.Property("nodes", th.ArrayType(
+        th.ObjectType(
+          th.Property("reply_id", th.IntegerType),
+          )
+        ))
+    ) )
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2270,8 +2306,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
-        th.Property("replyTo", reply_to_array),
-        th.Property("reactions", reactions_object),
+        th.Property("replies", replies_array),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 
