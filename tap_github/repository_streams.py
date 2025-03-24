@@ -2172,12 +2172,12 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                     }
                     nodes {
                         discussion {
-                        discussion_node_id: node_id
+                        discussion_node_id: id
                         discussion_number: number
                         discussion_id: databaseId
                       }
-                      comment_node_id: node_id
-                      comment_id: databaseId
+                      node_id: id
+                      id: databaseId
                       author {
                         ... on Actor {
                           login
@@ -2279,8 +2279,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("repo_id", th.IntegerType),
         # Discussions comments keys
         th.Property("discussion", discussion_object),
-        th.Property("comment_node_id", th.StringType),
-        th.Property("comment_id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("id", th.IntegerType),
         th.Property("author", user_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
