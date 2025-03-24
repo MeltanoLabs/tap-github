@@ -2038,7 +2038,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                     content
                     createdAt
                     reactors {
-                      totalCount: total_count
+                      total_count: totalCount
                     }
                   }
                 }
@@ -2219,7 +2219,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                         content
                         createdAt
                         reactors {
-                          totalCount: total_count
+                          total_count: totalCount
                         }
                       }
                     }
