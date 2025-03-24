@@ -2160,7 +2160,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                       endCursor_1: endCursor
                     }
                     nodes {
-                        discussion {
+                      discussion {
                         discussion_node_id: id
                         discussion_number: number
                         discussion_id: databaseId
@@ -2223,10 +2223,6 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                         }
                       }
                     }
-                          }
-                        }
-                      }
-                    }
                   }
                 }
               }
@@ -2234,7 +2230,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
             rateLimit {
               cost
             }
-          } """  # noqa: E501
+          }"""  # noqa: E501
 
     discussion_object = th.ObjectType(
         th.Property("discussion_node_id", th.StringType),
