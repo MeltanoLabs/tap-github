@@ -57,6 +57,9 @@ class GitHubRestStream(RESTStream):
     replication_key: str | None = None
     tolerated_http_errors: ClassVar[list[int]] = []
 
+    # Save the context from the requests so it can be available to the parse_response method
+    context: dict | None = None
+
     @property
     def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
@@ -142,6 +145,9 @@ class GitHubRestStream(RESTStream):
         context: dict | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
+        # save the context from the requests so it can be available to the parse_response method
+        self.context = context
+
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
@@ -250,7 +256,7 @@ class GitHubRestStream(RESTStream):
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
-        # TODO - Split into handle_reponse and parse_response.
+        # TODO - Split into handle_response and parse_response.
         if response.status_code in (
             [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
         ):
@@ -259,8 +265,8 @@ class GitHubRestStream(RESTStream):
         # Update token rate limit info and loop through tokens if needed.
         self.authenticator.update_rate_limit(response.headers)
 
+        # Get all items from the response
         resp_json = response.json()
-
         if isinstance(resp_json, list):
             results = resp_json
         elif resp_json.get("items") is not None:
@@ -268,7 +274,21 @@ class GitHubRestStream(RESTStream):
         else:
             results = [resp_json]
 
-        yield from results
+        if not results:
+            return
+
+        # Filter items based on replication key's date if needed
+        since = self.get_starting_timestamp(self.context)
+        filtered_results = []
+        if self.replication_key and self.use_fake_since_parameter and since:
+            for item in results:
+                item_date = parse(item[self.replication_key])
+                if item_date >= since:
+                    filtered_results.append(item)
+        else:
+            filtered_results = results
+
+        yield from filtered_results
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
@@ -304,52 +324,6 @@ class GitHubRestStream(RESTStream):
     ) -> dict[str, int]:
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
-
-
-class GitHubDiffStream(GitHubRestStream):
-    """Base class for GitHub diff streams."""
-
-    @property
-    def http_headers(self) -> dict:
-        """Return the http headers needed for diff requests."""
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.v3.diff"
-        return headers
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response to yield the diff text instead of an object
-        and prevent buffer overflow."""
-        if response.status_code != 200:
-            contents = response.json()
-            self.logger.info(
-                "Skipping %s due to %d error: %s",
-                self.name.replace("_", " "),
-                response.status_code,
-                contents["message"],
-            )
-            yield {
-                "success": False,
-                "error_message": contents["message"],
-            }
-            return
-
-        if content_length_str := response.headers.get("Content-Length"):
-            content_length = int(content_length_str)
-            max_size = 41_943_040  # 40 MiB
-            if content_length > max_size:
-                self.logger.info(
-                    "Skipping %s. The diff size (%.2f MiB) exceeded the maximum"
-                    " size limit of 40 MiB.",
-                    self.name.replace("_", " "),
-                    content_length / 1024 / 1024,
-                )
-                yield {
-                    "success": False,
-                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
-                }
-                return
-
-        yield {"diff": response.text, "success": True}
 
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
