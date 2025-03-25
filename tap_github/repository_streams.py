@@ -2385,7 +2385,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query DiscussionCommentReplies($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
+          query DiscussionCommentReplies($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
             repository(name: $repo, owner: $org) {
               discussion(number: $discussion_number) {
                 comments(first: 100, after: $nextPageCursor_0) {
