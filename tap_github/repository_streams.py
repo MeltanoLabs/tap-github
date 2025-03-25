@@ -2509,7 +2509,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("repo_id", th.IntegerType),
         th.Property("discussion_number", th.IntegerType),
         th.Property("discussion_id", th.IntegerType),
-        #Discussion Comment Replies Keys
+        # Discussion Comment Replies Keys
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("reply_to", reply_to_object),
@@ -2533,8 +2533,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("resource_path", th.StringType),
         th.Property("editor", user_object),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
-
-      ).to_dict()
+    ).to_dict()
 
 
 class DiscussionCategoriesStream(GitHubGraphqlStream):
