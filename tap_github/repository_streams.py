@@ -2388,7 +2388,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
           query DiscussionCommentReplies($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
             repository(name: $repo, owner: $org) {
               discussion(number: $discussion_number) {
-                comments(first: 100, after: $nextPageCursor_0) {
+                comments(first: 50, after: $nextPageCursor_0) {
                   pageInfo {
                     hasNextPage_0: hasNextPage
                     startCursor_0: startCursor
