@@ -1909,7 +1909,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 
 
 class DiscussionsStream(GitHubGraphqlStream):
-    """Defines stream fetching discussions from each repository."""
+    """Defines stream fetching discussions from each repository."""  # noqa: E501
 
     name = "discussions"
     query_jsonpath = "$.data.repository.discussions.nodes.[*]"
@@ -1949,7 +1949,7 @@ class DiscussionsStream(GitHubGraphqlStream):
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         """
         Return a context dictionary for the child stream, including the grandparent stream's context.
-        """
+        """  # noqa: E501
         return {
             **super().get_child_context(record, context),
             "discussion_number": record["number"],
@@ -1962,7 +1962,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
-        """
+        """  # noqa: E501
         return """
           query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String) {
             repository(name: $repo, owner: $org) {
@@ -2146,7 +2146,7 @@ class DiscussionsStream(GitHubGraphqlStream):
 
 
 class DiscussionCommentsStream(GitHubGraphqlStream):
-    """Defines stream fetching discussion comments from each repository."""
+    """Defines stream fetching discussion comments from each repository."""  # noqa: E501
 
     name = "discussion_comments"
     query_jsonpath = "$.data.repository.discussions.nodes.[*].comments.nodes.[*]"
@@ -2162,7 +2162,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         context: dict | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
+        """Return a dictionary of values to be used in URL parameterization."""  # noqa: E501
         params = super().get_url_params(context, next_page_token)
         self.logger.info(f"URL Params: {params}")
         self.logger.info(f"Context: {context}")
@@ -2172,7 +2172,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure.
-        """
+        """  # noqa: E501
         row = super().post_process(row, context)
 
         if "replies" in row and "nodes" in row["replies"]:
@@ -2188,7 +2188,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
-        """
+        """  # noqa: E501
         return """
           query DiscussionComments($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
             repository(name: $repo, owner: $org) {
@@ -2344,7 +2344,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
 
 
 class DiscussionCommentRepliesStream(GitHubGraphqlStream):
-    """Defines stream fetching replies for each discussion comment from each repository."""
+    """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
 
     name = "discussion_comment_replies"
     query_jsonpath = "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
@@ -2360,7 +2360,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         context: dict | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
+        """Return a dictionary of values to be used in URL parameterization."""  # noqa: E501
         params = super().get_url_params(context, next_page_token)
         self.logger.info(f"URL Params: {params}")
         self.logger.info(f"Context: {context}")
@@ -2370,7 +2370,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure.
-        """
+        """  # noqa: E501
         row = super().post_process(row, context)
 
         if "reactions" in row and "nodes" in row["reactions"]:
@@ -2383,7 +2383,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
-        """
+        """  # noqa: E501
         return """
           query DiscussionCommentReplies($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
             repository(name: $repo, owner: $org) {
@@ -2537,7 +2537,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
 
 
 class DiscussionCategoriesStream(GitHubGraphqlStream):
-    """Defines stream fetching discussions categories from each repository."""
+    """Defines stream fetching discussions categories from each repository."""  # noqa: E501
 
     name = "discussion_categories"
     query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
@@ -2553,7 +2553,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         context: dict | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
+        """Return a dictionary of values to be used in URL parameterization."""  # noqa: E501
         params = super().get_url_params(context, next_page_token)
         self.logger.info(f"URL Params: {params}")
         self.logger.info(f"Context: {context}")
@@ -2566,7 +2566,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id.
         There is no databaseId for the discussionCategories object.
-        """
+        """  # noqa: E501
 
         return """
           query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
