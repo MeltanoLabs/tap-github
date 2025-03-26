@@ -2345,17 +2345,11 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
 
-    def get_url_params(
-        self,
-        context: dict | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        """Return a dictionary of values to be used in URL parameterization."""
-        params = super().get_url_params(context, next_page_token)
-        self.logger.info(f"URL Params: {params}")
-        self.logger.info(f"Context: {context}")
-        self.logger.info(f"State: {self.get_starting_replication_key_value(context)}")
-        return params
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and log the raw GraphQL response."""
+        # Log the raw response
+        self.logger.info(f"Raw GraphQL Response: {response.text}")
+        return super().parse_response(response)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
@@ -2377,21 +2371,21 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         return """
           query DiscussionCommentReplies($repo: String!, $org: String! $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $nextPageCursor_3: String) {
             repository(name: $repo, owner: $org) {
-              discussions(first: 20, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+              discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
                   endCursor_0: endCursor
                 }
                 nodes {
-                  comments(first: 20, after: $nextPageCursor_1) {
+                  comments(first: 10, after: $nextPageCursor_1) {
                     pageInfo {
                       hasNextPage_1: hasNextPage
                       startCursor_1: startCursor
                       endCursor_1: endCursor
                     }
                     nodes {
-                      replies(first: 50, after: $nextPageCursor_2) {
+                      replies(first: 20, after: $nextPageCursor_2) {
                         pageInfo {
                           hasNextPage_2: hasNextPage
                           startCursor_2: startCursor
@@ -2498,6 +2492,10 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
               }
             }
             rateLimit {
+              limit
+              remaining
+              used
+              resetAt
               cost
             }
           }
