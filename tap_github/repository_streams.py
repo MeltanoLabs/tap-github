@@ -2347,7 +2347,9 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
 
     name = "discussion_comment_replies"
-    query_jsonpath = "$.data.repository.discussions.nodes.[*].comments.nodes.[*].replies.nodes.[*]"
+    query_jsonpath = (
+        "$.data.repository.discussions.nodes.[*].comments.nodes.[*].replies.nodes.[*]"
+    )
     primary_keys: ClassVar[list[str]] = ["id"]  # id is renamed to node_id
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
