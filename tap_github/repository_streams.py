@@ -2347,10 +2347,10 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
 
     name = "discussion_comment_replies"
-    query_jsonpath = "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
+    query_jsonpath = "$.data.repository.discussions.nodes.[*].comments.nodes.[*].replies.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]  # id is renamed to node_id
     replication_key = "updated_at"
-    parent_stream_type = DiscussionsStream
+    parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
@@ -2385,30 +2385,57 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query DiscussionCommentReplies($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
+          query DiscussionCommentReplies($repo: String!, $org: String! $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String) {
             repository(name: $repo, owner: $org) {
-              discussion(number: $discussion_number) {
-                comments(first: 10, after: $nextPageCursor_0) {
-                  pageInfo {
-                    hasNextPage_0: hasNextPage
-                    startCursor_0: startCursor
-                    endCursor_0: endCursor
-                  }
-                  nodes {
-                    replies(first: 100, after: $nextPageCursor_1) {
-                      pageInfo {
-                        hasNextPage_1: hasNextPage
-                        startCursor_1: startCursor
-                        endCursor_1: endCursor
-                      }
-                      nodes {
-                        node_id: id
-                        id: databaseId
-                        reply_to:replyTo{
-                          comment_id:databaseId
-                          comment_node_id: id
-                          comment_body: body
-                          comment_author: author {
+              discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  comments(first: 10, after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
+                    nodes {
+                      replies(first: 100, after: $nextPageCursor_2) {
+                        pageInfo {
+                          hasNextPage_2: hasNextPage
+                          startCursor_2: startCursor
+                          endCursor_2: endCursor
+                        }
+                        nodes {
+                          node_id: id
+                          id: databaseId
+                          reply_to:replyTo{
+                            discussion{
+                              discussion_node_id: id
+                              discussion_number: number
+                              discussion_id: databaseId
+                            }
+                            comment_id:databaseId
+                            comment_node_id: id
+                            comment_body: body
+                            comment_author: author {
+                              ... on Actor {
+                                login
+                                avatar_url: avatarUrl
+                                html_url: url
+                                type: __typename
+                                resource_path: resourcePath
+                              }
+                              ... on User {
+                                node_id: id
+                                id: databaseId
+                                site_admin: isSiteAdmin
+                              }
+                            }
+                            comment_author_association: authorAssociation
+                          }
+                          author {
                             ... on Actor {
                               login
                               avatar_url: avatarUrl
@@ -2423,64 +2450,49 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                             }
                           }
                           author_association: authorAssociation
-                        }
-                        author {
-                          ... on Actor {
-                            login
-                            avatar_url: avatarUrl
-                            html_url: url
-                            type: __typename
-                            resource_path: resourcePath
-                          }
-                          ... on User {
-                            node_id: id
-                            id: databaseId
-                            site_admin: isSiteAdmin
-                          }
-                        }
-                        author_association: authorAssociation
-                        body
-                        body_html: bodyHTML
-                        body_text: bodyText
-                        created_at: createdAt
-                        published_at: publishedAt
-                        last_edited_at: lastEditedAt
-                        updated_at: updatedAt
-                        created_via_email: createdViaEmail
-                        deleted_at: deletedAt
-                        includes_created_edit: includesCreatedEdit
-                        is_answer: isAnswer
-                        is_minimized: isMinimized
-                        minimized_reason: minimizedReason
-                        upvote_count: upvoteCount
-                        html_url: url
-                        resource_path: resourcePath
-                        editor {
-                          ... on Actor {
-                            login
-                            avatar_url: avatarUrl
-                            html_url: url
-                            type: __typename
-                            resource_path: resourcePath
-                          }
-                          ... on User {
-                            node_id: id
-                            id: databaseId
-                            site_admin: isSiteAdmin
-                          }
-                        }
-                        reactions(first: 10) {
-                          nodes {
-                            reaction_type: content
-                            reacted_at: createdAt
-                            user {
-                              node_id: id
-                              id: databaseId
+                          body
+                          body_html: bodyHTML
+                          body_text: bodyText
+                          created_at: createdAt
+                          published_at: publishedAt
+                          last_edited_at: lastEditedAt
+                          updated_at: updatedAt
+                          created_via_email: createdViaEmail
+                          deleted_at: deletedAt
+                          includes_created_edit: includesCreatedEdit
+                          is_answer: isAnswer
+                          is_minimized: isMinimized
+                          minimized_reason: minimizedReason
+                          upvote_count: upvoteCount
+                          html_url: url
+                          resource_path: resourcePath
+                          editor {
+                            ... on Actor {
                               login
                               avatar_url: avatarUrl
                               html_url: url
                               type: __typename
+                              resource_path: resourcePath
+                            }
+                            ... on User {
+                              node_id: id
+                              id: databaseId
                               site_admin: isSiteAdmin
+                            }
+                          }
+                          reactions(first: 10) {
+                            nodes {
+                              reaction_type: content
+                              reacted_at: createdAt
+                              user {
+                                node_id: id
+                                id: databaseId
+                                login
+                                avatar_url: avatarUrl
+                                html_url: url
+                                type: __typename
+                                site_admin: isSiteAdmin
+                              }
                             }
                           }
                         }
@@ -2493,9 +2505,13 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
             rateLimit {
               cost
             }
-          } """  # noqa: E501
+          }
+          """  # noqa: E501
 
     reply_to_object = th.ObjectType(
+        th.Property("discussion_node_id", th.StringType),
+        th.Property("discussion_number", th.IntegerType),
+        th.Property("discussion_id", th.IntegerType),
         th.Property("comment_id", th.IntegerType),
         th.Property("comment_node_id", th.StringType),
         th.Property("comment_body", th.StringType),
@@ -2507,8 +2523,6 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
         th.Property("repo_id", th.IntegerType),
-        th.Property("discussion_number", th.IntegerType),
-        th.Property("discussion_id", th.IntegerType),
         # Discussion Comment Replies Keys
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
