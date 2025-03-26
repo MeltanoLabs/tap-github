@@ -18,6 +18,7 @@ from tap_github.schema_objects import (
     reaction_type_object,
     reactions_object,
     user_object,
+    actor_object,
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
@@ -1946,17 +1947,6 @@ class DiscussionsStream(GitHubGraphqlStream):
 
         return row
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
-        """
-        Return a context dictionary for the child stream, including the grandparent stream's context.
-        """  # noqa: E501
-        return {
-            **super().get_child_context(record, context),
-            "discussion_number": record["number"],
-            "discussion_id": record["id"],
-            "discussion_node_id": record["node_id"],
-        }
-
     @property
     def query(self) -> str:
         """
@@ -1964,7 +1954,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String) {
+          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String) {
             repository(name: $repo, owner: $org) {
               discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
@@ -1990,7 +1980,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                     ... on Actor {
                       login
                       avatar_url: avatarUrl
-                      html_url: url
+                      http_url: url
                       type: __typename
                       resource_path: resourcePath
                     }
@@ -2007,7 +1997,12 @@ class DiscussionsStream(GitHubGraphqlStream):
                     name
                     description
                   }
-                  labels(first: 100) {
+                  labels(first: 100, after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
                     nodes {
                       node_id: id
                       created_at: createdAt
@@ -2031,7 +2026,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                       ... on Actor {
                         login
                         avatar_url: avatarUrl
-                        html_url: url
+                        http_url: url
                         type: __typename
                         resource_path: resourcePath
                       }
@@ -2047,7 +2042,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                     ... on Actor {
                       login
                       avatar_url: avatarUrl
-                      html_url: url
+                      http_url: url
                       type: __typename
                       resource_path: resourcePath
                     }
@@ -2058,7 +2053,12 @@ class DiscussionsStream(GitHubGraphqlStream):
                     }
                   }
                   upvote_count: upvoteCount
-                  reactions(first: 100) {
+                  reactions(first: 100, after: $nextPageCursor_2) {
+                    pageInfo {
+                      hasNextPage_2: hasNextPage
+                      startCursor_2: startCursor
+                      endCursor_2: endCursor
+                    }
                     nodes {
                       reaction_type: content
                       reacted_at: createdAt
@@ -2067,7 +2067,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                         id: databaseId
                         login
                         avatar_url: avatarUrl
-                        html_url: url
+                        http_url: url
                         type: __typename
                         site_admin: isSiteAdmin
                       }
@@ -2093,7 +2093,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("body", th.StringType),
-        th.Property("author", user_object),
+        th.Property("author", actor_object),
         th.Property("author_association", th.StringType),
     )
 
@@ -2130,7 +2130,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("updated_at", th.DateTimeType),
         th.Property("closed_at", th.DateTimeType),
         th.Property("created_via_email", th.BooleanType),
-        th.Property("author", user_object),
+        th.Property("author", actor_object),
         th.Property("author_association", th.StringType),
         th.Property("category", category_object),
         th.Property("labels", labels_array),
@@ -2139,7 +2139,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("closed", th.BooleanType),
         th.Property("is_answered", th.BooleanType),
         th.Property("answer", answer_object),
-        th.Property("answer_chosen_by", user_object),
+        th.Property("answer_chosen_by", actor_object),
         th.Property("upvote_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
@@ -2175,9 +2175,6 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         """
         row = super().post_process(row, context)
 
-        if "replies" in row and "nodes" in row["replies"]:
-            row["replies"] = row["replies"]["nodes"]
-
         if "reactions" in row and "nodes" in row["reactions"]:
             row["reactions"] = row["reactions"]["nodes"]
 
@@ -2190,9 +2187,9 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query DiscussionComments($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
+          query DiscussionComments($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String) {
             repository(name: $repo, owner: $org) {
-              discussions(first: 20, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+              discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
@@ -2217,7 +2214,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                         ... on Actor {
                           login
                           avatar_url: avatarUrl
-                          html_url: url
+                          http_url: url
                           type: __typename
                           resource_path: resourcePath
                         }
@@ -2248,7 +2245,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                         ... on Actor {
                           login
                           avatar_url: avatarUrl
-                          html_url: url
+                          http_url: url
                           type: __typename
                           resource_path: resourcePath
                         }
@@ -2258,15 +2255,15 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                           site_admin: isSiteAdmin
                         }
                       }
-                      replies(first: 10) {
-                        nodes {
-                          reply_id: id
-                          replyTo {
-                            replyTo_id: id
-                          }
-                        }
+                      replies{
+                        total_count: totalCount
                       }
-                      reactions(first: 10) {
+                      reactions(first: 25, after: $nextPageCursor_2) {
+                        pageInfo {
+                          hasNextPage_2: hasNextPage
+                          startCursor_2: startCursor
+                          endCursor_2: endCursor
+                        }
                         nodes {
                           reaction_type: content
                           reacted_at: createdAt
@@ -2275,7 +2272,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                             id: databaseId
                             login
                             avatar_url: avatarUrl
-                            html_url: url
+                            http_url: url
                             type: __typename
                             site_admin: isSiteAdmin
                           }
@@ -2297,17 +2294,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("discussion_id", th.IntegerType),
     )
 
-    replies_array = th.ArrayType(
-        th.ObjectType(
-            th.Property(
-                "nodes",
-                th.ArrayType(
-                    th.ObjectType(
-                        th.Property("reply_id", th.IntegerType),
-                    )
-                ),
-            )
-        )
+    replies_object = th.ObjectType(
+        th.Property("total_count", th.IntegerType),
     )
 
     schema = th.PropertiesList(
@@ -2319,7 +2307,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("discussion", discussion_object),
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
-        th.Property("author", user_object),
+        th.Property("author", actor_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("body_html", th.StringType),
@@ -2337,8 +2325,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("upvote_count", th.IntegerType),
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
-        th.Property("editor", user_object),
-        th.Property("replies", replies_array),
+        th.Property("editor", actor_object),
+        th.Property("replies", replies_object),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
@@ -2387,16 +2375,16 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query DiscussionCommentReplies($repo: String!, $org: String! $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String) {
+          query DiscussionCommentReplies($repo: String!, $org: String! $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $nextPageCursor_3: String) {
             repository(name: $repo, owner: $org) {
-              discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+              discussions(first: 20, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
                   endCursor_0: endCursor
                 }
                 nodes {
-                  comments(first: 10, after: $nextPageCursor_1) {
+                  comments(first: 20, after: $nextPageCursor_1) {
                     pageInfo {
                       hasNextPage_1: hasNextPage
                       startCursor_1: startCursor
@@ -2425,7 +2413,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                               ... on Actor {
                                 login
                                 avatar_url: avatarUrl
-                                html_url: url
+                                http_url: url
                                 type: __typename
                                 resource_path: resourcePath
                               }
@@ -2441,7 +2429,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                             ... on Actor {
                               login
                               avatar_url: avatarUrl
-                              html_url: url
+                              http_url: url
                               type: __typename
                               resource_path: resourcePath
                             }
@@ -2472,7 +2460,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                             ... on Actor {
                               login
                               avatar_url: avatarUrl
-                              html_url: url
+                              http_url: url
                               type: __typename
                               resource_path: resourcePath
                             }
@@ -2482,7 +2470,12 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                               site_admin: isSiteAdmin
                             }
                           }
-                          reactions(first: 10) {
+                          reactions(first: 10, after: $nextPageCursor_3) {
+                            pageInfo {
+                              hasNextPage_3: hasNextPage
+                              startCursor_3: startCursor
+                              endCursor_3: endCursor
+                            }
                             nodes {
                               reaction_type: content
                               reacted_at: createdAt
@@ -2491,7 +2484,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                                 id: databaseId
                                 login
                                 avatar_url: avatarUrl
-                                html_url: url
+                                http_url: url
                                 type: __typename
                                 site_admin: isSiteAdmin
                               }
@@ -2517,7 +2510,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("comment_id", th.IntegerType),
         th.Property("comment_node_id", th.StringType),
         th.Property("comment_body", th.StringType),
-        th.Property("comment_author", user_object),
+        th.Property("comment_author", actor_object),
         th.Property("comment_author_association", th.StringType),
     )
     schema = th.PropertiesList(
@@ -2529,7 +2522,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("reply_to", reply_to_object),
-        th.Property("author", user_object),
+        th.Property("author", actor_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("body_html", th.StringType),
@@ -2547,7 +2540,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("upvote_count", th.IntegerType),
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
-        th.Property("editor", user_object),
+        th.Property("editor", actor_object),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
