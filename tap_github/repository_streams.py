@@ -2347,6 +2347,9 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and log the raw GraphQL response."""
+        # Log all headers
+        self.logger.info(f"Response Headers: {dict(response.headers)}")
+
         # Log the raw response
         self.logger.info(f"Raw GraphQL Response: {response.text}")
         return super().parse_response(response)
