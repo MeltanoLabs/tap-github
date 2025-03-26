@@ -12,13 +12,13 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubDiffStream, GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
+    actor_object,
     files_object,
     label_object,
     milestone_object,
     reaction_type_object,
     reactions_object,
     user_object,
-    actor_object,
 )
 from tap_github.scraping import scrape_dependents, scrape_metrics
 
