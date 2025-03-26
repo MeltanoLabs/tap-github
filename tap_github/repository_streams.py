@@ -2391,7 +2391,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                       endCursor_1: endCursor
                     }
                     nodes {
-                      replies(first: 100, after: $nextPageCursor_2) {
+                      replies(first: 50, after: $nextPageCursor_2) {
                         pageInfo {
                           hasNextPage_2: hasNextPage
                           startCursor_2: startCursor
