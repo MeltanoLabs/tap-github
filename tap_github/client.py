@@ -57,9 +57,6 @@ class GitHubRestStream(RESTStream):
     replication_key: str | None = None
     tolerated_http_errors: ClassVar[list[int]] = []
 
-    # Save the context from the requests so it can be available to the parse_response method
-    context: dict | None = None
-
     @property
     def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
