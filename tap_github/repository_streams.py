@@ -2006,6 +2006,7 @@ class DiscussionsStream(GitHubGraphqlStream):
                     nodes {
                       node_id: id
                       created_at: createdAt
+                      updated_at: updatedAt
                       name
                       description
                       url
@@ -2102,6 +2103,7 @@ class DiscussionsStream(GitHubGraphqlStream):
             th.Property("id", th.IntegerType),
             th.Property("node_id", th.StringType),
             th.Property("created_at", th.DateTimeType),
+            th.Property("updated_at", th.DateTimeType),
             th.Property("name", th.StringType),
             th.Property("description", th.StringType),
             th.Property("url", th.StringType),
