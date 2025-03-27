@@ -2398,8 +2398,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                           node_id: id
                           id: databaseId
                           reply_to:replyTo{
-                            discussion{
-                              discussion_node_id: id
+                            discussion {
                               discussion_number: number
                               discussion_id: databaseId
                             }
@@ -2504,16 +2503,20 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
           }
           """  # noqa: E501
 
-    reply_to_object = th.ObjectType(
-        th.Property("discussion_node_id", th.StringType),
+    discussion_object = th.ObjectType(
         th.Property("discussion_number", th.IntegerType),
         th.Property("discussion_id", th.IntegerType),
+    )
+
+    reply_to_object = th.ObjectType(
+        th.Property("discussion", discussion_object),
         th.Property("comment_id", th.IntegerType),
         th.Property("comment_node_id", th.StringType),
         th.Property("comment_body", th.StringType),
         th.Property("comment_author", actor_object),
         th.Property("comment_author_association", th.StringType),
     )
+
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
