@@ -195,6 +195,17 @@ class OrganizationProjectsV2Stream(GitHubGraphqlStream):
     primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updatedAt"
     
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
+        """Get records from the source.
+        
+        Overridden to add rate limit checking before processing projects.
+        """
+        # Check rate limits before starting to process projects
+        self.check_rate_limits()
+        
+        # Continue with normal record retrieval
+        yield from super().get_records(context)
+    
     def get_url_params(
         self,
         context: dict | None,
@@ -285,6 +296,7 @@ class OrganizationProjectsV2Stream(GitHubGraphqlStream):
 class ProjectV2ItemsStream(GitHubGraphqlStream):
     """Defines the 'project_v2_items' stream for GitHub Project items."""
 
+    MAX_PER_PAGE = 20
     name = "project_v2_items"
     parent_stream_type = OrganizationProjectsV2Stream
     ignore_parent_replication_key = True
@@ -293,6 +305,18 @@ class ProjectV2ItemsStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["org", "project_id"]
     
     query_jsonpath = "$.data.node.items.nodes[*]"
+    
+    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
+        """Get records from the source.
+        
+        Overridden to add rate limit checking before processing items,
+        as this stream can be expensive in terms of API quota.
+        """
+        # Check rate limits before starting to process items
+        self.check_rate_limits()
+        
+        # Continue with normal record retrieval
+        yield from super().get_records(context)
     
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a context dictionary for child streams."""
@@ -315,7 +339,7 @@ class ProjectV2ItemsStream(GitHubGraphqlStream):
                 nodes {
                   id
                   type
-                  fieldValues(first: 50) {
+                  fieldValues(first: 5) {
                     nodes {
                       ... on ProjectV2ItemFieldTextValue {
                         text
@@ -365,7 +389,7 @@ class ProjectV2ItemsStream(GitHubGraphqlStream):
                         }
                       }
                       ... on ProjectV2ItemFieldLabelValue {
-                        labels(first: 10) {
+                        labels(first: 5) {
                           nodes {
                             name
                             color
@@ -391,7 +415,7 @@ class ProjectV2ItemsStream(GitHubGraphqlStream):
                         }
                       }
                       ... on ProjectV2ItemFieldPullRequestValue {
-                        pullRequests(first: 10) {
+                        pullRequests(first: 5) {
                           nodes {
                             title
                             number
@@ -419,7 +443,7 @@ class ProjectV2ItemsStream(GitHubGraphqlStream):
                         }
                       }
                       ... on ProjectV2ItemFieldUserValue {
-                        users(first: 10) {
+                        users(first: 5) {
                           nodes {
                             login
                           }

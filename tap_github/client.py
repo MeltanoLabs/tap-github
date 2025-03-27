@@ -311,18 +311,84 @@ class GitHubRestStream(RESTStream):
     def backoff_max_tries(self) -> int:  # noqa: PLR6301
         """The number of attempts before giving up when retrying requests.
         """
-        return 10
+        return 15
     
     
     def backoff_wait_generator(self) -> Generator[float, None, None]:  # noqa: PLR6301
         """The wait generator used by the backoff decorator on request failure.
+        
+        Using higher factor (8) and longer max_value (300) to provide more spacing between
+        retry attempts to better handle rate limits.
         """
-        return backoff.expo(factor=4)
+        return backoff.expo(factor=8, max_value=300)
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
     tolerated_graphql_error_types = ["NOT_FOUND", "FORBIDDEN"]
+    
+    def check_rate_limits(self) -> None:
+        """Check current GraphQL rate limits and pause if we're near the limit.
+        
+        GraphQL has a points-based system, and we need to be cautious not to exhaust it.
+        This method will pause execution if we're close to limits.
+        """
+        self.logger.info("Checking GraphQL rate limits before proceeding...")
+        query = """
+        query {
+          rateLimit {
+            limit
+            cost
+            remaining
+            resetAt
+          }
+        }
+        """
+        
+        try:
+            # Create a proper request using the GraphQL client's methods
+            import requests
+            http_method = "POST"
+            url = self.url_base
+            headers = self.authenticator.auth_headers or {}
+            headers.update(self.http_headers)
+            
+            request_data = {"query": query}
+            
+            # Create a prepared request
+            session = requests.Session()
+            request = requests.Request(
+                method=http_method,
+                url=url,
+                headers=headers,
+                json=request_data
+            )
+            prepared_request = request.prepare()
+            
+            # Send the request
+            resp = session.send(prepared_request)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                if "data" in data and "rateLimit" in data["data"]:
+                    rate_info = data["data"]["rateLimit"]
+                    remaining = rate_info.get("remaining", 0)
+                    limit = rate_info.get("limit", 5000)
+                    reset_at = rate_info.get("resetAt", "")
+                    
+                    # If less than 10% of points remain, add a delay
+                    if remaining < limit * 0.1:
+                        self.logger.warning(f"GraphQL rate limit is getting low: {remaining}/{limit} points remaining")
+                        self.logger.warning(f"Rate limit will reset at {reset_at}")
+                        wait_time = 60 + random.uniform(0, 30)  # Add random jitter
+                        self.logger.info(f"Waiting for {wait_time:.2f} seconds before continuing...")
+                        time.sleep(wait_time)
+                    else:
+                        self.logger.info(f"GraphQL rate limit status: {remaining}/{limit} points remaining")
+        except Exception as e:
+            # If checking rate limits fails, log but continue
+            self.logger.warning(f"Failed to check rate limits: {e}")
+            # Don't raise the exception as this is just a precautionary check
 
     @property
     def url_base(self) -> str:
@@ -471,6 +537,20 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         rj = response.json()
         if "errors" in rj:
             msg = rj["errors"]
+            
+            # First check for rate limiting errors specifically
+            for error in rj["errors"]:
+                if error.get("type") == "RATE_LIMITED":
+                    self.logger.warning(f"Rate limited: {error['message']}. Waiting and will retry...")
+                    # Wait for 60 seconds + some random jitter (up to 30 seconds)
+                    wait_time = 60 + random.uniform(0, 30)
+                    self.logger.info(f"Waiting for {wait_time:.2f} seconds before retrying...")
+                    time.sleep(wait_time)
+                    # Update token to possibly use a different one
+                    self.authenticator.get_next_auth_token()
+                    raise RetriableAPIError(f"GraphQL rate limit exceeded: {error['message']}", response)
+                    
+            # Then check for other errors
             for error in rj["errors"]:
                 if error.get("type") in self.tolerated_graphql_error_types:
                     self.logger.info(
