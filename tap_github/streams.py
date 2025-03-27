@@ -8,6 +8,8 @@ from tap_github.organization_streams import (
     TeamMembersStream,
     TeamRolesStream,
     TeamsStream,
+    OrganizationProjectsV2Stream,
+    ProjectV2ItemsStream,
 )
 from tap_github.repository_streams import (
     AnonymousContributorsStream,
@@ -27,9 +29,6 @@ from tap_github.repository_streams import (
     LabelsStream,
     LanguagesStream,
     MilestonesStream,
-    ProjectCardsStream,
-    ProjectColumnsStream,
-    ProjectsStream,
     PullRequestCommits,
     PullRequestDiffsStream,
     PullRequestsStream,
@@ -88,9 +87,6 @@ class Streams(Enum):
             LabelsStream,
             LanguagesStream,
             MilestonesStream,
-            ProjectCardsStream,
-            ProjectColumnsStream,
-            ProjectsStream,
             PullRequestCommits,
             PullRequestDiffsStream,
             PullRequestsStream,
@@ -123,7 +119,14 @@ class Streams(Enum):
     )
     ORGANIZATIONS = (
         {"organizations"},
-        [OrganizationStream, TeamMembersStream, TeamRolesStream, TeamsStream],
+        [
+            OrganizationStream, 
+            TeamMembersStream, 
+            TeamRolesStream, 
+            TeamsStream,
+            OrganizationProjectsV2Stream,
+            ProjectV2ItemsStream,
+        ],
     )
     ISSUES_TRANSFER = (
         {"issues_check_transfer"},

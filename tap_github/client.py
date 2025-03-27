@@ -408,6 +408,12 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         next_page_cursor = next(
             cursor for cursor in next_page_end_cursor_results if cursor is not None
         )
+        
+        # Prevent pagination loops - if cursor is the same as before, stop pagination
+        if previous_token and next_page_key in previous_token and previous_token[next_page_key] == next_page_cursor:
+            self.logger.warning(f"Identical pagination token detected: {next_page_cursor}. Stopping pagination.")
+            return None
+            
         next_page_cursors[next_page_key] = next_page_cursor
 
         return next_page_cursors
