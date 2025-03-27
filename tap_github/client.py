@@ -142,9 +142,6 @@ class GitHubRestStream(RESTStream):
         context: dict | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
-        # save the context from the requests so it can be available to the parse_response method
-        self.context = context
-
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
