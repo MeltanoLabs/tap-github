@@ -311,18 +311,73 @@ class GitHubRestStream(RESTStream):
     def backoff_max_tries(self) -> int:  # noqa: PLR6301
         """The number of attempts before giving up when retrying requests.
         """
-        return 10
+        return 15
     
     
     def backoff_wait_generator(self) -> Generator[float, None, None]:  # noqa: PLR6301
         """The wait generator used by the backoff decorator on request failure.
+        
+        Using higher factor (8) and longer max_value (300) to provide more spacing between
+        retry attempts to better handle rate limits.
         """
-        return backoff.expo(factor=4)
+        return backoff.expo(factor=8, max_value=300)
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
     tolerated_graphql_error_types = ["NOT_FOUND", "FORBIDDEN"]
+    
+    def check_rate_limits(self, headers: dict = None) -> None:
+        """Check rate limits from response headers and pause if we're near the limit.
+        
+        GitHub GraphQL API provides rate limit information in response headers.
+        This method checks those headers and adds a delay if needed.
+        
+        Args:
+            headers: Headers from a previous response. If not provided, 
+                    function will return without checking.
+        """
+        if not headers:
+            return
+            
+        try:
+            # Extract rate limit information from headers
+            limit = int(headers.get("X-RateLimit-Limit", "5000"))
+            remaining = int(headers.get("X-RateLimit-Remaining", "5000"))
+            reset_time = headers.get("X-RateLimit-Reset", "")
+            used = int(headers.get("X-RateLimit-Used", "0"))
+            resource = headers.get("X-RateLimit-Resource", "graphql")
+            
+            # Calculate reset time in human-readable format
+            reset_datetime = ""
+            if reset_time:
+                try:
+                    import datetime
+                    reset_datetime = datetime.datetime.fromtimestamp(int(reset_time)).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    reset_datetime = reset_time  # Use raw value if conversion fails
+            
+            # Log the current rate limit status
+            self.logger.info(
+                f"Rate limit status for {resource}: "
+                f"{remaining}/{limit} remaining, {used} used. "
+                f"Resets at {reset_datetime}"
+            )
+            
+            # If less than 10% of points remain, pause to avoid hitting limits
+            if remaining < (limit * 0.1):
+                self.logger.warning(
+                    f"Rate limit for {resource} is getting low: "
+                    f"{remaining}/{limit} remaining. Resets at {reset_datetime}"
+                )
+                # Calculate a wait time with random jitter to avoid all clients hitting at once
+                wait_time = 60 + random.uniform(0, 30)
+                self.logger.info(f"Waiting for {wait_time:.2f} seconds before continuing...")
+                time.sleep(wait_time)
+        except Exception as e:
+            # If checking rate limits fails, log but continue
+            self.logger.warning(f"Failed to check rate limits from headers: {e}")
+            # Don't raise the exception as this is just a precautionary check
 
     @property
     def url_base(self) -> str:
@@ -343,6 +398,9 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         .. _requests.Response:
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
+        # Check rate limits from response headers
+        self.check_rate_limits(response.headers)
+        
         resp_json = response.json()
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 
@@ -408,6 +466,12 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         next_page_cursor = next(
             cursor for cursor in next_page_end_cursor_results if cursor is not None
         )
+        
+        # Prevent pagination loops - if cursor is the same as before, stop pagination
+        if previous_token and next_page_key in previous_token and previous_token[next_page_key] == next_page_cursor:
+            self.logger.warning(f"Identical pagination token detected: {next_page_cursor}. Stopping pagination.")
+            return None
+            
         next_page_cursors[next_page_key] = next_page_cursor
 
         return next_page_cursors
@@ -465,6 +529,20 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         rj = response.json()
         if "errors" in rj:
             msg = rj["errors"]
+            
+            # First check for rate limiting errors specifically
+            for error in rj["errors"]:
+                if error.get("type") == "RATE_LIMITED":
+                    self.logger.warning(f"Rate limited: {error['message']}. Waiting and will retry...")
+                    # Wait for 60 seconds + some random jitter (up to 30 seconds)
+                    wait_time = 60 + random.uniform(0, 30)
+                    self.logger.info(f"Waiting for {wait_time:.2f} seconds before retrying...")
+                    time.sleep(wait_time)
+                    # Update token to possibly use a different one
+                    self.authenticator.get_next_auth_token()
+                    raise RetriableAPIError(f"GraphQL rate limit exceeded: {error['message']}", response)
+                    
+            # Then check for other errors
             for error in rj["errors"]:
                 if error.get("type") in self.tolerated_graphql_error_types:
                     self.logger.info(
