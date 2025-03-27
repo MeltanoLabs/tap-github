@@ -327,67 +327,56 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
     tolerated_graphql_error_types = ["NOT_FOUND", "FORBIDDEN"]
     
-    def check_rate_limits(self) -> None:
-        """Check current GraphQL rate limits and pause if we're near the limit.
+    def check_rate_limits(self, headers: dict = None) -> None:
+        """Check rate limits from response headers and pause if we're near the limit.
         
-        GraphQL has a points-based system, and we need to be cautious not to exhaust it.
-        This method will pause execution if we're close to limits.
-        """
-        self.logger.info("Checking GraphQL rate limits before proceeding...")
-        query = """
-        query {
-          rateLimit {
-            limit
-            cost
-            remaining
-            resetAt
-          }
-        }
-        """
+        GitHub GraphQL API provides rate limit information in response headers.
+        This method checks those headers and adds a delay if needed.
         
+        Args:
+            headers: Headers from a previous response. If not provided, 
+                    function will return without checking.
+        """
+        if not headers:
+            return
+            
         try:
-            # Create a proper request using the GraphQL client's methods
-            import requests
-            http_method = "POST"
-            url = self.url_base
-            headers = self.authenticator.auth_headers or {}
-            headers.update(self.http_headers)
+            # Extract rate limit information from headers
+            limit = int(headers.get("X-RateLimit-Limit", "5000"))
+            remaining = int(headers.get("X-RateLimit-Remaining", "5000"))
+            reset_time = headers.get("X-RateLimit-Reset", "")
+            used = int(headers.get("X-RateLimit-Used", "0"))
+            resource = headers.get("X-RateLimit-Resource", "graphql")
             
-            request_data = {"query": query}
+            # Calculate reset time in human-readable format
+            reset_datetime = ""
+            if reset_time:
+                try:
+                    import datetime
+                    reset_datetime = datetime.datetime.fromtimestamp(int(reset_time)).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    reset_datetime = reset_time  # Use raw value if conversion fails
             
-            # Create a prepared request
-            session = requests.Session()
-            request = requests.Request(
-                method=http_method,
-                url=url,
-                headers=headers,
-                json=request_data
+            # Log the current rate limit status
+            self.logger.info(
+                f"Rate limit status for {resource}: "
+                f"{remaining}/{limit} remaining, {used} used. "
+                f"Resets at {reset_datetime}"
             )
-            prepared_request = request.prepare()
             
-            # Send the request
-            resp = session.send(prepared_request)
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                if "data" in data and "rateLimit" in data["data"]:
-                    rate_info = data["data"]["rateLimit"]
-                    remaining = rate_info.get("remaining", 0)
-                    limit = rate_info.get("limit", 5000)
-                    reset_at = rate_info.get("resetAt", "")
-                    
-                    # If less than 10% of points remain, add a delay
-                    if remaining < limit * 0.1:
-                        self.logger.warning(f"GraphQL rate limit is getting low: {remaining}/{limit} points remaining")
-                        self.logger.warning(f"Rate limit will reset at {reset_at}")
-                        wait_time = 60 + random.uniform(0, 30)  # Add random jitter
-                        self.logger.info(f"Waiting for {wait_time:.2f} seconds before continuing...")
-                        time.sleep(wait_time)
-                    else:
-                        self.logger.info(f"GraphQL rate limit status: {remaining}/{limit} points remaining")
+            # If less than 10% of points remain, pause to avoid hitting limits
+            if remaining < (limit * 0.1):
+                self.logger.warning(
+                    f"Rate limit for {resource} is getting low: "
+                    f"{remaining}/{limit} remaining. Resets at {reset_datetime}"
+                )
+                # Calculate a wait time with random jitter to avoid all clients hitting at once
+                wait_time = 60 + random.uniform(0, 30)
+                self.logger.info(f"Waiting for {wait_time:.2f} seconds before continuing...")
+                time.sleep(wait_time)
         except Exception as e:
             # If checking rate limits fails, log but continue
-            self.logger.warning(f"Failed to check rate limits: {e}")
+            self.logger.warning(f"Failed to check rate limits from headers: {e}")
             # Don't raise the exception as this is just a precautionary check
 
     @property
@@ -409,6 +398,9 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         .. _requests.Response:
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
+        # Check rate limits from response headers
+        self.check_rate_limits(response.headers)
+        
         resp_json = response.json()
         yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
 

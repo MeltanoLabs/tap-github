@@ -195,17 +195,6 @@ class OrganizationProjectsV2Stream(GitHubGraphqlStream):
     primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updatedAt"
     
-    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
-        """Get records from the source.
-        
-        Overridden to add rate limit checking before processing projects.
-        """
-        # Check rate limits before starting to process projects
-        self.check_rate_limits()
-        
-        # Continue with normal record retrieval
-        yield from super().get_records(context)
-    
     def get_url_params(
         self,
         context: dict | None,
@@ -305,19 +294,7 @@ class ProjectV2ItemsStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["org", "project_id"]
     
     query_jsonpath = "$.data.node.items.nodes[*]"
-    
-    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
-        """Get records from the source.
         
-        Overridden to add rate limit checking before processing items,
-        as this stream can be expensive in terms of API quota.
-        """
-        # Check rate limits before starting to process items
-        self.check_rate_limits()
-        
-        # Continue with normal record retrieval
-        yield from super().get_records(context)
-    
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         """Return a context dictionary for child streams."""
         if context is None:
