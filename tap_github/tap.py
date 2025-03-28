@@ -35,7 +35,11 @@ class TapGitHub(Tap):
         return logger
 
     config_jsonschema = th.PropertiesList(
-        th.Property("user_agent", th.StringType),
+        th.Property(
+            "user_agent",
+            th.StringType,
+            description="User agent to use for API requests.",
+        ),
         th.Property("metrics_log_level", th.StringType),
         # Authentication options
         th.Property(
@@ -79,12 +83,17 @@ class TapGitHub(Tap):
                     th.Property("query", th.StringType, required=True),
                 )
             ),
+            description="List of searches to perform.",
         ),
         th.Property("organizations", th.ArrayType(th.StringType)),
         th.Property("repositories", th.ArrayType(th.StringType)),
         th.Property("user_usernames", th.ArrayType(th.StringType)),
         th.Property("user_ids", th.ArrayType(th.StringType)),
-        th.Property("start_date", th.DateTimeType),
+        th.Property(
+            "start_date",
+            th.DateTimeType,
+            description="Start date for incremental sync.",
+        ),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
         th.Property(
