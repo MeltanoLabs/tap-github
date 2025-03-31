@@ -41,7 +41,7 @@ python-dateutil = "~=2.9"
 requests = "~=2.32.3"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = "~=0.44.0"
+singer-sdk = "~=0.45.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.3.1"
