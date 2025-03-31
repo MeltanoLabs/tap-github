@@ -1921,15 +1921,6 @@ class DiscussionsStream(GitHubGraphqlStream):
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and log the raw GraphQL response."""
-        # Log all headers
-        self.logger.info(f"Response Headers: {dict(response.headers)}")
-
-        # Log the raw response
-        self.logger.info(f"Raw GraphQL Response: {response.text}")
-        return super().parse_response(response)
-
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure.
@@ -2155,15 +2146,6 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and log the raw GraphQL response."""
-        # Log all headers
-        self.logger.info(f"Response Headers: {dict(response.headers)}")
-
-        # Log the raw response
-        self.logger.info(f"Raw GraphQL Response: {response.text}")
-        return super().parse_response(response)
 
     @property
     def query(self) -> str:
