@@ -1923,9 +1923,15 @@ class DiscussionsStream(GitHubGraphqlStream):
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
-        Transform the nodes arrays to flatten the nested structure.
+        Transform the nodes arrays to flatten the nested structure
+        and set parent fields.
         """
         row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
 
         if "labels" in row and "nodes" in row["labels"]:
             row["labels"] = row["labels"]["nodes"]
@@ -2146,6 +2152,19 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Set parent fields from context.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+
+        return row
 
     @property
     def query(self) -> str:
