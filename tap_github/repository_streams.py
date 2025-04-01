@@ -1917,7 +1917,7 @@ class DiscussionsStream(GitHubGraphqlStream):
     primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
 
@@ -2143,7 +2143,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     primary_keys: ClassVar[list[str]] = ["node_id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
 
