@@ -2030,7 +2030,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $category_id: String!) {
+          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $category_id: ID) {
             repository(name: $repo, owner: $org) {
               discussions(categoryId: $category_id, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
