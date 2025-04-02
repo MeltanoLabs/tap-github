@@ -1909,6 +1909,89 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     ).to_dict()
 
 
+
+class DiscussionCategoriesStream(GitHubGraphqlStream):
+    """Defines stream fetching discussions categories from each repository."""
+
+    name = "discussion_categories"
+    query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
+    ignore_parent_replication_key = False
+    use_fake_since_parameter = True
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Set parent fields from context.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+
+        return row
+
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+      return {
+          "org": context["org"] if context else None,
+          "repo": context["repo"] if context else None,
+          "repo_id": context["repo_id"] if context else None,
+          "category_id": record["node_id"],
+      }
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id.
+        There is no databaseId for the discussionCategories object.
+        """
+
+        return """
+          query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
+            repository(name: $repo, owner: $org) {
+              discussionCategories(first: 100, after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  node_id: id
+                  slug
+                  name
+                  description
+                  is_answerable: isAnswerable
+                  emoji
+                  created_at: createdAt
+                  updated_at: updatedAt
+                }
+              }
+            }
+          }
+        """  # noqa: E501
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Categories Info
+        th.Property("node_id", th.StringType),
+        th.Property("slug", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property("is_answerable", th.BooleanType),
+        th.Property("emoji", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+    ).to_dict()
+
+
 class DiscussionsStream(GitHubGraphqlStream):
     """Defines stream fetching discussions from each repository."""
 
@@ -1916,7 +1999,7 @@ class DiscussionsStream(GitHubGraphqlStream):
     query_jsonpath = "$.data.repository.discussions.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "updated_at"
-    parent_stream_type = RepositoryStream
+    parent_stream_type = DiscussionCategoriesStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = False
     use_fake_since_parameter = True
@@ -1948,9 +2031,9 @@ class DiscussionsStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String) {
+          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $category_id: String!) {
             repository(name: $repo, owner: $org) {
-              discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+              discussions(categoryId: $category_id, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
@@ -2138,80 +2221,6 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("answer_chosen_by", actor_object),
         th.Property("upvote_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
-    ).to_dict()
-
-
-class DiscussionCategoriesStream(GitHubGraphqlStream):
-    """Defines stream fetching discussions categories from each repository."""
-
-    name = "discussion_categories"
-    query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["node_id"]
-    replication_key = "updated_at"
-    parent_stream_type = RepositoryStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = False
-    use_fake_since_parameter = True
-
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
-        """
-        Set parent fields from context.
-        """
-        row = super().post_process(row, context)
-
-        if context is not None:
-            row["org"] = context["org"]
-            row["repo"] = context["repo"]
-            row["repo_id"] = context["repo_id"]
-
-        return row
-
-    @property
-    def query(self) -> str:
-        """
-        Return dynamic GraphQL query.
-        Note: To keep the tap consistent, we rename id to node_id.
-        There is no databaseId for the discussionCategories object.
-        """
-
-        return """
-          query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
-            repository(name: $repo, owner: $org) {
-              discussionCategories(first: 100, after: $nextPageCursor_0) {
-                pageInfo {
-                  hasNextPage_0: hasNextPage
-                  startCursor_0: startCursor
-                  endCursor_0: endCursor
-                }
-                nodes {
-                  node_id: id
-                  slug
-                  name
-                  description
-                  is_answerable: isAnswerable
-                  emoji
-                  created_at: createdAt
-                  updated_at: updatedAt
-                }
-              }
-            }
-          }
-        """  # noqa: E501
-
-    schema = th.PropertiesList(
-        # Parent Keys
-        th.Property("repo", th.StringType),
-        th.Property("org", th.StringType),
-        th.Property("repo_id", th.IntegerType),
-        # Categories Info
-        th.Property("node_id", th.StringType),
-        th.Property("slug", th.StringType),
-        th.Property("name", th.StringType),
-        th.Property("description", th.StringType),
-        th.Property("is_answerable", th.BooleanType),
-        th.Property("emoji", th.StringType),
-        th.Property("created_at", th.DateTimeType),
-        th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
 
