@@ -1909,7 +1909,6 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     ).to_dict()
 
 
-
 class DiscussionCategoriesStream(GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
 
@@ -1936,12 +1935,12 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         return row
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
-      return {
-          "org": context["org"] if context else None,
-          "repo": context["repo"] if context else None,
-          "repo_id": context["repo_id"] if context else None,
-          "category_id": record["node_id"],
-      }
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "category_id": record["node_id"],
+        }
 
     @property
     def query(self) -> str:
