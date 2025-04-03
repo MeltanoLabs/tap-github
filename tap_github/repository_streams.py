@@ -1500,8 +1500,6 @@ class PullRequestDiffsStream(GitHubDiffStream):
     parent_stream_type = PullRequestsStream
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-    # Known Github API errors
-    tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 502]
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         row = super().post_process(row, context)

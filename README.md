@@ -2,18 +2,19 @@
 
 `tap-github` is a Singer tap for GitHub.
 
-Build with the [Singer SDK](https://gitlab.com/meltano/singer-sdk).
+Built with the [Singer SDK](https://gitlab.com/meltano/singer-sdk).
 
 ## Installation
 
 ```bash
-pipx install git+https://github.com/MeltanoLabs/tap-github.git
-```
+# use uv (https://docs.astral.sh/uv/)
+uv tool install meltanolabs-tap-github
 
-Or better yet, please pin to a [release version](https://github.com/MeltanoLabs/tap-github/releases) for a stable experience:
+# or pipx (https://pipx.pypa.io/stable/)
+pipx install meltanolabs-tap-github
 
-```bash
-pipx install git+https://github.com/MeltanoLabs/tap-github.git@vX.Y.Z
+# or Meltano
+meltano add extractor tap-github
 ```
 
 A list of release versions is available at https://github.com/MeltanoLabs/tap-github/releases
