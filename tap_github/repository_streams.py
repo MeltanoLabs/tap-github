@@ -1911,7 +1911,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
 
     name = "discussion_categories"
-    query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
+    query_jsonpath = "$.data.repositoryOwner.repositories.nodes.[*].discussionCategories.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["node_id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
@@ -1949,28 +1949,40 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         """
 
         return """
-          query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
-            repository(name: $repo, owner: $org) {
-              discussionCategories(first: 100, after: $nextPageCursor_0) {
-                pageInfo {
+          query DiscussionCategories($org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
+            repositoryOwner(login:$org){
+              repositories(first:100, after: $nextPageCursor_0){
+                pageInfo{
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
                   endCursor_0: endCursor
                 }
-                nodes {
-                  node_id: id
-                  slug
-                  name
-                  description
-                  is_answerable: isAnswerable
-                  emoji
-                  created_at: createdAt
-                  updated_at: updatedAt
+                nodes{
+                  discussionCategories(first: 100, after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
+                    nodes {
+                      node_id: id
+                      slug
+                      name
+                      description
+                      is_answerable: isAnswerable
+                      emoji
+                      created_at: createdAt
+                      updated_at: updatedAt
+                    }
+                  }
                 }
               }
             }
+            rateLimit {
+              cost
+            }
           }
-        """  # noqa: E501
+        """ # noqa: E501
 
     schema = th.PropertiesList(
         # Parent Keys
