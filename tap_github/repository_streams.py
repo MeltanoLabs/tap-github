@@ -1911,7 +1911,9 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
 
     name = "discussion_categories"
-    query_jsonpath = "$.data.repositoryOwner.repositories.nodes.[*].discussionCategories.nodes.[*]"
+    query_jsonpath = (
+        "$.data.repositoryOwner.repositories.nodes.[*].discussionCategories.nodes.[*]"
+    )
     primary_keys: ClassVar[list[str]] = ["node_id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
@@ -1982,7 +1984,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
               cost
             }
           }
-        """ # noqa: E501
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent Keys
