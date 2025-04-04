@@ -1911,9 +1911,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
 
     name = "discussion_categories"
-    query_jsonpath = (
-        "$.data.repositoryOwner.repositories.nodes.[*].discussionCategories.nodes.[*]"
-    )
+    query_jsonpath = "$.data.repositoryOwner.repositories.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["node_id"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
@@ -1929,16 +1927,44 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
 
         if context is not None:
             row["org"] = context["org"]
-            row["repo"] = context["repo"]
-            row["repo_id"] = context["repo_id"]
+
+        # Store the categories for later processing
+        if "categories" in row and "nodes" in row["categories"]:
+            row["_categories"] = row["categories"]["nodes"]
+        else:
+            row["_categories"] = []
 
         return row
+
+    def get_records(self, context: dict | None) -> Iterable[dict]:
+        """
+        Override get_records to yield category records.
+        """
+        for row in super().get_records(context):
+            if "_categories" in row:
+                for category in row["_categories"]:
+                    category_record = {
+                        "org": row["org"],
+                        "repo": row["repo"],
+                        "repo_id": row["repo_id"],
+                        "node_id": category["node_id"],
+                        "slug": category["slug"],
+                        "name": category["name"],
+                        "description": category["description"],
+                        "is_answerable": category["isAnswerable"],
+                        "emoji": category["emoji"],
+                        "created_at": category["createdAt"],
+                        "updated_at": category["updatedAt"],
+                    }
+                    yield category_record
+                # Clean up the temporary field
+                del row["_categories"]
 
     def get_child_context(self, record: dict, context: dict | None) -> dict:
         return {
             "org": context["org"] if context else None,
-            "repo": context["repo"] if context else None,
-            "repo_id": context["repo_id"] if context else None,
+            "repo": record["repo"],
+            "repo_id": record["repo_id"],
             "category_id": record["node_id"],
         }
 
@@ -1960,6 +1986,8 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
                   endCursor_0: endCursor
                 }
                 nodes{
+                  repo: name
+                  repo_id: id
                   discussionCategories(first: 100, after: $nextPageCursor_1) {
                     pageInfo {
                       hasNextPage_1: hasNextPage
@@ -1988,10 +2016,10 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
 
     schema = th.PropertiesList(
         # Parent Keys
-        th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
-        th.Property("repo_id", th.IntegerType),
         # Categories Info
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("slug", th.StringType),
         th.Property("name", th.StringType),
