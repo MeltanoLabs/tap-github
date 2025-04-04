@@ -282,7 +282,29 @@ class GitHubRestStream(RESTStream):
         else:
             filtered_results = results
 
+        # Replace NUL values
+        for item in filtered_results:
+            self.replace_nul_values(item)
+
         yield from filtered_results
+
+    # Sadly, the GitHub API returns NUL values in some fields.
+    # This function recursively replaces them with empty strings.
+    # Otherwise postgres will raise an error when inserting the data.
+    def replace_nul_values(self, obj):
+        """Recursively replace NUL values in strings within dictionaries and lists."""
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if isinstance(value, str):
+                    obj[key] = value.replace("\x00", "")
+                elif isinstance(value, (dict, list)):
+                    self.replace_nul_values(value)
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                if isinstance(item, str):
+                    obj[i] = item.replace("\x00", "")
+                elif isinstance(item, (dict, list)):
+                    self.replace_nul_values(item)
 
     def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
