@@ -12,9 +12,11 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubDiffStream, GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
+    actor_object,
     files_object,
     label_object,
     milestone_object,
+    reaction_type_object,
     reactions_object,
     user_object,
 )
@@ -1902,6 +1904,362 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         th.Property("user_id", th.IntegerType),
         th.Property("starred_at", th.DateTimeType),
         th.Property("user", user_object),
+    ).to_dict()
+
+
+class DiscussionCategoriesStream(GitHubGraphqlStream):
+    """Defines stream fetching discussions categories from each repository."""
+
+    name = "discussion_categories"
+    query_jsonpath = "$.data.repositoryOwner.repositories.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
+    ignore_parent_replication_key = False
+    use_fake_since_parameter = True
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Set parent fields from context.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+
+        # Store the categories for later processing
+        if "categories" in row and "nodes" in row["categories"]:
+            row["_categories"] = row["categories"]["nodes"]
+        else:
+            row["_categories"] = []
+
+        return row
+
+    def get_records(self, context: dict | None) -> Iterable[dict]:
+        """
+        Override get_records to yield category records.
+        """
+        for row in super().get_records(context):
+            if "_categories" in row:
+                for category in row["_categories"]:
+                    category_record = {
+                        "org": row["org"],
+                        "repo": row["repo"],
+                        "repo_id": row["repo_id"],
+                        "node_id": category["node_id"],
+                        "slug": category["slug"],
+                        "name": category["name"],
+                        "description": category["description"],
+                        "is_answerable": category["isAnswerable"],
+                        "emoji": category["emoji"],
+                        "created_at": category["createdAt"],
+                        "updated_at": category["updatedAt"],
+                    }
+                    yield category_record
+                # Clean up the temporary field
+                del row["_categories"]
+
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        return {
+            "org": context["org"] if context else None,
+            "repo": record["repo"],
+            "repo_id": record["repo_id"],
+            "category_id": record["node_id"],
+        }
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id.
+        There is no databaseId for the discussionCategories object.
+        """
+
+        return """
+          query DiscussionCategories($org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String) {
+            repositoryOwner(login:$org){
+              repositories(first:100, after: $nextPageCursor_0){
+                pageInfo{
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes{
+                  repo: name
+                  repo_id: id
+                  discussionCategories(first: 100, after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
+                    nodes {
+                      node_id: id
+                      slug
+                      name
+                      description
+                      is_answerable: isAnswerable
+                      emoji
+                      created_at: createdAt
+                      updated_at: updatedAt
+                    }
+                  }
+                }
+              }
+            }
+            rateLimit {
+              cost
+            }
+          }
+        """  # noqa: E501
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("org", th.StringType),
+        # Categories Info
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("slug", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property("is_answerable", th.BooleanType),
+        th.Property("emoji", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+    ).to_dict()
+
+
+class DiscussionsStream(GitHubGraphqlStream):
+    """Defines stream fetching discussions from each repository."""
+
+    name = "discussions"
+    query_jsonpath = "$.data.repository.discussions.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key = "updated_at"
+    parent_stream_type = DiscussionCategoriesStream
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
+    ignore_parent_replication_key = False
+    use_fake_since_parameter = True
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Transform the nodes arrays to flatten the nested structure
+        and set parent fields.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+
+        if "labels" in row and "nodes" in row["labels"]:
+            row["labels"] = row["labels"]["nodes"]
+
+        if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions"] = row["reactions"]["nodes"]
+
+        return row
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        """
+        return """
+          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $category_id: ID) {
+            repository(name: $repo, owner: $org) {
+              discussions(categoryId: $category_id, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  node_id: id
+                  id: databaseId
+                  number
+                  title
+                  body: bodyText
+                  url
+                  created_at: createdAt
+                  published_at: publishedAt
+                  last_edited_at: lastEditedAt
+                  answer_chosen_at: answerChosenAt
+                  updated_at: updatedAt
+                  closed_at: closedAt
+                  created_via_email: createdViaEmail
+                  author {
+                    ... on Actor {
+                      login
+                      avatar_url: avatarUrl
+                      http_url: url
+                      type: __typename
+                      resource_path: resourcePath
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      site_admin: isSiteAdmin
+                    }
+                  }
+                  author_association: authorAssociation
+                  category {
+                    node_id: id
+                    slug
+                    name
+                    description
+                  }
+                  labels(first: 100, after: $nextPageCursor_1) {
+                    pageInfo {
+                      hasNextPage_1: hasNextPage
+                      startCursor_1: startCursor
+                      endCursor_1: endCursor
+                    }
+                    nodes {
+                      node_id: id
+                      created_at: createdAt
+                      updated_at: updatedAt
+                      name
+                      description
+                      url
+                      resource_path: resourcePath
+                      color
+                      default: isDefault
+                    }
+                  }
+                  locked
+                  active_lock_reason: activeLockReason
+                  closed
+                  is_answered: isAnswered
+                  answer {
+                    id: databaseId
+                    node_id: id
+                    body
+                    author {
+                      ... on Actor {
+                        login
+                        avatar_url: avatarUrl
+                        http_url: url
+                        type: __typename
+                        resource_path: resourcePath
+                      }
+                      ... on User {
+                        node_id: id
+                        id: databaseId
+                        site_admin: isSiteAdmin
+                      }
+                    }
+                    author_association: authorAssociation
+                  }
+                  answer_chosen_by: answerChosenBy {
+                    ... on Actor {
+                      login
+                      avatar_url: avatarUrl
+                      http_url: url
+                      type: __typename
+                      resource_path: resourcePath
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      site_admin: isSiteAdmin
+                    }
+                  }
+                  upvote_count: upvoteCount
+                  reactions(first: 100, after: $nextPageCursor_2) {
+                    pageInfo {
+                      hasNextPage_2: hasNextPage
+                      startCursor_2: startCursor
+                      endCursor_2: endCursor
+                    }
+                    nodes {
+                      reaction_type: content
+                      reacted_at: createdAt
+                      user {
+                        node_id: id
+                        id: databaseId
+                        login
+                        avatar_url: avatarUrl
+                        http_url: url
+                        type: __typename
+                        site_admin: isSiteAdmin
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rateLimit {
+              cost
+            }
+          }
+        """  # noqa: E501
+
+    category_object = th.ObjectType(
+        th.Property("node_id", th.StringType),
+        th.Property("slug", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+    )
+
+    answer_object = th.ObjectType(
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("author", actor_object),
+        th.Property("author_association", th.StringType),
+    )
+
+    labels_array = th.ArrayType(
+        th.ObjectType(
+            th.Property("id", th.IntegerType),
+            th.Property("node_id", th.StringType),
+            th.Property("created_at", th.DateTimeType),
+            th.Property("updated_at", th.DateTimeType),
+            th.Property("name", th.StringType),
+            th.Property("description", th.StringType),
+            th.Property("url", th.StringType),
+            th.Property("resource_path", th.StringType),
+            th.Property("color", th.StringType),
+            th.Property("default", th.BooleanType),
+        )
+    )
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Discussion Info
+        th.Property("node_id", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("number", th.IntegerType),
+        th.Property("title", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("published_at", th.DateTimeType),
+        th.Property("last_edited_at", th.DateTimeType),
+        th.Property("answer_chosen_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("closed_at", th.DateTimeType),
+        th.Property("created_via_email", th.BooleanType),
+        th.Property("author", actor_object),
+        th.Property("author_association", th.StringType),
+        th.Property("category", category_object),
+        th.Property("labels", labels_array),
+        th.Property("locked", th.BooleanType),
+        th.Property("active_lock_reason", th.StringType),
+        th.Property("closed", th.BooleanType),
+        th.Property("is_answered", th.BooleanType),
+        th.Property("answer", answer_object),
+        th.Property("answer_chosen_by", actor_object),
+        th.Property("upvote_count", th.IntegerType),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 
