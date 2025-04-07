@@ -61,7 +61,7 @@ class GitHubRestStream(RESTStream):
     def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
-        headers["User-Agent"] = cast(str, self.config.get("user_agent", "tap-github"))
+        headers["User-Agent"] = cast("str", self.config.get("user_agent", "tap-github"))
         return headers
 
     def get_next_page_token(
@@ -74,7 +74,8 @@ class GitHubRestStream(RESTStream):
             previous_token
             and self.MAX_RESULTS_LIMIT
             and (
-                cast(int, previous_token) * self.MAX_PER_PAGE >= self.MAX_RESULTS_LIMIT
+                cast("int", previous_token) * self.MAX_PER_PAGE
+                >= self.MAX_RESULTS_LIMIT
             )
         ):
             return None
@@ -283,8 +284,8 @@ class GitHubRestStream(RESTStream):
         # FIXME: replace this once https://github.com/litl/backoff/issues/158
         # is fixed
         exc = cast(
-            FrameType,
-            cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_back,
+            "FrameType",
+            cast("FrameType", cast("FrameType", inspect.currentframe()).f_back).f_back,
         ).f_locals["e"]
         if (
             exc.response is not None

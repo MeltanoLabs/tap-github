@@ -108,9 +108,9 @@ def parse_counter(tag: Tag | NavigableString | None) -> int:
             return 0
         title = tag["title"]  # type: ignore
         if isinstance(title, str):
-            title_string = cast(str, title)
+            title_string = cast("str", title)
         else:
-            title_string = cast(str, title[0])
+            title_string = cast("str", title[0])
         return int(title_string.strip().replace(",", "").replace("+", ""))
     except (KeyError, ValueError) as e:
         raise IndexError(
