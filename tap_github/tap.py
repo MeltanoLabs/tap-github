@@ -83,7 +83,11 @@ class TapGitHub(Tap):
                     th.Property("query", th.StringType, required=True),
                 )
             ),
-            description="List of searches to perform.",
+            description=(
+                "An array of search descriptor objects with the following properties:\n"
+                '"name" - a human readable name for the search query.\n'
+                '"query" -  a github search string (generally the same as would come after ?q= in the URL)"',  # noqa: E501
+            ),
         ),
         th.Property("organizations", th.ArrayType(th.StringType)),
         th.Property("repositories", th.ArrayType(th.StringType)),
