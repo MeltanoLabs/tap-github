@@ -6,7 +6,6 @@ import email.utils
 import inspect
 import random
 import time
-from types import FrameType
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 from urllib.parse import parse_qs, urlparse
 
@@ -20,6 +19,7 @@ from tap_github.authenticator import GitHubTokenAuthenticator
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from types import FrameType
 
     import requests
     from backoff.types import Details
