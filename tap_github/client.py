@@ -36,11 +36,15 @@ class GitHubRestStream(RESTStream):
     DEFAULT_API_BASE_URL = "https://api.github.com"
     LOG_REQUEST_METRIC_URLS = True
 
+
     # GitHub is missing the "since" parameter on a few endpoints
     # set this parameter to True if your stream needs to navigate data in descending order  # noqa: E501
     # and try to exit early on its own.
     # This only has effect on streams whose `replication_key` is `updated_at`.
     use_fake_since_parameter = False
+    
+    # Some endpoints can benefit from cursor pagination.
+    use_cursor_paging = False
 
     _authenticator: GitHubTokenAuthenticator | None = None
 
@@ -129,14 +133,27 @@ class GitHubRestStream(RESTStream):
 
         # Use header links returned by the GitHub API.
         parsed_url = urlparse(response.links["next"]["url"])
-        captured_page_value_list = parse_qs(parsed_url.query).get("page")
-        next_page_string = (
-            captured_page_value_list[0] if captured_page_value_list else None
-        )
-        if next_page_string and next_page_string.isdigit():
-            return int(next_page_string)
+        
+        if self.use_cursor_paging:
+            captured_after = parse_qs(parsed_url.query).get("after")
+            self.logger.warning(
+                f"Captured after cursor: {captured_after} for url: {response.links['next']['url']} - Previous token: {previous_token}"  # noqa: E501
+            )
 
-        return (previous_token or 1) + 1
+            if captured_after and captured_after != previous_token:
+                return captured_after[0]
+            # If no "after" cursor is found or the same token was found,
+            # we return None to stop pagination.
+            return None
+        else:
+            captured_page_value_list = parse_qs(parsed_url.query).get("page")
+            next_page_string = (
+                captured_page_value_list[0] if captured_page_value_list else None
+            )
+            if next_page_string and next_page_string.isdigit():
+                return int(next_page_string)
+
+            return (previous_token or 1) + 1
 
     def get_url_params(
         self,
@@ -146,7 +163,11 @@ class GitHubRestStream(RESTStream):
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
-            params["page"] = next_page_token
+            if self.use_cursor_paging:
+                # If using cursor pagination, we need to pass the next page token as a parameter.
+                params["after"] = next_page_token
+            else:
+                params["page"] = next_page_token
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
