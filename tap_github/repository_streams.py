@@ -842,6 +842,7 @@ class IssuesStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    use_cursor_paging = True
 
     def get_url_params(
         self,
