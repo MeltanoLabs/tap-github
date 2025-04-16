@@ -16,6 +16,7 @@ on:
     - poetry.lock
     - pyproject.toml
     - 'tap_github/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
