@@ -17,6 +17,9 @@ on:
     - pyproject.toml
     - 'tap_github/**'
   workflow_dispatch:
+  schedule:
+  # Every 6 hours
+  - cron: "0 */6 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
