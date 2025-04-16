@@ -173,7 +173,7 @@ class GitHubRestStream(RESTStream):
             params[since_key] = since.isoformat(sep="T")
             # Leverage conditional requests to save API quotas
             # https://github.community/t/how-does-if-modified-since-work/139627
-            self._http_headers["If-modified-since"] = email.utils.format_datetime(since)
+            self.http_headers["If-modified-since"] = email.utils.format_datetime(since)
         return params
 
     def validate_response(self, response: requests.Response) -> None:
