@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import datetime
 import logging
 import os
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
 
 from ..utils.filter_stdout import FilterStdOutput
+
+if TYPE_CHECKING:
+    from singer_sdk.helpers.types import Context
 
 # Filter out singer output during tests
 sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')  # type: ignore
@@ -97,7 +103,11 @@ def organization_list_config(request):
     }
 
 
-def alternative_sync_chidren(self, child_context: dict, no_sync: bool = True) -> None:
+def alternative_sync_chidren(
+    self,
+    child_context: Context,
+    no_sync: bool = True,
+) -> None:
     """
     Override for Stream._sync_children.
     Enabling us to use an ORG_LEVEL_TOKEN for the collaborators stream.

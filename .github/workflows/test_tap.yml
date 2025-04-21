@@ -80,6 +80,11 @@ jobs:
       run: |
         poetry env use ${{ matrix.python-version }}
         poetry install
+    - name: Type check with mypy
+      id: type_check
+      continue-on-error: true
+      run: |
+        poetry run mypy tap_github
     - name: Test with pytest
       id: test_pytest
       continue-on-error: true
