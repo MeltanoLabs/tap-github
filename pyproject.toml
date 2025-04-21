@@ -44,6 +44,7 @@ requests = "~=2.32.3"
 singer-sdk = "~=0.45.3"
 
 [tool.poetry.group.dev.dependencies]
+mypy = ">=1.15.0"
 pytest = ">=7.3.1"
 requests-cache = ">=1.0.1"
 types-beautifulsoup4 = ">=4.12.0"
@@ -55,13 +56,16 @@ types-simplejson = "~=3.20.0"
 enable = true
 
 [[tool.mypy.overrides]]
-module = ["backoff"]
+module = [
+	"backoff",
+	"nested_lookup",
+]
 ignore_missing_imports = true
 
 [build-system]
 requires = [
 	"poetry-core==2.1.1",
-	"poetry-dynamic-versioning==1.7.1",
+	"poetry-dynamic-versioning==1.8.2",
 
 ]
 build-backend = "poetry_dynamic_versioning.backend"

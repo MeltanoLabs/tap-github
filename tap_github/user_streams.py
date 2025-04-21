@@ -14,6 +14,7 @@ from tap_github.schema_objects import user_object
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from singer_sdk.helpers.types import Context
     from singer_sdk.tap_base import Tap
 
 
@@ -55,7 +56,7 @@ class UserStream(GitHubRestStream):
             return [{"id": user_id} for user_id in self.config["user_ids"]]
         return None
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         return {
             "username": record["login"],
             "user_id": record["id"],
@@ -139,7 +140,7 @@ class UserStream(GitHubRestStream):
         self.logger.info(f"Running the tap on {len(users_with_ids)} users")
         return users_with_ids
 
-    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
+    def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -225,7 +226,7 @@ class StarredStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Add a repo_id top-level field to be used as state replication key.
         """

@@ -11,6 +11,8 @@ from tap_github.client import GitHubRestStream
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from singer_sdk.helpers.types import Context
+
 
 class OrganizationStream(GitHubRestStream):
     """Defines a GitHub Organization Stream.
@@ -24,12 +26,12 @@ class OrganizationStream(GitHubRestStream):
     def partitions(self) -> list[dict] | None:
         return [{"org": org} for org in self.config["organizations"]]
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         return {
             "org": record["login"],
         }
 
-    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
+    def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -106,7 +108,7 @@ class TeamsStream(GitHubRestStream):
     parent_stream_type = OrganizationStream
     state_partitioning_keys: ClassVar[list[str]] = ["org"]
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         new_context = {"team_slug": record["slug"]}
         if context:
             return {
@@ -161,7 +163,7 @@ class TeamMembersStream(GitHubRestStream):
     parent_stream_type = TeamsStream
     state_partitioning_keys: ClassVar[list[str]] = ["team_slug", "org"]
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         new_context = {"username": record["login"]}
         if context:
             return {

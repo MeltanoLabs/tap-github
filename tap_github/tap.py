@@ -19,7 +19,7 @@ class TapGitHub(Tap):
     package_name = "meltanolabs-tap-github"
 
     @classproperty
-    def logger(cls: type[TapGitHub]) -> logging.Logger:  # noqa: N805
+    def logger(cls) -> logging.Logger:  # noqa: N805
         """Get logger.
 
         Returns:
@@ -72,7 +72,7 @@ class TapGitHub(Tap):
             description=(
                 "When authenticating as a GitHub App, this buffer controls how many "
                 "minutes before expiry the GitHub app tokens will be refreshed. "
-                "Defaults to 10 minutes.",
+                "Defaults to 10 minutes."
             ),
         ),
         th.Property(
@@ -86,7 +86,7 @@ class TapGitHub(Tap):
             description=(
                 "An array of search descriptor objects with the following properties:\n"
                 '"name" - a human readable name for the search query.\n'
-                '"query" -  a github search string (generally the same as would come after ?q= in the URL)"',  # noqa: E501
+                '"query" -  a github search string (generally the same as would come after ?q= in the URL)"'  # noqa: E501
             ),
         ),
         th.Property("organizations", th.ArrayType(th.StringType)),

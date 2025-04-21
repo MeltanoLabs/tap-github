@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
     import requests
     from backoff.types import Details
+    from singer_sdk.helpers.types import Context
 
 EMPTY_REPO_ERROR_STATUS = 409
 
@@ -140,7 +141,7 @@ class GitHubRestStream(RESTStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
@@ -271,7 +272,7 @@ class GitHubRestStream(RESTStream):
 
         yield from results
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
         if context is not None and "repo_id" in context:
             row["repo_id"] = context["repo_id"]
@@ -301,7 +302,7 @@ class GitHubRestStream(RESTStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: dict | None,
+        context: Context | None,
     ) -> dict[str, int]:
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
@@ -449,11 +450,11 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context.copy() if context else {}
+        params = dict(context) if context else {}
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)
@@ -468,7 +469,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: dict | None,
+        context: Context | None,
     ) -> dict[str, int]:
         """Return the cost of the last graphql API call."""
         costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())

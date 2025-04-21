@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     import requests
+    from singer_sdk.helpers.types import Context
 
 
 class RepositoryStream(GitHubRestStream):
@@ -38,7 +39,7 @@ class RepositoryStream(GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
@@ -191,7 +192,7 @@ class RepositoryStream(GitHubRestStream):
             return [{"org": org} for org in self.config["organizations"]]
         return None
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         """Return a child context object from the record and optional provided context.
 
         By default, will return context if provided and otherwise the record dict.
@@ -204,7 +205,7 @@ class RepositoryStream(GitHubRestStream):
             "repo_id": record["id"],
         }
 
-    def get_records(self, context: dict | None) -> Iterable[dict[str, Any]]:
+    def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """
         Override the parent method to allow skipping API calls
         if the stream is deselected and skip_parent_streams is True in config.
@@ -480,7 +481,7 @@ class EventsStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
         Each row emitted should be a dictionary of property names to their values.
         """
@@ -490,7 +491,7 @@ class EventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         # TODO - We should think about the best approach to handle this. An alternative would be to  # noqa: E501
         # do a 'dumb' tap that just keeps the same schemas as GitHub without renaming these  # noqa: E501
@@ -643,7 +644,7 @@ class MilestonesStream(GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
@@ -845,7 +846,7 @@ class IssuesStream(GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
@@ -875,7 +876,7 @@ class IssuesStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
@@ -958,7 +959,7 @@ class IssueCommentsStream(GitHubRestStream):
     # But it is too expensive on large repos and results in a lot of server errors.
     use_fake_since_parameter = True
 
-    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -969,7 +970,7 @@ class IssueCommentsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         row["issue_number"] = int(row["issue_url"].split("/")[-1])
         if row["body"] is not None:
@@ -1017,7 +1018,7 @@ class IssueEventsStream(GitHubRestStream):
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
 
-    def get_records(self, context: dict | None = None) -> Iterable[dict[str, Any]]:
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
         Each row emitted should be a dictionary of property names to their values.
@@ -1028,7 +1029,7 @@ class IssueEventsStream(GitHubRestStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if issue := row.get("issue"):
             row["issue_number"] = int(issue.pop("number"))
@@ -1070,7 +1071,7 @@ class CommitsStream(GitHubRestStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     ignore_parent_replication_key = True
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Add a timestamp top-level field to be used as state replication key.
         It's not clear from github's API docs which time (author or committer)
@@ -1081,7 +1082,7 @@ class CommitsStream(GitHubRestStream):
         row["commit_timestamp"] = row["commit"]["committer"]["date"]
         return row
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         return {
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
@@ -1180,7 +1181,7 @@ class CommitDiffsStream(GitHubDiffStream):
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             # Get commit ID (sha) from context
@@ -1244,7 +1245,7 @@ class PullRequestsStream(GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
@@ -1265,7 +1266,7 @@ class PullRequestsStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
         return headers
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if row["body"] is not None:
             # some pr bodies include control characters such as \x00
@@ -1282,7 +1283,7 @@ class PullRequestsStream(GitHubRestStream):
             row["reactions"]["minus_one"] = row["reactions"].pop("-1", None)
         return row
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         if context:
             return {
                 "org": context["org"],
@@ -1404,7 +1405,7 @@ class PullRequestCommitsStream(GitHubRestStream):
     parent_stream_type = PullRequestsStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         return {
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
@@ -1486,7 +1487,7 @@ class PullRequestCommitsStream(GitHubRestStream):
         ),
     ).to_dict()
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None and "pull_number" in context:
             row["pull_number"] = context["pull_number"]
@@ -1501,7 +1502,7 @@ class PullRequestDiffsStream(GitHubDiffStream):
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             # Get PR ID from context
@@ -1534,7 +1535,7 @@ class PullRequestCommitDiffsStream(GitHubDiffStream):
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             # Get commit ID (sha) from context
@@ -1596,7 +1597,7 @@ class ReviewsStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
     ).to_dict()
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             # Get PR ID from context
@@ -1724,7 +1725,7 @@ class AnonymousContributorsStream(GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
@@ -1782,7 +1783,7 @@ class StargazersStream(GitHubRestStream):
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -1822,7 +1823,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
             "Looking for the older version? Use 'stargazers_rest'."
         )
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Add a user_id top-level field to be used as state replication key.
         """
@@ -2416,7 +2417,7 @@ class WorkflowRunsStream(GitHubRestStream):
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         """Return a child context object from the record and optional provided context.
         By default, will return context if provided and otherwise the record dict.
         Developers may override this behavior to send specific information to child
@@ -2493,7 +2494,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         params = super().get_url_params(context, next_page_token)
@@ -2527,7 +2528,7 @@ class ExtraMetricsStream(GitHubRestStream):
         """Parse the repository main page to extract extra metrics."""
         yield from scrape_metrics(response, self.logger)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         if context is not None:
             row["repo"] = context["repo"]
@@ -2579,7 +2580,7 @@ class DependentsStream(GitHubRestStream):
         """Get the response for the first page and scrape results, potentially iterating through pages."""  # noqa: E501
         yield from scrape_dependents(response, self.logger)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         new_row = {"dependent": row}
         new_row = super().post_process(new_row, context)
         # we extract dependent_name_with_owner to be able to use it safely as a primary key,  # noqa: E501
@@ -2644,7 +2645,7 @@ class DependenciesStream(GitHubGraphqlStream):
         headers["Accept"] = "application/vnd.github.hawkgirl-preview+json"
         return headers
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Add a dependency_repo_id top-level field to be used as primary key.
         """
@@ -2991,7 +2992,7 @@ class DeploymentsStream(GitHubRestStream):
         th.Property("production_environment", th.BooleanType),
     ).to_dict()
 
-    def get_child_context(self, record: dict, context: dict | None) -> dict:
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
         """Return a child context object from the record and optional provided context.
         By default, will return context if provided and otherwise the record dict.
         Developers may override this behavior to send specific information to child
