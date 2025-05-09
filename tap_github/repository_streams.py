@@ -2129,7 +2129,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
     primary_keys: ClassVar[list[str]] = ["id"]
     parent_stream_type = WorkflowRunsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "run_id"]
+    state_partitioning_keys: ClassVar[list[str]] = [] # No state partitioning keys
     records_jsonpath = "$.jobs[*]"
 
     schema = th.PropertiesList(
