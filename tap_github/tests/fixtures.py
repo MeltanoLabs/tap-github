@@ -52,6 +52,24 @@ def repo_list_config(request):
 
 
 @pytest.fixture
+def exclude_repo_config(request):
+    """
+    Config with exclude_repositories option.
+    Can be customized by decorating a test with
+    @pytest.mark.excluded_repos(['org1/repo1', 'org2/repo2'])
+    """
+    marker = request.node.get_closest_marker("excluded_repos")
+    exclude_list = ["MeltanoLabs/tap-github"] if marker is None else marker.args[0]
+
+    return {
+        "metrics_log_level": "warning",
+        "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
+        "exclude_repositories": exclude_list,
+        "rate_limit_buffer": 100,
+    }
+
+
+@pytest.fixture
 def username_list_config(request):
     """
     Get a default list of usernames or pass your own by decorating your test with

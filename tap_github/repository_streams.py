@@ -162,6 +162,13 @@ class RepositoryStream(GitHubRestStream):
         This is called before syncing records, we use it to fetch some additional
         context
         """
+        # Get excluded repositories if any
+        excluded_repos = set(self.config.get("exclude_repositories", []))
+        if excluded_repos:
+            self.logger.info(
+                f"Will exclude {len(excluded_repos)} repositories: {excluded_repos}"
+            )
+
         if "searches" in self.config:
             return [
                 {"search_name": s["name"], "search_query": s["query"]}
@@ -169,7 +176,17 @@ class RepositoryStream(GitHubRestStream):
             ]
 
         if "repositories" in self.config:
-            split_repo_names = [s.split("/") for s in self.config["repositories"]]
+            # Filter out excluded repositories
+            repositories = [
+                repo
+                for repo in self.config["repositories"]
+                if repo not in excluded_repos
+            ]
+            if len(repositories) < len(self.config["repositories"]):
+                excluded_count = len(self.config["repositories"]) - len(repositories)
+                self.logger.info(f"Excluded {excluded_count} repositories")
+
+            split_repo_names = [s.split("/") for s in repositories]
             augmented_repo_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
@@ -210,6 +227,8 @@ class RepositoryStream(GitHubRestStream):
         This allows running the tap with fewer API calls and preserving
         quota when only syncing a child stream. Without this,
         the API call is sent but data is discarded.
+
+        Also filters out excluded repositories when using organizations.
         """
         if (
             not self.selected
@@ -228,7 +247,27 @@ class RepositoryStream(GitHubRestStream):
                 "id": context["repo_id"],
             }
         else:
-            yield from super().get_records(context)
+            # Get excluded repositories if any
+            excluded_repos = set(self.config.get("exclude_repositories", []))
+
+            # Process all repositories, excluding the ones in the exclude list
+            if "organizations" in self.config and excluded_repos:
+                # When using organizations, we need to filter the repositories here
+                for record in super().get_records(context):
+                    # Create the org/repo format to check against exclusion list
+                    org_name = record["owner"]["login"]
+                    repo_name = record["name"]
+                    repo_full_name = f"{org_name}/{repo_name}"
+
+                    # Filter out excluded repositories
+                    if repo_full_name not in excluded_repos:
+                        yield record
+                    else:
+                        self.logger.debug(f"Excluding repository: {repo_full_name}")
+            else:
+                # For search results or direct repository lists
+                # (already filtered in partitions) or when there are no exclusions
+                yield from super().get_records(context)
 
     schema = th.PropertiesList(
         th.Property("search_name", th.StringType),
