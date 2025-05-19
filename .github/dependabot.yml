@@ -10,8 +10,6 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    reviewers:
-      - "edgarrmondragon"
     versioning-strategy: increase-if-necessary
     groups:
       development-dependencies:
@@ -25,8 +23,6 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    reviewers:
-      - "edgarrmondragon"
     groups:
       actions:
         patterns:
