@@ -217,16 +217,25 @@ class RepositoryStream(GitHubRestStream):
             and self.config["skip_parent_streams"]
             and context is not None
         ):
-            # build a minimal mock record so that self._sync_records
-            # can proceed with child streams
-            # the id is fetched in `get_repo_ids` above
-            yield {
-                "owner": {
-                    "login": context["org"],
-                },
-                "name": context["repo"],
-                "id": context["repo_id"],
-            }
+            # If we have a specific repository context with all required keys
+            if all(key in context for key in ["org", "repo", "repo_id"]):
+                # build a minimal mock record so that self._sync_records
+                # can proceed with child streams
+                # the id is fetched in `get_repo_ids` above
+                yield {
+                    "owner": {
+                        "login": context["org"],
+                    },
+                    "name": context["repo"],
+                    "id": context["repo_id"],
+                }
+            # If we only have an organization context but no repository info
+            elif "org" in context:
+                self.logger.info(
+                    f"Organization-only context detected - fetching repositories: {context}"  # noqa: E501
+                )
+                # For organization contexts, we need to do the full API call to get repositories  # noqa: E501
+                yield from super().get_records(context)
         else:
             yield from super().get_records(context)
 
@@ -773,6 +782,36 @@ class CollaboratorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [
+        403,
+        404,
+    ]  # Permission and Not Found errors
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow specific errors that are common with the collaborators endpoint.
+        - 403: Occurs when the token doesn't have permission to list collaborators
+        - 404: May occur when the repo doesn't exist or user doesn't have access
+        """
+        if response.status_code == 403:
+            contents = response.json()
+            # Extract repo and org from the URL path
+            path_parts = response.request.path_url.split("/")
+            repo = path_parts[-2] if len(path_parts) > 2 else "unknown"
+            org = path_parts[-3] if len(path_parts) > 3 else "unknown"
+
+            self.logger.warning(
+                f"Skipping collaborators for repo '{org}/{repo}' "
+                f"due to permission error: {contents.get('message', 'Unknown error')}"
+            )
+            return
+        elif response.status_code == 404:
+            path_parts = response.request.path_url.split("/")
+            repo = path_parts[-2] if len(path_parts) > 2 else "unknown"
+            org = path_parts[-3] if len(path_parts) > 3 else "unknown"
+
+            self.logger.warning(f"Repository not found or no access: {org}/{repo}")
+            return
+        super().validate_response(response)
 
     schema = th.PropertiesList(
         # Parent Keys

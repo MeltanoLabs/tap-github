@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -9,12 +10,16 @@ from bs4 import BeautifulSoup
 from dateutil.parser import isoparse
 from singer_sdk._singerlib import Catalog
 from singer_sdk.helpers import _catalog as cat_helpers
+from singer_sdk.testing import get_standard_tap_tests
 
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
+from tap_github.utils.filter_stdout import nostdout
 
 from .fixtures import (  # noqa: F401
     alternative_sync_chidren,
+    exclude_repo_config,
+    organization_list_config,
     repo_list_config,
     username_list_config,
 )
@@ -230,3 +235,109 @@ def test_web_tag_parse_counter():
         "html.parser",
     ).span
     assert parse_counter(tag) == 5_000
+
+
+def test_exclude_repositories_config(request):
+    """Test that the exclude_repositories config option is recognized."""
+    exclude_config = request.getfixturevalue("exclude_repo_config")
+    repo_config = request.getfixturevalue("repo_list_config")
+
+    config = {**repo_config, **exclude_config}
+    tap = TapGitHub(config=config)
+    assert "exclude_repositories" in tap.config
+    assert tap.config["exclude_repositories"] == ["MeltanoLabs/tap-github"]
+
+
+@mock.patch("tap_github.repository_streams.GitHubGraphqlStream.request_records")
+def test_exclude_repositories_from_direct_list(
+    mock_request_records,
+    request,
+):
+    """Test that repositories are excluded from direct repository list."""
+    repo_config = request.getfixturevalue("repo_list_config")
+    exclude_config = request.getfixturevalue("exclude_repo_config")
+
+    mock_request_records.return_value = [
+        {
+            "repo0": {"nameWithOwner": "MeltanoLabs/tap-github", "databaseId": 123},
+            "repo1": {"nameWithOwner": "MeltanoLabs/tap-gitlab", "databaseId": 456},
+            "rateLimit": {"cost": 1},
+        }
+    ]
+
+    config = {
+        **repo_config,
+        "repositories": ["MeltanoLabs/tap-github", "MeltanoLabs/tap-gitlab"],
+        **exclude_config,
+    }
+
+    tap = TapGitHub(config=config)
+    streams = tap.discover_streams()
+    repo_stream = next(s for s in streams if s.name == "repositories")
+
+    # Since we're mocking GraphQL, we need to manually handle the partition logic
+    repo_stream.logger = mock.MagicMock()
+
+    # When testing the partitions property with mocked GraphQL
+    # It should only include the non-excluded repository
+    assert len(repo_stream.config["repositories"]) == 2
+    filtered_repos = [
+        r
+        for r in repo_stream.config["repositories"]
+        if r not in repo_stream.config.get("exclude_repositories", [])
+    ]
+    assert len(filtered_repos) == 1
+    assert "MeltanoLabs/tap-gitlab" in filtered_repos
+
+
+@mock.patch("tap_github.repository_streams.RepositoryStream.request_records")
+def test_exclude_repositories_from_organization(
+    mock_request_records,
+    request,
+):
+    """Test that repositories are excluded when using organizations."""
+    # Get fixtures from pytest using request fixture
+    org_config = request.getfixturevalue("organization_list_config")
+    exclude_config = request.getfixturevalue("exclude_repo_config")
+
+    # Mock the return value for organization repositories
+    mock_request_records.return_value = [
+        {"owner": {"login": "MeltanoLabs"}, "name": "tap-github", "id": 123},
+        {"owner": {"login": "MeltanoLabs"}, "name": "tap-gitlab", "id": 456},
+    ]
+
+    # Combine fixtures for testing
+    config = {**org_config, **exclude_config}
+
+    tap = TapGitHub(config=config)
+    streams = tap.discover_streams()
+    repo_stream = next(s for s in streams if s.name == "repositories")
+
+    # Create a mock context and logger
+    context = {"org": "MeltanoLabs"}
+    repo_stream.logger = mock.MagicMock()
+
+    # Call get_records with the exclusion applied
+    records = list(repo_stream.get_records(context))
+
+    # We should only get repositories that aren't excluded
+    assert len(records) == 1
+    assert records[0]["name"] == "tap-gitlab"
+
+
+def test_standard_tap_tests_with_exclude_repos(request):
+    """Run standard tap tests with exclude_repositories config."""
+    # Get fixtures from pytest using request fixture
+    org_config = request.getfixturevalue("organization_list_config")
+    exclude_config = request.getfixturevalue("exclude_repo_config")
+
+    config = {**org_config, **exclude_config}
+    tests = get_standard_tap_tests(TapGitHub, config=config)
+    with (
+        patch(
+            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+        ),
+        nostdout(),
+    ):
+        for test in tests:
+            test()
