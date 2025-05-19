@@ -162,13 +162,6 @@ class RepositoryStream(GitHubRestStream):
         This is called before syncing records, we use it to fetch some additional
         context
         """
-        # Get excluded repositories if any
-        excluded_repos = set(self.config.get("exclude_repositories", []))
-        if excluded_repos:
-            self.logger.info(
-                f"Will exclude {len(excluded_repos)} repositories: {excluded_repos}"
-            )
-
         if "searches" in self.config:
             return [
                 {"search_name": s["name"], "search_query": s["query"]}
@@ -176,17 +169,7 @@ class RepositoryStream(GitHubRestStream):
             ]
 
         if "repositories" in self.config:
-            # Filter out excluded repositories
-            repositories = [
-                repo
-                for repo in self.config["repositories"]
-                if repo not in excluded_repos
-            ]
-            if len(repositories) < len(self.config["repositories"]):
-                excluded_count = len(self.config["repositories"]) - len(repositories)
-                self.logger.info(f"Excluded {excluded_count} repositories")
-
-            split_repo_names = [s.split("/") for s in repositories]
+            split_repo_names = [s.split("/") for s in self.config["repositories"]]
             augmented_repo_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
@@ -227,8 +210,6 @@ class RepositoryStream(GitHubRestStream):
         This allows running the tap with fewer API calls and preserving
         quota when only syncing a child stream. Without this,
         the API call is sent but data is discarded.
-
-        Also filters out excluded repositories when using organizations.
         """
         if (
             not self.selected
@@ -236,38 +217,27 @@ class RepositoryStream(GitHubRestStream):
             and self.config["skip_parent_streams"]
             and context is not None
         ):
-            # build a minimal mock record so that self._sync_records
-            # can proceed with child streams
-            # the id is fetched in `get_repo_ids` above
-            yield {
-                "owner": {
-                    "login": context["org"],
-                },
-                "name": context["repo"],
-                "id": context["repo_id"],
-            }
-        else:
-            # Get excluded repositories if any
-            excluded_repos = set(self.config.get("exclude_repositories", []))
-
-            # Process all repositories, excluding the ones in the exclude list
-            if "organizations" in self.config and excluded_repos:
-                # When using organizations, we need to filter the repositories here
-                for record in super().get_records(context):
-                    # Create the org/repo format to check against exclusion list
-                    org_name = record["owner"]["login"]
-                    repo_name = record["name"]
-                    repo_full_name = f"{org_name}/{repo_name}"
-
-                    # Filter out excluded repositories
-                    if repo_full_name not in excluded_repos:
-                        yield record
-                    else:
-                        self.logger.debug(f"Excluding repository: {repo_full_name}")
-            else:
-                # For search results or direct repository lists
-                # (already filtered in partitions) or when there are no exclusions
+            # If we have a specific repository context with all required keys
+            if all(key in context for key in ["org", "repo", "repo_id"]):
+                # build a minimal mock record so that self._sync_records
+                # can proceed with child streams
+                # the id is fetched in `get_repo_ids` above
+                yield {
+                    "owner": {
+                        "login": context["org"],
+                    },
+                    "name": context["repo"],
+                    "id": context["repo_id"],
+                }
+            # If we only have an organization context but no repository info
+            elif "org" in context:
+                self.logger.info(
+                    f"Organization-only context detected - fetching repositories: {context}"  # noqa: E501
+                )
+                # For organization contexts, we need to do the full API call to get repositories  # noqa: E501
                 yield from super().get_records(context)
+        else:
+            yield from super().get_records(context)
 
     schema = th.PropertiesList(
         th.Property("search_name", th.StringType),
@@ -812,6 +782,36 @@ class CollaboratorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [
+        403,
+        404,
+    ]  # Permission and Not Found errors
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow specific errors that are common with the collaborators endpoint.
+        - 403: Occurs when the token doesn't have permission to list collaborators
+        - 404: May occur when the repo doesn't exist or user doesn't have access
+        """
+        if response.status_code == 403:
+            contents = response.json()
+            # Extract repo and org from the URL path
+            path_parts = response.request.path_url.split("/")
+            repo = path_parts[-2] if len(path_parts) > 2 else "unknown"
+            org = path_parts[-3] if len(path_parts) > 3 else "unknown"
+
+            self.logger.warning(
+                f"Skipping collaborators for repo '{org}/{repo}' "
+                f"due to permission error: {contents.get('message', 'Unknown error')}"
+            )
+            return
+        elif response.status_code == 404:
+            path_parts = response.request.path_url.split("/")
+            repo = path_parts[-2] if len(path_parts) > 2 else "unknown"
+            org = path_parts[-3] if len(path_parts) > 3 else "unknown"
+
+            self.logger.warning(f"Repository not found or no access: {org}/{repo}")
+            return
+        super().validate_response(response)
 
     schema = th.PropertiesList(
         # Parent Keys
