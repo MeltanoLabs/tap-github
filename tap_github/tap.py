@@ -91,6 +91,12 @@ class TapGitHub(Tap):
         ),
         th.Property("organizations", th.ArrayType(th.StringType)),
         th.Property("repositories", th.ArrayType(th.StringType)),
+        th.Property(
+            "exclude_repositories",
+            th.ArrayType(th.StringType),
+            description="List of repositories to exclude from processing "
+            "(format: 'org/repo').",
+        ),
         th.Property("user_usernames", th.ArrayType(th.StringType)),
         th.Property("user_ids", th.ArrayType(th.StringType)),
         th.Property(
