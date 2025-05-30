@@ -773,6 +773,7 @@ class CollaboratorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    tolerated_http_errors: ClassVar[list[int]] = [404, 403]
 
     schema = th.PropertiesList(
         # Parent Keys
@@ -1667,7 +1668,7 @@ class ContributorsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-    tolerated_http_errors: ClassVar[list[int]] = [204]
+    tolerated_http_errors: ClassVar[list[int]] = [204, 404]
 
     schema = th.PropertiesList(
         # Parent keys
