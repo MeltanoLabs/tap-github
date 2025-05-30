@@ -4,5 +4,16 @@
             "name": "test_search",
             "query": "target-athena+fork:only"
         }
-    ]
+    ],
+
+    "organizations": [
+        "MeltanoLabs"
+    ],
+
+    "exclude_repositories": [
+        "MeltanoLabs/tap-github",
+        "MeltanoLabs/private-repo"
+    ],
+
+    "start_date": "2020-01-01T00:00:00Z"
 }
