@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
-import re
 import hashlib
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
 
-from tap_github.client import GitHubRestStream, GitHubGraphqlStream
+from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -297,8 +296,12 @@ class ProjectsStream(GitHubGraphqlStream):
         # Parent keys
         th.Property("org", th.StringType),
         # Project fields
-        th.Property("id", th.StringType, required=False),  # using fullDatabaseId from GraphQL as id, but is nullable in GraphQL
-        th.Property("node_id", th.StringType),  # using id from GraphQL as node_id, it is required (ID!)
+        th.Property(
+            "id", th.StringType, required=False
+        ),  # using fullDatabaseId from GraphQL as id, but is nullable in GraphQL
+        th.Property(
+            "node_id", th.StringType
+        ),  # using id from GraphQL as node_id, it is required (ID!)
         th.Property("number", th.IntegerType),
         th.Property("title", th.StringType),
         th.Property("url", th.StringType),
@@ -306,10 +309,16 @@ class ProjectsStream(GitHubGraphqlStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
         th.Property("closed", th.BooleanType),
-        th.Property("closed_at", th.DateTimeType, required=False),  # closedAt is nullable in GraphQL
+        th.Property(
+            "closed_at", th.DateTimeType, required=False
+        ),  # closedAt is nullable in GraphQL
         th.Property("public", th.BooleanType),
-        th.Property("readme", th.StringType, required=False),  # readme is nullable in GraphQL
-        th.Property("short_description", th.StringType, required=False),  # shortDescription is nullable in GraphQL
+        th.Property(
+            "readme", th.StringType, required=False
+        ),  # readme is nullable in GraphQL
+        th.Property(
+            "short_description", th.StringType, required=False
+        ),  # shortDescription is nullable in GraphQL
         th.Property("template", th.BooleanType),
         th.Property("viewer_can_close", th.BooleanType),
         th.Property("viewer_can_reopen", th.BooleanType),
@@ -423,7 +432,9 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Fetch all fields for a project, handling pagination, and yield a single record."""
         if not context:
-            self.logger.warning("ProjectFieldConfigurationsStream received no context, skipping.")
+            self.logger.warning(
+                "ProjectFieldConfigurationsStream received no context, skipping."
+            )
             return
 
         org = context.get("org")
@@ -450,12 +461,21 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
             all_field_configurations.extend(page_fields)
 
             # Get next page cursor for fields (specific to this query's pagination)
-            current_page_info = resp.json().get("data", {}).get("organization", {}).get("projectV2", {}).get("fields", {}).get("pageInfo", {})
+            current_page_info = (
+                resp.json()
+                .get("data", {})
+                .get("organization", {})
+                .get("projectV2", {})
+                .get("fields", {})
+                .get("pageInfo", {})
+            )
             if current_page_info.get("hasNextPage_0"):
-                next_page_token = {"nextPageCursor_0": current_page_info.get("endCursor_0")}
+                next_page_token = {
+                    "nextPageCursor_0": current_page_info.get("endCursor_0")
+                }
             else:
                 break
-        
+
         # Yield a single record containing all field definitions for the project
         yield {
             "org": org,
@@ -465,9 +485,11 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
 
     def get_child_context(self, record: dict, context: Context | None) -> dict:
         """Return context for child streams."""
-        child_context = dict(context or {}) # Includes org, project_number
-        child_context["project_field_configurations"] = record.get("all_field_configurations", [])
-        
+        child_context = dict(context or {})  # Includes org, project_number
+        child_context["project_field_configurations"] = record.get(
+            "all_field_configurations", []
+        )
+
         return child_context
 
     schema = th.PropertiesList(
@@ -478,8 +500,12 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
             th.ArrayType(
                 th.ObjectType(
                     # Schema for a single field definition
-                    th.Property("id", th.StringType, required=False),  # using databaseId from GraphQL as id, but is nullable in GraphQL
-                    th.Property("node_id", th.StringType),  # using id from GraphQL as node_id, it is required (ID!)
+                    th.Property(
+                        "id", th.StringType, required=False
+                    ),  # using databaseId from GraphQL as id, but is nullable in GraphQL
+                    th.Property(
+                        "node_id", th.StringType
+                    ),  # using id from GraphQL as node_id, it is required (ID!)
                     th.Property("name", th.StringType),
                     th.Property("data_type", th.StringType),
                     th.Property("created_at", th.DateTimeType),
@@ -551,22 +577,22 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
     # To store field configurations from context for query and post_process
     _current_project_field_configurations: list[dict] = []
 
-    # Project's custom fields supports types: Text, Number, Date, SingleSelect, Iteration, 
-    # so we fetch values from the corresponding types. 
-    # 
+    # Project's custom fields supports types: Text, Number, Date, SingleSelect, Iteration,
+    # so we fetch values from the corresponding types.
+    #
     # Note: Other types are available in issues/pull requests so not included them here.
-    #   - ProjectV2ItemFieldRepositoryValue, 
-    #   - ProjectV2ItemFieldUserValue, 
-    #   - ProjectV2ItemFieldLabelValue, 
-    #   - ProjectV2ItemFieldReviewerValue, 
-    #   - ProjectV2ItemFieldPullRequestValue, 
+    #   - ProjectV2ItemFieldRepositoryValue,
+    #   - ProjectV2ItemFieldUserValue,
+    #   - ProjectV2ItemFieldLabelValue,
+    #   - ProjectV2ItemFieldReviewerValue,
+    #   - ProjectV2ItemFieldPullRequestValue,
     #   - ProjectV2ItemFieldMilestoneValue
     _supported_project_item_field_value_types: list[str] = [
         "ProjectV2ItemFieldTextValue",
         "ProjectV2ItemFieldDateValue",
         "ProjectV2ItemFieldNumberValue",
         "ProjectV2ItemFieldSingleSelectValue",
-        "ProjectV2ItemFieldIterationValue"
+        "ProjectV2ItemFieldIterationValue",
     ]
 
     def request_records(self, context: Context | None) -> Iterable[dict]:
@@ -574,7 +600,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
         try:
             yield from super().request_records(context)
         except FatalAPIError as e:
-            # Check if the error is FORBIDDEN. This error is raised when the organization has security 
+            # Check if the error is FORBIDDEN. This error is raised when the organization has security
             # settings that block access to the nodes of an item of a project, e.g. allowed IP list.
             error_message = str(e.args[0]) if e.args else ""
             if "FORBIDDEN" in error_message:
@@ -589,10 +615,10 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
     def _generate_gql_alias(self, field_name: str) -> str:
         """Generate a GraphQL-safe alias from a field name using hash to ensure uniqueness."""
         # Create a hash of the field name
-        hash_obj = hashlib.md5(field_name.encode('utf-8'))
+        hash_obj = hashlib.md5(field_name.encode("utf-8"))
         # Take first 8 characters of hex digest for a short but unique identifier
         hash_suffix = hash_obj.hexdigest()[:8]
-        
+
         # GraphQL aliases must start with a letter or underscore
         # Prefix with 'field_' to ensure it's always valid
         return f"field_{hash_suffix}"
@@ -605,15 +631,15 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
             original_field_name = field_config.get("name")
             if not original_field_name:
                 continue
-            
+
             alias = self._generate_gql_alias(original_field_name)
-            # Comprehensive inline fragments for ProjectV2ItemFieldValue. Project's 
-            # custom fields supports types: Text, Number, Date, SingleSelect, Iteration, 
-            # so we fetch values from the corresponding types. 
+            # Comprehensive inline fragments for ProjectV2ItemFieldValue. Project's
+            # custom fields supports types: Text, Number, Date, SingleSelect, Iteration,
+            # so we fetch values from the corresponding types.
             field_value_query = f'''
             {alias}: fieldValueByName(name: "{original_field_name}") {{
                 __typename
-                ... on ProjectV2ItemFieldTextValue {{ 
+                ... on ProjectV2ItemFieldTextValue {{
                   node_id: id
                   id: databaseId
                   text
@@ -626,7 +652,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                   created_at: createdAt
                   updated_at: updatedAt
                 }}
-                ... on ProjectV2ItemFieldDateValue {{ 
+                ... on ProjectV2ItemFieldDateValue {{
                   node_id: id
                   id: databaseId
                   date
@@ -639,7 +665,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                   created_at: createdAt
                   updated_at: updatedAt
                 }}
-                ... on ProjectV2ItemFieldNumberValue {{ 
+                ... on ProjectV2ItemFieldNumberValue {{
                   node_id: id
                   id: databaseId
                   number
@@ -652,7 +678,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                   created_at: createdAt
                   updated_at: updatedAt
                 }}
-                ... on ProjectV2ItemFieldSingleSelectValue {{ 
+                ... on ProjectV2ItemFieldSingleSelectValue {{
                   node_id: id
                   id: databaseId
                   color
@@ -686,7 +712,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                 }}
             }}'''
             field_value_queries.append(field_value_query)
-        
+
         all_field_values_query_part = "\n".join(field_value_queries)
 
         return f"""
@@ -709,7 +735,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                   }}
                   content {{
                     ... on Issue {{
-                      type: __typename 
+                      type: __typename
                       node_id: id
                     }}
                     ... on DraftIssue {{
@@ -717,7 +743,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                       node_id: id
                     }}
                     ... on PullRequest {{
-                      type: __typename 
+                      type: __typename
                       node_id: id
                     }}
                   }}
@@ -740,16 +766,18 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
     def get_url_params(
         self,
         context: Context | None,
-        next_page_token: Any | None, # noqa: ANN401
+        next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         if not context:
             # This should not happen if parent_stream_type is correctly set
             self.logger.warning("ProjectItemFieldValuesStream received no context.")
             return {}
-        
-        self._current_project_field_configurations = context.get("project_field_configurations", [])
-        
+
+        self._current_project_field_configurations = context.get(
+            "project_field_configurations", []
+        )
+
         params = super().get_url_params(context, next_page_token)
         # org and project_number are already in params via context from parent
         return params
@@ -788,7 +816,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                 for key in ["node_id", "id", "created_at", "updated_at"]:
                     if key in field_value_data:
                         entry[key] = field_value_data[key]
-                
+
                 # Copy creator if present
                 if "creator" in field_value_data:
                     entry["creator"] = field_value_data["creator"]
@@ -802,7 +830,9 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                     entry["value"] = str(date_value) if date_value is not None else None
                 elif value_type == "ProjectV2ItemFieldNumberValue":
                     number_value = field_value_data.get("number")
-                    entry["value"] = str(number_value) if number_value is not None else None
+                    entry["value"] = (
+                        str(number_value) if number_value is not None else None
+                    )
                 elif value_type == "ProjectV2ItemFieldSingleSelectValue":
                     name_value = field_value_data.get("name")
                     entry["value"] = str(name_value) if name_value is not None else None
@@ -811,7 +841,9 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                     entry["description"] = field_value_data.get("description")
                 elif value_type == "ProjectV2ItemFieldIterationValue":
                     title_value = field_value_data.get("title")
-                    entry["value"] = str(title_value) if title_value is not None else None
+                    entry["value"] = (
+                        str(title_value) if title_value is not None else None
+                    )
                     entry["iteration_id"] = field_value_data.get("iteration_id")
                     entry["start_date"] = field_value_data.get("start_date")
                     entry["duration"] = field_value_data.get("duration")
@@ -829,7 +861,9 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
             th.Property("org", th.StringType),
             th.Property("project_number", th.IntegerType),
             th.Property("node_id", th.StringType),  # id from GraphQL
-            th.Property("id", th.StringType, required=False),  # fullDatabaseId from GraphQL, nullable
+            th.Property(
+                "id", th.StringType, required=False
+            ),  # fullDatabaseId from GraphQL, nullable
             th.Property("created_at", th.DateTimeType),
             th.Property("updated_at", th.DateTimeType),
             th.Property("is_archived", th.BooleanType),
@@ -859,10 +893,14 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                         th.Property("field_name", th.StringType),
                         th.Property("value_type", th.StringType),
                         th.Property("node_id", th.StringType),
-                        th.Property("id", th.StringType, required=False),  # databaseId is nullable
+                        th.Property(
+                            "id", th.StringType, required=False
+                        ),  # databaseId is nullable
                         th.Property("created_at", th.DateTimeType),
                         th.Property("updated_at", th.DateTimeType),
-                        th.Property("value", th.StringType, required=False),  # All value fields are nullable in GraphQL
+                        th.Property(
+                            "value", th.StringType, required=False
+                        ),  # All value fields are nullable in GraphQL
                         th.Property(
                             "creator",
                             th.ObjectType(
@@ -874,12 +912,24 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                             required=False,  # creator is nullable in GraphQL
                         ),
                         # Type-specific fields
-                        th.Property("option_id", th.StringType, required=False),  # SingleSelect - nullable
-                        th.Property("color", th.StringType, required=False),  # SingleSelect - required in GraphQL but only present for SingleSelect type
-                        th.Property("description", th.StringType, required=False),  # SingleSelect - nullable
-                        th.Property("iteration_id", th.StringType, required=False),  # Iteration - required when present
-                        th.Property("start_date", th.DateType, required=False),  # Iteration - required when present
-                        th.Property("duration", th.IntegerType, required=False),  # Iteration - required when present
+                        th.Property(
+                            "option_id", th.StringType, required=False
+                        ),  # SingleSelect - nullable
+                        th.Property(
+                            "color", th.StringType, required=False
+                        ),  # SingleSelect - required in GraphQL but only present for SingleSelect type
+                        th.Property(
+                            "description", th.StringType, required=False
+                        ),  # SingleSelect - nullable
+                        th.Property(
+                            "iteration_id", th.StringType, required=False
+                        ),  # Iteration - required when present
+                        th.Property(
+                            "start_date", th.DateType, required=False
+                        ),  # Iteration - required when present
+                        th.Property(
+                            "duration", th.IntegerType, required=False
+                        ),  # Iteration - required when present
                     )
                 ),
             ),
