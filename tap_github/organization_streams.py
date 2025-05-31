@@ -344,10 +344,12 @@ class ProjectsStream(GitHubGraphqlStream):
 
 
 class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
-    """Fetches all fields defined within a GitHub organization's project and outputs a single record per project containing all its fields.
+    """Fetches all fields defined within a GitHub organization's project and outputs
+    a single record per project containing all its fields.
 
-    This stream is a child of ProjectsStream. For each project, it retrieves all its field configurations,
-    including configurations for iteration and single-select fields, and consolidates them into one record.
+    This stream is a child of ProjectsStream. For each project, it retrieves all its
+    field configurations, including configurations for iteration and single-select
+    fields, and consolidates them into one record.
 
     API Reference: https://docs.github.com/en/graphql/reference/objects#projectv2fieldconfiguration
     """
@@ -363,7 +365,11 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
     def query(self) -> str:
         """GraphQL query to fetch a page of project fields."""
         return """
-        query ProjectFieldsPage($org: String!, $project_number: Int!, $nextPageCursor_0: String) {
+        query ProjectFieldsPage(
+            $org: String!,
+            $project_number: Int!,
+            $nextPageCursor_0: String
+        ) {
           organization(login: $org) {
             projectV2(number: $project_number) {
               fields(first: 100, after: $nextPageCursor_0) {
@@ -430,10 +436,12 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
         """
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
-        """Fetch all fields for a project, handling pagination, and yield a single record."""
+        """
+        Fetch all fields for a project, handling pagination, and yield a single record.
+        """
         if not context:
             self.logger.warning(
-                "ProjectFieldConfigurationsStream received no context, skipping."
+                "Received no context, skipping."
             )
             return
 
@@ -442,7 +450,7 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
 
         if not org or project_number is None:
             self.logger.warning(
-                f"Missing org or project_number in context for ProjectFieldConfigurationsStream: {context}"
+                f"Missing org or project_number in context: {context}"
             )
             return
 
@@ -450,17 +458,13 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
         next_page_token: Any = None
 
         while True:
-            # Prepare request and context for the current page
-            # The `next_page_token` here is specific to the pagination of fields within this project.
             prepared_request = self.prepare_request(
                 context=context, next_page_token=next_page_token
             )
             resp = self._request(prepared_request, context)
-            # parse_response uses query_jsonpath to extract field nodes from the current page
             page_fields = list(self.parse_response(resp))
             all_field_configurations.extend(page_fields)
 
-            # Get next page cursor for fields (specific to this query's pagination)
             current_page_info = (
                 resp.json()
                 .get("data", {})
@@ -476,7 +480,6 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
             else:
                 break
 
-        # Yield a single record containing all field definitions for the project
         yield {
             "org": org,
             "project_number": project_number,
@@ -502,10 +505,10 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
                     # Schema for a single field definition
                     th.Property(
                         "id", th.StringType, required=False
-                    ),  # using databaseId from GraphQL as id, but is nullable in GraphQL
+                    ), # using databaseId from GraphQL as id, nullable in GraphQL
                     th.Property(
                         "node_id", th.StringType
-                    ),  # using id from GraphQL as node_id, it is required (ID!)
+                    ), # using id from GraphQL as node_id, it is required (ID!)
                     th.Property("name", th.StringType),
                     th.Property("data_type", th.StringType),
                     th.Property("created_at", th.DateTimeType),
@@ -561,8 +564,9 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
 class ProjectItemFieldValuesStream(GitHubGraphqlStream):
     """Fetches items for a project and their field values.
 
-    This stream is a child of ProjectFieldConfigurationsStream. For each project, it fetches all items
-    and then for each item, it queries the values of all known fields.
+    This stream is a child of ProjectFieldConfigurationsStream. For each project,
+    it fetches all items and then for each item, it queries the values of all
+    known fields.
 
     API Reference: https://docs.github.com/en/graphql/reference/objects#projectv2item
     """
@@ -575,33 +579,34 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
     query_jsonpath = "$.data.organization.projectV2.items.nodes[*]"
 
     # To store field configurations from context for query and post_process
-    _current_project_field_configurations: list[dict] = []
+    _current_project_field_configurations: ClassVar[list[dict]] = []
 
-    # Project's custom fields supports types: Text, Number, Date, SingleSelect, Iteration,
-    # so we fetch values from the corresponding types.
+    # Project's custom fields supports types: Text, Number, Date, SingleSelect,
+    # Iteration, so we fetch values from the corresponding types.
     #
-    # Note: Other types are available in issues/pull requests so not included them here.
+    # Note: Other types are available in issues/pull requests so not included.
     #   - ProjectV2ItemFieldRepositoryValue,
     #   - ProjectV2ItemFieldUserValue,
     #   - ProjectV2ItemFieldLabelValue,
     #   - ProjectV2ItemFieldReviewerValue,
     #   - ProjectV2ItemFieldPullRequestValue,
     #   - ProjectV2ItemFieldMilestoneValue
-    _supported_project_item_field_value_types: list[str] = [
+    _supported_project_item_field_value_types: ClassVar[tuple[str, ...]] = (
         "ProjectV2ItemFieldTextValue",
         "ProjectV2ItemFieldDateValue",
         "ProjectV2ItemFieldNumberValue",
         "ProjectV2ItemFieldSingleSelectValue",
         "ProjectV2ItemFieldIterationValue",
-    ]
+    )
 
     def request_records(self, context: Context | None) -> Iterable[dict]:
         """Request records from the API, handling FORBIDDEN errors gracefully."""
         try:
             yield from super().request_records(context)
         except FatalAPIError as e:
-            # Check if the error is FORBIDDEN. This error is raised when the organization has security
-            # settings that block access to the nodes of an item of a project, e.g. allowed IP list.
+            # Check if the error is FORBIDDEN. This error is raised when
+            # the organization has security settings that block access to
+            # the nodes of an item of a project, e.g. allowed IP list.
             error_message = str(e.args[0]) if e.args else ""
             if "FORBIDDEN" in error_message:
                 self.logger.warning(
@@ -613,7 +618,9 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                 raise
 
     def _generate_gql_alias(self, field_name: str) -> str:
-        """Generate a GraphQL-safe alias from a field name using hash to ensure uniqueness."""
+        """
+        Generate a unique GraphQL-safe alias from a field name.
+        """
         # Create a hash of the field name
         hash_obj = hashlib.md5(field_name.encode("utf-8"))
         # Take first 8 characters of hex digest for a short but unique identifier
@@ -716,7 +723,11 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
         all_field_values_query_part = "\n".join(field_value_queries)
 
         return f"""
-        query ProjectItemsWithFieldValues($org: String!, $project_number: Int!, $nextPageCursor_0: String) {{
+        query ProjectItemsWithFieldValues(
+            $org: String!,
+            $project_number: Int!,
+            $nextPageCursor_0: String
+        ) {{
           organization(login: $org) {{
             projectV2(number: $project_number) {{
               items(first: 100, after: $nextPageCursor_0) {{
@@ -917,7 +928,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                         ),  # SingleSelect - nullable
                         th.Property(
                             "color", th.StringType, required=False
-                        ),  # SingleSelect - required in GraphQL but only present for SingleSelect type
+                        ),  # SingleSelect - only required for SingleSelect type
                         th.Property(
                             "description", th.StringType, required=False
                         ),  # SingleSelect - nullable
