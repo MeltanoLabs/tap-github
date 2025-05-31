@@ -440,18 +440,14 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
         Fetch all fields for a project, handling pagination, and yield a single record.
         """
         if not context:
-            self.logger.warning(
-                "Received no context, skipping."
-            )
+            self.logger.warning("Received no context, skipping.")
             return
 
         org = context.get("org")
         project_number = context.get("project_number")
 
         if not org or project_number is None:
-            self.logger.warning(
-                f"Missing org or project_number in context: {context}"
-            )
+            self.logger.warning(f"Missing org or project_number in context: {context}")
             return
 
         all_field_configurations: list[dict] = []
@@ -505,10 +501,10 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
                     # Schema for a single field definition
                     th.Property(
                         "id", th.StringType, required=False
-                    ), # using databaseId from GraphQL as id, nullable in GraphQL
+                    ),  # using databaseId from GraphQL as id, nullable in GraphQL
                     th.Property(
                         "node_id", th.StringType
-                    ), # using id from GraphQL as node_id, it is required (ID!)
+                    ),  # using id from GraphQL as node_id, it is required (ID!)
                     th.Property("name", th.StringType),
                     th.Property("data_type", th.StringType),
                     th.Property("created_at", th.DateTimeType),
