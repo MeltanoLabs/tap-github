@@ -618,7 +618,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
         Generate a unique GraphQL-safe alias from a field name.
         """
         # Create a hash of the field name
-        hash_obj = hashlib.md5(field_name.encode("utf-8"))
+        hash_obj = hashlib.sha256(field_name.encode("utf-8"))
         # Take first 8 characters of hex digest for a short but unique identifier
         hash_suffix = hash_obj.hexdigest()[:8]
 
