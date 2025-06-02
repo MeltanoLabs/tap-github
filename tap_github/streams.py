@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING
 from tap_github.organization_streams import (
     OrganizationMembersStream,
     OrganizationStream,
+    ProjectFieldConfigurationsStream,
+    ProjectItemsStream,
+    ProjectsStream,
     TeamMembersStream,
     TeamRolesStream,
     TeamsStream,
@@ -137,6 +140,9 @@ class Streams(Enum):
             TeamMembersStream,
             TeamRolesStream,
             TeamsStream,
+            ProjectsStream,
+            ProjectFieldConfigurationsStream,
+            ProjectItemsStream,
         ],
     )
 
