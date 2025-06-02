@@ -557,7 +557,7 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
     ).to_dict()
 
 
-class ProjectItemFieldValuesStream(GitHubGraphqlStream):
+class ProjectItemsStream(GitHubGraphqlStream):
     """Fetches items for a project and their field values.
 
     This stream is a child of ProjectFieldConfigurationsStream. For each project,
@@ -567,7 +567,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
     API Reference: https://docs.github.com/en/graphql/reference/objects#projectv2item
     """
 
-    name = "project_item_field_values"
+    name = "project_items"
     primary_keys: ClassVar[list[str]] = ["org", "project_number", "node_id"]
     parent_stream_type = ProjectFieldConfigurationsStream
     ignore_parent_replication_key = True
@@ -595,6 +595,13 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
         "ProjectV2ItemFieldIterationValue",
     )
 
+    # These fields are automatically created by GitHub and expected to present in
+    # the project items.
+    _common_fields: ClassVar[dict[str, dict[str, str]]] = {
+        "Title": {"column": "title", "type": "ProjectV2ItemFieldTextValue"},
+        "Status": {"column": "status", "type": "ProjectV2ItemFieldSingleSelectValue"},
+    }
+
     def request_records(self, context: Context | None) -> Iterable[dict]:
         """Request records from the API, handling FORBIDDEN errors gracefully."""
         try:
@@ -612,6 +619,13 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                 return
             else:
                 raise
+
+    def _escape_graphql_string(self, value: str) -> str:
+        """
+        Escape special characters in a string for use in GraphQL queries.
+        """
+        # Escape backslashes first, then quotes
+        return value.replace("\\", "\\\\").replace('"', '\\"')
 
     def _generate_gql_alias(self, field_name: str) -> str:
         """
@@ -636,11 +650,12 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                 continue
 
             alias = self._generate_gql_alias(original_field_name)
+            escaped_field_name = self._escape_graphql_string(original_field_name)
             # Comprehensive inline fragments for ProjectV2ItemFieldValue. Project's
             # custom fields supports types: Text, Number, Date, SingleSelect, Iteration,
             # so we fetch values from the corresponding types.
             field_value_query = f'''
-            {alias}: fieldValueByName(name: "{original_field_name}") {{
+            {alias}: fieldValueByName(name: "{escaped_field_name}") {{
                 __typename
                 ... on ProjectV2ItemFieldTextValue {{
                   node_id: id
@@ -801,6 +816,11 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
 
         # Process dynamic field values into a list of objects
         field_values_output: list[dict[str, Any]] = []
+
+        # Initialize dedicated fields for common project fields
+        for field_config in self._common_fields.values():
+            row[field_config["column"]] = None
+
         for field_config in self._current_project_field_configurations:
             original_field_name = field_config.get("name")
             if not original_field_name:
@@ -819,7 +839,7 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                     "value_type": value_type,
                 }
 
-                # Copy all the common fields
+                # Copy all the values
                 for key in ["node_id", "id", "created_at", "updated_at"]:
                     if key in field_value_data:
                         entry[key] = field_value_data[key]
@@ -855,7 +875,17 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
                     entry["start_date"] = field_value_data.get("start_date")
                     entry["duration"] = field_value_data.get("duration")
 
-                field_values_output.append(entry)
+                # Check if this is a common field that should be extracted separately
+                is_common_field = (
+                    self._common_fields.get(original_field_name) and
+                    self._common_fields[original_field_name]["type"] == value_type
+                )
+
+                if is_common_field:
+                    column_name = self._common_fields[original_field_name]["column"]
+                    row[column_name] = entry
+                else:
+                    field_values_output.append(entry)
 
         row["field_values"] = field_values_output
 
@@ -875,6 +905,54 @@ class ProjectItemFieldValuesStream(GitHubGraphqlStream):
             th.Property("updated_at", th.DateTimeType),
             th.Property("is_archived", th.BooleanType),
             th.Property("type", th.StringType),
+            # Dedicated fields for common project fields
+            th.Property("title", th.ObjectType(
+                th.Property("value_type", th.StringType),
+                th.Property("node_id", th.StringType),
+                th.Property(
+                    "id", th.StringType, required=False
+                ),  # databaseId is nullable
+                th.Property("created_at", th.DateTimeType),
+                th.Property("updated_at", th.DateTimeType),
+                th.Property(
+                    "value", th.StringType, required=False
+                ),  # text value is nullable
+                th.Property(
+                    "creator",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("resource_path", th.StringType),
+                        th.Property("url", th.StringType),
+                        th.Property("type", th.StringType),
+                    ),
+                    required=False,  # creator is nullable
+                ),
+            ), required=False),
+            th.Property("status", th.ObjectType(
+                th.Property("value_type", th.StringType),
+                th.Property("node_id", th.StringType),
+                th.Property(
+                    "id", th.StringType, required=False
+                ),  # databaseId is nullable
+                th.Property("created_at", th.DateTimeType),
+                th.Property("updated_at", th.DateTimeType),
+                th.Property(
+                    "value", th.StringType, required=False
+                ),  # name value is nullable
+                th.Property("option_id", th.StringType, required=False),  # nullable
+                th.Property("color", th.StringType, required=False),  # nullable
+                th.Property("description", th.StringType, required=False),  # nullable
+                th.Property(
+                    "creator",
+                    th.ObjectType(
+                        th.Property("login", th.StringType),
+                        th.Property("resource_path", th.StringType),
+                        th.Property("url", th.StringType),
+                        th.Property("type", th.StringType),
+                    ),
+                    required=False,  # creator is nullable
+                ),
+            ), required=False),
             th.Property(
                 "creator",
                 th.ObjectType(

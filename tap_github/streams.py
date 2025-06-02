@@ -7,7 +7,7 @@ from tap_github.organization_streams import (
     OrganizationMembersStream,
     OrganizationStream,
     ProjectFieldConfigurationsStream,
-    ProjectItemFieldValuesStream,
+    ProjectItemsStream,
     ProjectsStream,
     TeamMembersStream,
     TeamRolesStream,
@@ -140,7 +140,7 @@ class Streams(Enum):
             TeamsStream,
             ProjectsStream,
             ProjectFieldConfigurationsStream,
-            ProjectItemFieldValuesStream,
+            ProjectItemsStream,
         ],
     )
 
