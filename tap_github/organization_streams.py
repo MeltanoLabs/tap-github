@@ -877,8 +877,8 @@ class ProjectItemsStream(GitHubGraphqlStream):
 
                 # Check if this is a common field that should be extracted separately
                 is_common_field = (
-                    self._common_fields.get(original_field_name) and
-                    self._common_fields[original_field_name]["type"] == value_type
+                    self._common_fields.get(original_field_name)
+                    and self._common_fields[original_field_name]["type"] == value_type
                 )
 
                 if is_common_field:
@@ -906,53 +906,63 @@ class ProjectItemsStream(GitHubGraphqlStream):
             th.Property("is_archived", th.BooleanType),
             th.Property("type", th.StringType),
             # Dedicated fields for common project fields
-            th.Property("title", th.ObjectType(
-                th.Property("value_type", th.StringType),
-                th.Property("node_id", th.StringType),
-                th.Property(
-                    "id", th.StringType, required=False
-                ),  # databaseId is nullable
-                th.Property("created_at", th.DateTimeType),
-                th.Property("updated_at", th.DateTimeType),
-                th.Property(
-                    "value", th.StringType, required=False
-                ),  # text value is nullable
-                th.Property(
-                    "creator",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("resource_path", th.StringType),
-                        th.Property("url", th.StringType),
-                        th.Property("type", th.StringType),
+            th.Property(
+                "title",
+                th.ObjectType(
+                    th.Property("value_type", th.StringType),
+                    th.Property("node_id", th.StringType),
+                    th.Property(
+                        "id", th.StringType, required=False
+                    ),  # databaseId is nullable
+                    th.Property("created_at", th.DateTimeType),
+                    th.Property("updated_at", th.DateTimeType),
+                    th.Property(
+                        "value", th.StringType, required=False
+                    ),  # text value is nullable
+                    th.Property(
+                        "creator",
+                        th.ObjectType(
+                            th.Property("login", th.StringType),
+                            th.Property("resource_path", th.StringType),
+                            th.Property("url", th.StringType),
+                            th.Property("type", th.StringType),
+                        ),
+                        required=False,  # creator is nullable
                     ),
-                    required=False,  # creator is nullable
                 ),
-            ), required=False),
-            th.Property("status", th.ObjectType(
-                th.Property("value_type", th.StringType),
-                th.Property("node_id", th.StringType),
-                th.Property(
-                    "id", th.StringType, required=False
-                ),  # databaseId is nullable
-                th.Property("created_at", th.DateTimeType),
-                th.Property("updated_at", th.DateTimeType),
-                th.Property(
-                    "value", th.StringType, required=False
-                ),  # name value is nullable
-                th.Property("option_id", th.StringType, required=False),  # nullable
-                th.Property("color", th.StringType, required=False),  # nullable
-                th.Property("description", th.StringType, required=False),  # nullable
-                th.Property(
-                    "creator",
-                    th.ObjectType(
-                        th.Property("login", th.StringType),
-                        th.Property("resource_path", th.StringType),
-                        th.Property("url", th.StringType),
-                        th.Property("type", th.StringType),
+                required=False,
+            ),
+            th.Property(
+                "status",
+                th.ObjectType(
+                    th.Property("value_type", th.StringType),
+                    th.Property("node_id", th.StringType),
+                    th.Property(
+                        "id", th.StringType, required=False
+                    ),  # databaseId is nullable
+                    th.Property("created_at", th.DateTimeType),
+                    th.Property("updated_at", th.DateTimeType),
+                    th.Property(
+                        "value", th.StringType, required=False
+                    ),  # name value is nullable
+                    th.Property("option_id", th.StringType, required=False),  # nullable
+                    th.Property("color", th.StringType, required=False),  # nullable
+                    th.Property(
+                        "description", th.StringType, required=False
+                    ),  # nullable
+                    th.Property(
+                        "creator",
+                        th.ObjectType(
+                            th.Property("login", th.StringType),
+                            th.Property("resource_path", th.StringType),
+                            th.Property("url", th.StringType),
+                            th.Property("type", th.StringType),
+                        ),
+                        required=False,  # creator is nullable
                     ),
-                    required=False,  # creator is nullable
                 ),
-            ), required=False),
+                required=False,
+            ),
             th.Property(
                 "creator",
                 th.ObjectType(
