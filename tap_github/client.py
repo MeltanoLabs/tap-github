@@ -42,6 +42,9 @@ class GitHubRestStream(RESTStream):
     # This only has effect on streams whose `replication_key` is `updated_at`.
     use_fake_since_parameter = False
 
+    # Set to True to use cursor-based pagination instead of page-based pagination
+    use_cursor_pagination = False
+
     _authenticator: GitHubTokenAuthenticator | None = None
 
     @property
@@ -74,6 +77,7 @@ class GitHubRestStream(RESTStream):
         if (
             previous_token
             and self.MAX_RESULTS_LIMIT
+            and not self.use_cursor_pagination
             and (
                 cast("int", previous_token) * self.MAX_PER_PAGE
                 >= self.MAX_RESULTS_LIMIT
@@ -128,7 +132,13 @@ class GitHubRestStream(RESTStream):
             ):
                 return None
 
-        # Use header links returned by the GitHub API.
+        # Handle cursor-based pagination
+        if self.use_cursor_pagination:
+            parsed_url = urlparse(response.links["next"]["url"])
+            captured_after_value_list = parse_qs(parsed_url.query).get("after")
+            return captured_after_value_list[0] if captured_after_value_list else None
+
+        # Use header links returned by the GitHub API for page-based pagination.
         parsed_url = urlparse(response.links["next"]["url"])
         captured_page_value_list = parse_qs(parsed_url.query).get("page")
         next_page_string = (
@@ -147,7 +157,10 @@ class GitHubRestStream(RESTStream):
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
-            params["page"] = next_page_token
+            if self.use_cursor_pagination:
+                params["after"] = next_page_token
+            else:
+                params["page"] = next_page_token
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
