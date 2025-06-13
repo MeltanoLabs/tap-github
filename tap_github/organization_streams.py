@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING, Any, ClassVar
 
-import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
 
