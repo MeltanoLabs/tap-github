@@ -297,7 +297,7 @@ class ProjectsStream(GitHubGraphqlStream):
         th.Property("org", th.StringType),
         # Project fields
         th.Property(
-            "id", th.StringType, required=False
+            "id", th.StringType, nullable=False
         ),  # using fullDatabaseId from GraphQL as id, but is nullable in GraphQL
         th.Property(
             "node_id", th.StringType
@@ -500,7 +500,7 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
                 th.ObjectType(
                     # Schema for a single field definition
                     th.Property(
-                        "id", th.StringType, required=False
+                        "id", th.StringType, nullable=False
                     ),  # using databaseId from GraphQL as id, nullable in GraphQL
                     th.Property(
                         "node_id", th.StringType
@@ -899,7 +899,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
             th.Property("project_number", th.IntegerType),
             th.Property("node_id", th.StringType),  # id from GraphQL
             th.Property(
-                "id", th.StringType, required=False
+                "id", th.StringType, nullable=False
             ),  # fullDatabaseId from GraphQL, nullable
             th.Property("created_at", th.DateTimeType),
             th.Property("updated_at", th.DateTimeType),
