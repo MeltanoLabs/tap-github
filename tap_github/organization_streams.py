@@ -453,6 +453,9 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
         all_field_configurations: list[dict] = []
         next_page_token: Any = None
 
+        # Can't use BaseAPIPaginator - here we need to aggregate all pages of
+        # fields of a project into one record, while BaseAPIPaginator yields
+        # records incrementally as pages are fetched.
         while True:
             prepared_request = self.prepare_request(
                 context=context, next_page_token=next_page_token
@@ -617,8 +620,8 @@ class ProjectItemsStream(GitHubGraphqlStream):
                     f"Context: {context}. Error: {e}"
                 )
                 return
-            else:
-                raise
+
+            raise
 
     def _escape_graphql_string(self, value: str) -> str:
         """
