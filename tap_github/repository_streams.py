@@ -1613,6 +1613,7 @@ class ReviewCommentsStream(GitHubRestStream):
     name = "review_comments"
     path = "/repos/{org}/{repo}/pulls/comments"
     primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
