@@ -144,7 +144,7 @@ class TapGitHub(Tap):
         ):
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
-                f"{Streams.all_valid_queries()}."
+                f"{Streams.all_valid_queries()}, provided config: {self.config}"
             )
         streams = []
         for stream_type in Streams:
