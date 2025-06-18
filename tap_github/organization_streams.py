@@ -606,7 +606,11 @@ class ProjectItemsStream(GitHubGraphqlStream):
     }
 
     def request_records(self, context: Context | None) -> Iterable[dict]:
-        """Request records from the API, handling FORBIDDEN errors gracefully."""
+        """Request records from the API, handling FORBIDDEN errors gracefully.
+        
+        TODO: should rewrite to use validate_response once
+        https://github.com/meltano/sdk/issues/280 is implemented.
+        """
         try:
             yield from super().request_records(context)
         except FatalAPIError as e:
