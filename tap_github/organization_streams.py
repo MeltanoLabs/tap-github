@@ -16,6 +16,35 @@ if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
 
 
+# Reusable GraphQL fragment for Actor fields
+# https://docs.github.com/en/graphql/reference/interfaces#actor
+ACTOR_FRAGMENT = """
+    login
+    resource_path: resourcePath
+    url
+    type: __typename
+    ... on Bot {
+      node_id: id
+      id: databaseId
+    }
+    ... on User {
+      node_id: id
+      id: databaseId
+    }
+    ... on Organization {
+      node_id: id
+      id: databaseId
+    }
+    ... on Mannequin {
+      node_id: id
+      id: databaseId
+    }
+    ... on EnterpriseUserAccount {
+      node_id: id
+    }
+"""
+
+
 class OrganizationStream(GitHubRestStream):
     """Defines a GitHub Organization Stream.
     API Reference: https://docs.github.com/en/rest/reference/orgs#get-an-organization
@@ -231,27 +260,24 @@ class ProjectsStream(GitHubGraphqlStream):
     @property
     def query(self) -> str:
         """GraphQL query to fetch projects."""
-        return """
-        query OrganizationProjects($org: String!, $nextPageCursor_0: String) {
-          organization(login: $org) {
-            projectsV2(first: 100, after: $nextPageCursor_0) {
-              nodes {
+        return f"""
+        query OrganizationProjects($org: String!, $nextPageCursor_0: String) {{
+          organization(login: $org) {{
+            projectsV2(first: 100, after: $nextPageCursor_0) {{
+              nodes {{
                 closed
                 closed_at: closedAt
                 created_at: createdAt
-                creator {
-                  login
-                  resource_path: resourcePath
-                  url
-                  type: __typename
-                }
+                creator {{
+                  {ACTOR_FRAGMENT}
+                }}
                 id: fullDatabaseId
                 node_id: id
                 number
-                owner {
+                owner {{
                   node_id: id
                   type: __typename
-                }
+                }}
                 public
                 readme
                 resource_path: resourcePath
@@ -263,19 +289,19 @@ class ProjectsStream(GitHubGraphqlStream):
                 viewer_can_close: viewerCanClose
                 viewer_can_reopen: viewerCanReopen
                 viewer_can_update: viewerCanUpdate
-              }
-              pageInfo {
+              }}
+              pageInfo {{
                 hasNextPage_0: hasNextPage
                 endCursor_0: endCursor
                 startCursor_0: startCursor
-              }
+              }}
               totalCount
-            }
-          }
-          rateLimit {
+            }}
+          }}
+          rateLimit {{
             cost
-          }
-        }
+          }}
+        }}
         """
 
     def get_child_context(self, record: dict, context: Context | None) -> dict:
@@ -337,6 +363,8 @@ class ProjectsStream(GitHubGraphqlStream):
                 th.Property("resource_path", th.StringType),
                 th.Property("url", th.StringType),
                 th.Property("type", th.StringType),
+                th.Property("node_id", th.StringType),
+                th.Property("id", th.StringType, required=False),
             ),
             required=False,  # creator is nullable in GraphQL
         ),
@@ -669,10 +697,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                   id: databaseId
                   text
                   creator {{
-                    login
-                    resource_path: resourcePath
-                    url
-                    type: __typename
+                    {ACTOR_FRAGMENT}
                   }}
                   created_at: createdAt
                   updated_at: updatedAt
@@ -682,10 +707,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                   id: databaseId
                   date
                   creator {{
-                    login
-                    resource_path: resourcePath
-                    url
-                    type: __typename
+                    {ACTOR_FRAGMENT}
                   }}
                   created_at: createdAt
                   updated_at: updatedAt
@@ -695,10 +717,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                   id: databaseId
                   number
                   creator {{
-                    login
-                    resource_path: resourcePath
-                    url
-                    type: __typename
+                    {ACTOR_FRAGMENT}
                   }}
                   created_at: createdAt
                   updated_at: updatedAt
@@ -711,10 +730,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                   name
                   option_id: optionId
                   creator {{
-                    login
-                    resource_path: resourcePath
-                    url
-                    type: __typename
+                    {ACTOR_FRAGMENT}
                   }}
                   created_at: createdAt
                   updated_at: updatedAt
@@ -727,10 +743,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                   iteration_id: iterationId
                   title
                   creator {{
-                    login
-                    resource_path: resourcePath
-                    url
-                    type: __typename
+                    {ACTOR_FRAGMENT}
                   }}
                   created_at: createdAt
                   updated_at: updatedAt
@@ -757,10 +770,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                   is_archived: isArchived
                   type
                   creator {{
-                    login
-                    resource_path: resourcePath
-                    url
-                    type: __typename
+                    {ACTOR_FRAGMENT}
                   }}
                   content {{
                     ... on Issue {{
@@ -933,6 +943,8 @@ class ProjectItemsStream(GitHubGraphqlStream):
                             th.Property("resource_path", th.StringType),
                             th.Property("url", th.StringType),
                             th.Property("type", th.StringType),
+                            th.Property("node_id", th.StringType),
+                            th.Property("id", th.StringType, required=False),
                         ),
                         required=False,  # creator is nullable
                     ),
@@ -964,6 +976,8 @@ class ProjectItemsStream(GitHubGraphqlStream):
                             th.Property("resource_path", th.StringType),
                             th.Property("url", th.StringType),
                             th.Property("type", th.StringType),
+                            th.Property("node_id", th.StringType),
+                            th.Property("id", th.StringType, required=False),
                         ),
                         required=False,  # creator is nullable
                     ),
@@ -977,6 +991,8 @@ class ProjectItemsStream(GitHubGraphqlStream):
                     th.Property("resource_path", th.StringType),
                     th.Property("url", th.StringType),
                     th.Property("type", th.StringType),
+                    th.Property("node_id", th.StringType),
+                    th.Property("id", th.StringType, required=False),
                 ),
                 required=False,  # creator can be null
             ),
@@ -1010,6 +1026,8 @@ class ProjectItemsStream(GitHubGraphqlStream):
                                 th.Property("resource_path", th.StringType),
                                 th.Property("url", th.StringType),
                                 th.Property("type", th.StringType),
+                                th.Property("node_id", th.StringType),
+                                th.Property("id", th.StringType, required=False),
                             ),
                             required=False,  # creator is nullable in GraphQL
                         ),
