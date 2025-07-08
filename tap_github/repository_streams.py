@@ -1054,10 +1054,13 @@ class IssueEventsStream(GitHubRestStream):
         th.Property("commit_url", th.StringType),
         th.Property("created_at", th.DateTimeType),
         th.Property("actor", user_object),
-        th.Property("label", th.ObjectType(
-            th.Property("name", th.StringType),
-            th.Property("color", th.StringType),
-        )),
+        th.Property(
+            "label",
+            th.ObjectType(
+                th.Property("name", th.StringType),
+                th.Property("color", th.StringType),
+            ),
+        ),
     ).to_dict()
 
 
