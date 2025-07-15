@@ -1927,7 +1927,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion category is added/modified
     use_fake_since_parameter = True
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
@@ -2001,7 +2001,7 @@ class DiscussionsStream(GitHubGraphqlStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion is added
     use_fake_since_parameter = True
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
@@ -2239,7 +2239,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     primary_keys: ClassVar[list[str]] = ["id"]  # id:databaseId
     replication_key = "updated_at"
     parent_stream_type = DiscussionsStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo_id", "discussion_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
     ignore_parent_replication_key = True # Discussion's update_at does not change when a new comment is added
     use_fake_since_parameter = True
 
@@ -2271,6 +2271,18 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
             row["reactions"] = row["reactions"]["nodes"]
 
         return row
+
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        """Return a context dictionary for child stream(s)."""
+
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "discussion_id": context["discussion_id"] if context else None,
+            "discussion_number": context["discussion_number"] if context else None,
+            "comment_id": record["id"] if context else None,
+        }
 
     @property
     def query(self) -> str:
@@ -2361,7 +2373,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
             rateLimit {
               cost
             }
-          } """  # noqa: E501
+          }
+        """  # noqa: E501
 
     replies_object = th.ObjectType(
         th.Property("total_count", th.IntegerType),
@@ -2406,13 +2419,13 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
 
     name = "discussion_comment_replies"
     query_jsonpath = (
-        "$.data.repository.discussions.nodes.[*].comments.nodes.[*].replies.nodes.[*]"
+        "$.data.repository.discussion.comment.replies.nodes.[*]"
     )
-    primary_keys: ClassVar[list[str]] = ["id"]  # id is renamed to node_id
+    primary_keys: ClassVar[list[str]] = ["id"]  # id is databaseId
     replication_key = "updated_at"
-    parent_stream_type = RepositoryStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
-    ignore_parent_replication_key = False
+    parent_stream_type = DiscussionCommentsStream
+    state_partitioning_keys: ClassVar[list[str]] = ["comment_id"]
+    ignore_parent_replication_key = True
     use_fake_since_parameter = True
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
@@ -2424,11 +2437,21 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         self.logger.info(f"Raw GraphQL Response: {response.text}")
         return super().parse_response(response)
 
+
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
-        Transform the nodes arrays to flatten the nested structure.
+        Transform the nodes arrays to flatten the nested structure
+        and set parent fields.
         """
         row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["discussion_id"] = context["discussion_id"]
+            row["discussion_number"] = context["discussion_number"]
+            row["comment_id"] = context["comment_id"]
 
         if "reactions" in row and "nodes" in row["reactions"]:
             row["reactions"] = row["reactions"]["nodes"]
@@ -2442,125 +2465,88 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
         """
         return """
-          query DiscussionCommentReplies($repo: String!, $org: String! $nextPageCursor_0: String, $nextPageCursor_1: String, $nextPageCursor_2: String, $nextPageCursor_3: String) {
+          query DiscussionCommentReplies(
+            $repo: String!,
+            $org: String!,
+            $discussion_number: Int!,
+            $comment_id: Int!,
+            $nextPageCursor_0: String
+          ) {
             repository(name: $repo, owner: $org) {
-              discussions(first: 10, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+              discussion(number: $discussion_number) {
+                comment(databaseId: $comment_id) {
+                replies(first: 100, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
                   startCursor_0: startCursor
                   endCursor_0: endCursor
                 }
                 nodes {
-                  comments(first: 10, after: $nextPageCursor_1) {
-                    pageInfo {
-                      hasNextPage_1: hasNextPage
-                      startCursor_1: startCursor
-                      endCursor_1: endCursor
+                  node_id: id
+                  id: databaseId
+                  author {
+                    ... on Actor {
+                      login
+                      avatar_url: avatarUrl
+                      http_url: url
+                      type: __typename
+                      resource_path: resourcePath
                     }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      site_admin: isSiteAdmin
+                    }
+                  }
+                  author_association: authorAssociation
+                  body
+                  body_html: bodyHTML
+                  body_text: bodyText
+                  created_at: createdAt
+                  published_at: publishedAt
+                  last_edited_at: lastEditedAt
+                  updated_at: updatedAt
+                  created_via_email: createdViaEmail
+                  deleted_at: deletedAt
+                  includes_created_edit: includesCreatedEdit
+                  is_answer: isAnswer
+                  is_minimized: isMinimized
+                  minimized_reason: minimizedReason
+                  upvote_count: upvoteCount
+                  html_url: url
+                  resource_path: resourcePath
+                  editor {
+                    ... on Actor {
+                      login
+                      avatar_url: avatarUrl
+                      http_url: url
+                      type: __typename
+                      resource_path: resourcePath
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      site_admin: isSiteAdmin
+                    }
+                  }
+                  reactions(first: 100) {
                     nodes {
-                      replies(first: 20, after: $nextPageCursor_2) {
-                        pageInfo {
-                          hasNextPage_2: hasNextPage
-                          startCursor_2: startCursor
-                          endCursor_2: endCursor
-                        }
-                        nodes {
-                          node_id: id
-                          id: databaseId
-                          reply_to:replyTo{
-                            discussion {
-                              discussion_number: number
-                              discussion_id: databaseId
-                            }
-                            comment_id:databaseId
-                            comment_node_id: id
-                            comment_body: body
-                            comment_author: author {
-                              ... on Actor {
-                                login
-                                avatar_url: avatarUrl
-                                http_url: url
-                                type: __typename
-                                resource_path: resourcePath
-                              }
-                              ... on User {
-                                node_id: id
-                                id: databaseId
-                                site_admin: isSiteAdmin
-                              }
-                            }
-                            comment_author_association: authorAssociation
-                          }
-                          author {
-                            ... on Actor {
-                              login
-                              avatar_url: avatarUrl
-                              http_url: url
-                              type: __typename
-                              resource_path: resourcePath
-                            }
-                            ... on User {
-                              node_id: id
-                              id: databaseId
-                              site_admin: isSiteAdmin
-                            }
-                          }
-                          author_association: authorAssociation
-                          body
-                          body_html: bodyHTML
-                          body_text: bodyText
-                          created_at: createdAt
-                          published_at: publishedAt
-                          last_edited_at: lastEditedAt
-                          updated_at: updatedAt
-                          created_via_email: createdViaEmail
-                          deleted_at: deletedAt
-                          includes_created_edit: includesCreatedEdit
-                          is_answer: isAnswer
-                          is_minimized: isMinimized
-                          minimized_reason: minimizedReason
-                          upvote_count: upvoteCount
-                          html_url: url
-                          resource_path: resourcePath
-                          editor {
-                            ... on Actor {
-                              login
-                              avatar_url: avatarUrl
-                              http_url: url
-                              type: __typename
-                              resource_path: resourcePath
-                            }
-                            ... on User {
-                              node_id: id
-                              id: databaseId
-                              site_admin: isSiteAdmin
-                            }
-                          }
-                          reactions(first: 10, after: $nextPageCursor_3) {
-                            pageInfo {
-                              hasNextPage_3: hasNextPage
-                              startCursor_3: startCursor
-                              endCursor_3: endCursor
-                            }
-                            nodes {
-                              reaction_type: content
-                              reacted_at: createdAt
-                              user {
-                                node_id: id
-                                id: databaseId
-                                login
-                                avatar_url: avatarUrl
-                                http_url: url
-                                type: __typename
-                                site_admin: isSiteAdmin
-                              }
-                            }
-                          }
-                        }
+                      reaction_type: content
+                      reacted_at: createdAt
+                      user {
+                        node_id: id
+                        id: databaseId
+                        login
+                        avatar_url: avatarUrl
+                        http_url: url
+                        type: __typename
+                        site_admin: isSiteAdmin
                       }
                     }
                   }
                 }
+              }
+              }
               }
             }
             rateLimit {
@@ -2571,31 +2557,19 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
               cost
             }
           }
-          """  # noqa: E501
-
-    discussion_object = th.ObjectType(
-        th.Property("discussion_number", th.IntegerType),
-        th.Property("discussion_id", th.IntegerType),
-    )
-
-    reply_to_object = th.ObjectType(
-        th.Property("discussion", discussion_object),
-        th.Property("comment_id", th.IntegerType),
-        th.Property("comment_node_id", th.StringType),
-        th.Property("comment_body", th.StringType),
-        th.Property("comment_author", actor_object),
-        th.Property("comment_author_association", th.StringType),
-    )
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent keys
-        th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
         th.Property("repo_id", th.IntegerType),
+        th.Property("discussion_id", th.IntegerType),
+        th.Property("discussion_number", th.IntegerType),
+        th.Property("comment_id", th.IntegerType),
         # Discussion Comment Replies Keys
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
-        th.Property("reply_to", reply_to_object),
         th.Property("author", actor_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
@@ -2660,8 +2634,8 @@ class StatsContributorsStream(GitHubRestStream):
 
     schema = th.PropertiesList(
         # Parent keys
-        th.Property("repo", th.StringType),
         th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
         th.Property("repo_id", th.IntegerType),
         # Activity keys
         th.Property("week_start", th.IntegerType),
