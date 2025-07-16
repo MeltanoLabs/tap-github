@@ -2282,6 +2282,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
             "discussion_id": context["discussion_id"] if context else None,
             "discussion_number": context["discussion_number"] if context else None,
             "comment_id": record["id"] if context else None,
+            "comment_node_id": record["node_id"] if context else None,
         }
 
     @property
@@ -2419,12 +2420,12 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
 
     name = "discussion_comment_replies"
     query_jsonpath = (
-        "$.data.repository.discussion.comment.replies.nodes.[*]"
+        "$.data.node.replies.nodes.[*]"
     )
     primary_keys: ClassVar[list[str]] = ["id"]  # id is databaseId
     replication_key = "updated_at"
     parent_stream_type = DiscussionCommentsStream
-    state_partitioning_keys: ClassVar[list[str]] = ["comment_id"]
+    state_partitioning_keys: ClassVar[list[str]] = ["comment_node_id"] # Github does not allow to query a particular comment, traversing the node is the only way to get the replies
     ignore_parent_replication_key = True
     use_fake_since_parameter = True
 
@@ -2466,15 +2467,13 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """
         return """
           query DiscussionCommentReplies(
-            $repo: String!,
-            $org: String!,
-            $discussion_number: Int!,
-            $comment_id: Int!,
+            $comment_node_id: ID!,
             $nextPageCursor_0: String
           ) {
-            repository(name: $repo, owner: $org) {
-              discussion(number: $discussion_number) {
-                comment(databaseId: $comment_id) {
+            node(id: $comment_node_id) {
+              ... on DiscussionComment {
+                id: databaseId
+                node_id: id
                 replies(first: 100, after: $nextPageCursor_0) {
                 pageInfo {
                   hasNextPage_0: hasNextPage
@@ -2546,8 +2545,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                   }
                 }
               }
-              }
-              }
+            }
             }
             rateLimit {
               limit
