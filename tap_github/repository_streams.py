@@ -2252,7 +2252,6 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         self.logger.info(f"Raw GraphQL Response: {response.text}")
         return super().parse_response(response)
 
-
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure
@@ -2273,12 +2272,23 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         return row
 
     def get_child_context(self, record: dict, context: Context | None) -> dict:
-        """Return a context dictionary for child stream(s)."""
+        """Return a context dictionary for child stream(s).
+
+        Only return context if the comment has replies to avoid unnecessary API calls.
+        """
+        # Debug logging to understand the filtering
+        replies_data = record.get("replies", {})
+        total_count = replies_data.get("total_count", 0)
+        node_id = record.get("node_id", "unknown")
+
+        self.logger.info(f"Comment {node_id}: replies={replies_data}, total_count={total_count}")
 
         # Only return context if the comment has replies
-        if not record.get("replies", {}).get("total_count", 0):
+        if not total_count:
+            self.logger.info(f"Comment {node_id}: No replies, returning empty context")
             return {}
 
+        self.logger.info(f"Comment {node_id}: Has {total_count} replies, returning context")
         return {
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
@@ -2433,6 +2443,18 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True
     use_fake_since_parameter = True
 
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+
+        If context is None or empty, this means the parent comment has no replies,
+        so we skip the API call entirely to optimize performance.
+        """
+        if not context or not context.get("comment_node_id"):
+            self.logger.info(f"No context or comment_node_id provided. Skipping '{self.name}' sync for comment.")
+            return []
+
+        return super().get_records(context)
+
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and log the raw GraphQL response."""
         # Log all headers
@@ -2441,7 +2463,6 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         # Log the raw response
         self.logger.info(f"Raw GraphQL Response: {response.text}")
         return super().parse_response(response)
-
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
