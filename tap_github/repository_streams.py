@@ -2275,6 +2275,10 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     def get_child_context(self, record: dict, context: Context | None) -> dict:
         """Return a context dictionary for child stream(s)."""
 
+        # Only return context if the comment has replies
+        if not record.get("replies", {}).get("total_count", 0):
+            return {}
+
         return {
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
