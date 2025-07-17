@@ -2274,21 +2274,17 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     def get_child_context(self, record: dict, context: Context | None) -> dict:
         """Return a context dictionary for child stream(s).
 
-        Only return context if the comment has replies to avoid unnecessary API calls.
+        Only return context if the's a valid node_id.
         """
-        # Debug logging to understand the filtering
-        replies_data = record.get("replies", {})
-        total_count = replies_data.get("total_count", 0)
-        node_id = record.get("node_id", "unknown")
-
-        self.logger.info(f"Comment {node_id}: replies={replies_data}, total_count={total_count}")
-
-        # Only return context if the comment has replies
-        if not total_count:
-            self.logger.info(f"Comment {node_id}: No replies, returning empty context")
+        #This check is a safeguard in case of malformed records
+        if not record.get("node_id"):
+            self.logger.info(
+                f"discussion#{(context or {}).get('discussion_id', 'unknown')}/"
+                f"comment#{record.get('id', 'unknown')}: "
+                f"Missing node_id, returning empty context"
+            )
             return {}
 
-        self.logger.info(f"Comment {node_id}: Has {total_count} replies, returning context")
         return {
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
@@ -2297,6 +2293,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
             "discussion_number": context["discussion_number"] if context else None,
             "comment_id": record["id"] if context else None,
             "comment_node_id": record["node_id"] if context else None,
+            "comment_replies_count": record.get("replies", {}).get("total_count", 0) if context else None,
         }
 
     @property
@@ -2449,20 +2446,61 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         If context is None or empty, this means the parent comment has no replies,
         so we skip the API call entirely to optimize performance.
         """
+        # Initialize counters
+        if not hasattr(self, '_response_headers_count'):
+            self._response_headers_count = 0
+            self._graphql_response_count = 0
+            self._records_processed_count = 0
+            self._records_skipped_count = 0
+            self._total_rate_limit_cost = 0
+
         if not context or not context.get("comment_node_id"):
             self.logger.info(f"No context or comment_node_id provided. Skipping '{self.name}' sync for comment.")
             return []
 
+        replies_count = context.get("comment_replies_count", 0)
+        comment_node_id = context.get("comment_node_id", "unknown")
+        if replies_count == 0:
+            self._records_skipped_count += 1
+            self.logger.info(f"Comment {comment_node_id}: Has no replies ({replies_count}), skipping API call")
+            return []
+
+        self.logger.info(f"Comment {comment_node_id}: Has replies ({replies_count}), making API call")
+
         return super().get_records(context)
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and log the raw GraphQL response."""
+        """Parse the response and log the raw GraphQL response with counters."""
         # Log all headers
-        self.logger.info(f"Response Headers: {dict(response.headers)}")
+        self._response_headers_count += 1
+        self.logger.info(f"Response Headers #{self._response_headers_count}: {dict(response.headers)}")
 
         # Log the raw response
-        self.logger.info(f"Raw GraphQL Response: {response.text}")
-        return super().parse_response(response)
+        try:
+            response_json = response.json()
+            self._graphql_response_count += 1
+            rate_limit_info = response_json.get("data", {}).get("rateLimit", {})
+            if rate_limit_info and 'cost' in rate_limit_info:
+                cost = rate_limit_info['cost']
+                self._total_rate_limit_cost += cost
+                rate_limit_msg = f"API call #{self._graphql_response_count}: Rate limit cost: {cost} points, cost running total: {self._total_rate_limit_cost} points"
+            else:
+                rate_limit_msg = "No rate limit info found"
+
+            self.logger.info(f"Raw GraphQL Response #{self._graphql_response_count}: {rate_limit_msg}")
+
+            # Parse records and update counters
+            parsed_records = list(super().parse_response(response))
+            self._records_processed_count += len(parsed_records)
+            self.logger.info(f"Processed {self._records_processed_count} records")
+
+            yield from parsed_records
+
+        except Exception:
+          self.logger.error(f"Failed to parse JSON response for headers #{self._response_headers_count}")
+          self.logger.error(f"Response status: {response.status_code}")
+          self.logger.error(f"Response content: {response.text}")
+          return []
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
