@@ -2030,16 +2030,19 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
-    def post_sync(self) -> None:
-        """Emit a concise summary once the stream finishes syncing."""
-        super().post_sync()
-        self.logger.info(
-            "EXTRACTOR_STREAM_SUMMARY: discussion_categories – context_records_skipped=%d, context_records_processed=%d, responses=%d, cost=%d",
-            self._context_records_skipped,
-            self._context_records_processed,
-            self._api_responses,
-            self._api_rate_cost,
-        )
+    def sync(self, context: Context | None = None, **kwargs):   # noqa: ANN002, ANN003
+        try:
+            super().sync(context=context, **kwargs)
+        finally:
+            self.logger.info(
+                "EXTRACTOR_STREAM_SUMMARY: discussion_categories – "
+                "context_records_skipped=%d, context_records_processed=%d, "
+                "responses=%d, cost=%d",
+                self._context_records_skipped,
+                self._context_records_processed,
+                self._api_responses,
+                self._api_rate_cost,
+            )
 
     # ------------------------------------------------------------------
     # Response logging
