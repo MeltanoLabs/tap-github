@@ -203,7 +203,7 @@ class RepositoryStream(GitHubRestStream):
             "org": record["owner"]["login"],
             "repo": record["name"],
             "repo_id": record["id"],
-            "has_discussions": record["has_discussions"],
+            "has_discussions": record.get("has_discussions", False), # safeguard against missing key
         }
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
@@ -1931,6 +1931,15 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion category is added/modified
     use_fake_since_parameter = True
 
+    # --- Counters --------------------------------------------------------
+    def __init__(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        """Initialize the stream and its runtime counters."""
+        super().__init__(*args, **kwargs)
+        self._context_records_skipped: int = 0
+        self._context_records_processed: int = 0
+        self._api_responses: int = 0
+        self._api_rate_cost: int = 0
+
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
@@ -1939,18 +1948,25 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         """
 
         if not context or not context.get("has_discussions"):
-            self.logger.info(f"No context provided. Skipping '{self.name}' sync.")
+            self._context_records_skipped += 1
+            self.logger.info(
+                f"No context provided. Skipping '{self.name}' sync.")
             return []
 
-        discussions_enabled = context.get("has_discussions", False) == True
+        discussions_enabled = context.get("has_discussions", False) is True
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
 
         if not discussions_enabled:
-            self.logger.info(f"Repository {org}/{repo}: Discussions not enabled, skipping API call")
+            self._context_records_skipped += 1
+            self.logger.info(
+                f"Repository {org}/{repo}: Discussions not enabled, skipping API call")
             return []
 
-        self.logger.info(f"Repository {org}/{repo}: Discussions enabled, making API call")
+        # Will make the call
+        self._context_records_processed += 1
+        self.logger.info(
+            f"Repository {org}/{repo}: Discussions enabled, making API call")
         return super().get_records(context)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
@@ -2013,6 +2029,48 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         th.Property("created_at", th.DateTimeType),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
+
+    def post_sync(self) -> None:
+        """Emit a concise summary once the stream finishes syncing."""
+        super().post_sync()
+        self.logger.info(
+            "EXTRACTOR_STREAM_SUMMARY: discussion_categories – context_records_skipped=%d, context_records_processed=%d, responses=%d, cost=%d",
+            self._context_records_skipped,
+            self._context_records_processed,
+            self._api_responses,
+            self._api_rate_cost,
+        )
+
+    # ------------------------------------------------------------------
+    # Response logging
+    # ------------------------------------------------------------------
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Log headers & rate-limit, then parse payload."""
+        self._api_responses += 1
+
+        # Header dump (INFO for now; change level to DEBUG when shipping)
+        self.logger.info(
+            "Response #%d headers: %s",
+            self._api_responses,
+            dict(response.headers),
+        )
+
+        # Rate-limit cost if present
+        try:
+            resp_json = response.json()
+            cost = resp_json.get("data", {}).get("rateLimit", {}).get("cost", 0)
+            self._api_rate_cost += cost
+            self.logger.info(
+                "Response #%d rate-limit cost: %s (running total %s)",
+                self._api_responses,
+                cost,
+                self._api_rate_cost,
+            )
+        except Exception:  # pragma: no cover – diagnostic only
+            pass
+
+        # Forward parsing to base implementation.
+        yield from super().parse_response(response)
 
 
 class DiscussionsStream(GitHubGraphqlStream):
@@ -2544,6 +2602,17 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
             row["reactions"] = row["reactions"]["nodes"]
 
         return row
+
+    def post_sync(self):
+       super().post_sync()
+       self.logger.info(
+           "discussion_comment_replies – processed %d records, "
+           "skipped %d comments, %d API calls, %d points",
+           self._records_processed_count,
+           self._records_skipped_count,
+           self._graphql_response_count,
+           self._total_rate_limit_cost,
+       )
 
     @property
     def query(self) -> str:
