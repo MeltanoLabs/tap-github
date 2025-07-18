@@ -1931,14 +1931,24 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion category is added/modified
     use_fake_since_parameter = True
 
-    # --- Counters --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Roll-up (class-level) counters. These are shared by every instance
+    # created for each repository partition. They allow us to emit ONE
+    # grand-total summary after the very last partition finishes.
+    # ------------------------------------------------------------------
+    _SUMMARY_PRINTED: bool = False
+    _TOTAL_SKIPPED: int = 0
+    _TOTAL_PROCESSED: int = 0
+    _TOTAL_RESPONSES: int = 0
+    _TOTAL_COST: int = 0
+
     def __init__(self, *args, **kwargs):  # noqa: ANN002, ANN003
         """Initialize the stream and its runtime counters."""
         super().__init__(*args, **kwargs)
-        self._context_records_skipped: int = 0
-        self._context_records_processed: int = 0
-        self._api_responses: int = 0
-        self._api_rate_cost: int = 0
+        self._context_records_skipped: int = 0  # per-repo
+        self._context_records_processed: int = 0  # per-repo
+        self._api_responses: int = 0  # per-repo
+        self._api_rate_cost: int = 0  # per-repo
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
@@ -2030,19 +2040,41 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
-    def sync(self, context: Context | None = None, **kwargs):   # noqa: ANN002, ANN003
+    def sync(self, context: Context | None = None, **kwargs):  # noqa: ANN002, ANN003
+        """Run one repository partition sync, then update class totals.
+
+        When the number of finished partitions equals the total number of
+        repositories, emit a single grand-total summary line.
+        """
         try:
             super().sync(context=context, **kwargs)
         finally:
-            self.logger.info(
-                "EXTRACTOR_STREAM_SUMMARY: discussion_categories – "
-                "context_records_skipped=%d, context_records_processed=%d, "
-                "responses=%d, cost=%d",
-                self._context_records_skipped,
-                self._context_records_processed,
-                self._api_responses,
-                self._api_rate_cost,
-            )
+            # Roll per-instance counters into the class-level totals.
+            cls = self.__class__
+            cls._TOTAL_SKIPPED += self._context_records_skipped
+            cls._TOTAL_PROCESSED += self._context_records_processed
+            cls._TOTAL_RESPONSES += self._api_responses
+            cls._TOTAL_COST += self._api_rate_cost
+
+            # Determine total number of repository partitions once.
+            if not hasattr(cls, "_TOTAL_PARTITIONS"):
+                repo_stream = self._tap.streams.get("repositories")
+                cls._TOTAL_PARTITIONS = len(repo_stream.partitions or []) if repo_stream else 0
+
+            finished = cls._TOTAL_SKIPPED + cls._TOTAL_PROCESSED
+
+            # Emit the summary exactly once, after the last partition.
+            if (not cls._SUMMARY_PRINTED) and finished >= cls._TOTAL_PARTITIONS:
+                self.logger.info(
+                    "EXTRACTOR_STREAM_SUMMARY: discussion_categories – "
+                    "context_records_skipped=%d, context_records_processed=%d, "
+                    "responses=%d, cost=%d",
+                    cls._TOTAL_SKIPPED,
+                    cls._TOTAL_PROCESSED,
+                    cls._TOTAL_RESPONSES,
+                    cls._TOTAL_COST,
+                )
+                cls._SUMMARY_PRINTED = True
 
     # ------------------------------------------------------------------
     # Response logging
