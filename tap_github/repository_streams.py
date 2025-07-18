@@ -203,6 +203,7 @@ class RepositoryStream(GitHubRestStream):
             "org": record["owner"]["login"],
             "repo": record["name"],
             "repo_id": record["id"],
+            "has_discussions": record["has_discussions"],
         }
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
@@ -1929,6 +1930,28 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion category is added/modified
     use_fake_since_parameter = True
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+
+        If context is None or has_discussions is False, this means the repository
+        doesn't have discussions enabled, so we skip the API call entirely to optimize performance.
+        """
+
+        if not context or not context.get("has_discussions"):
+            self.logger.info(f"No context provided. Skipping '{self.name}' sync.")
+            return []
+
+        discussions_enabled = context.get("has_discussions", False) == True
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+
+        if not discussions_enabled:
+            self.logger.info(f"Repository {org}/{repo}: Discussions not enabled, skipping API call")
+            return []
+
+        self.logger.info(f"Repository {org}/{repo}: Discussions enabled, making API call")
+        return super().get_records(context)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
