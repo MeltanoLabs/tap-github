@@ -1918,8 +1918,83 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         th.Property("user", user_object),
     ).to_dict()
 
+class _DiscussionLogger:
+    """Logger for Discusison Streams to track skipped and processed records."""
+    # --------------------------------------------------------------
+    # Class-level roll-up counters (shared by every instance).
+    # --------------------------------------------------------------
+    _SUMMARY_PRINTED: bool = False
+    _TOTAL_SKIPPED: int = 0
+    _TOTAL_PROCESSED: int = 0
+    _TOTAL_API_RESPONSES: int = 0
+    _TOTAL_API_RATE_COST: int = 0
 
-class DiscussionCategoriesStream(GitHubGraphqlStream):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs) #call original init method
+        #initialize counters for each state partitioning key
+        self._context_records_skipped: int = 0
+        self._context_records_processed: int = 0
+        self._api_responses: int = 0
+        self._api_rate_cost: int = 0
+
+    def parse_response(self, response: "requests.Response") -> Iterable[dict]:
+        """Log headers & rate-limit, then parse payload."""
+        self._api_responses += 1
+        # Header dump (INFO for now; change level to DEBUG when shipping)
+        self.logger.info(
+            "Response #%d headers: %s",
+            self._api_responses,
+            dict(response.headers),
+        )
+        # Rate-limit cost if present
+        try:
+            resp_json = response.json()
+            cost = resp_json.get("data", {}).get("rateLimit", {}).get("cost", 0)
+            self._api_rate_cost += cost
+            self.logger.info(
+                "Response #%d rate-limit cost: %s (running total %s)",
+                self._api_responses,
+                cost,
+                self._api_rate_cost,
+            )
+        except Exception:  # pragma: no cover – diagnostic only
+            pass
+        # Forward parsing to base implementation.
+        yield from super().parse_response(response)
+
+    # One-time roll-up summary per stream class
+    def sync(self, context: "Context" | None = None, **kwargs):
+        """Wrap the SDK sync to accumulate totals and emit a final summary."""
+        try:
+            super().sync(context=context, **kwargs)  # type: ignore[arg-type]
+        finally:
+            cls = self.__class__  # concrete stream class using the mix-in
+
+            # Roll per-instance counters into the class totals
+            cls._TOTAL_SKIPPED += getattr(self, "_context_records_skipped", 0)
+            cls._TOTAL_PROCESSED += getattr(self, "_context_records_processed", 0)
+            cls._TOTAL_API_RESPONSES += self._api_responses
+            cls._TOTAL_API_RATE_COST += self._api_rate_cost
+
+            # Determine total partitions exactly once
+            if not hasattr(cls, "_TOTAL_PARTITIONS"):
+                repo_stream = self._tap.streams.get("repositories")  # type: ignore[attr-defined]
+                cls._TOTAL_PARTITIONS = len(repo_stream.partitions or []) if repo_stream else 0
+
+            finished = cls._TOTAL_SKIPPED + cls._TOTAL_PROCESSED
+
+            if (not cls._SUMMARY_PRINTED) and finished >= cls._TOTAL_PARTITIONS:
+                self.logger.info(
+                    "EXTRACTOR_STREAM_SUMMARY: %s – context_records_skipped=%d, context_records_processed=%d, api_responses=%d, api_rate_cost=%d",
+                    self.name,
+                    cls._TOTAL_SKIPPED,
+                    cls._TOTAL_PROCESSED,
+                    cls._TOTAL_API_RESPONSES,
+                    cls._TOTAL_API_RATE_COST,
+                )
+                cls._SUMMARY_PRINTED = True
+
+class DiscussionCategoriesStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
 
     name = "discussion_categories"
@@ -1931,25 +2006,6 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion category is added/modified
     use_fake_since_parameter = True
 
-    # ------------------------------------------------------------------
-    # Roll-up (class-level) counters. These are shared by every instance
-    # created for each repository partition. They allow us to emit ONE
-    # grand-total summary after the very last partition finishes.
-    # ------------------------------------------------------------------
-    _SUMMARY_PRINTED: bool = False
-    _TOTAL_SKIPPED: int = 0
-    _TOTAL_PROCESSED: int = 0
-    _TOTAL_RESPONSES: int = 0
-    _TOTAL_COST: int = 0
-
-    def __init__(self, *args, **kwargs):  # noqa: ANN002, ANN003
-        """Initialize the stream and its runtime counters."""
-        super().__init__(*args, **kwargs)
-        self._context_records_skipped: int = 0  # per-repo
-        self._context_records_processed: int = 0  # per-repo
-        self._api_responses: int = 0  # per-repo
-        self._api_rate_cost: int = 0  # per-repo
-
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
 
@@ -1957,26 +2013,32 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         doesn't have discussions enabled, so we skip the API call entirely to optimize performance.
         """
 
-        if not context or not context.get("has_discussions"):
-            self._context_records_skipped += 1
-            self.logger.info(
-                f"No context provided. Skipping '{self.name}' sync.")
+        # 1) No context → skip.
+        if context is None:
+            self.logger.info("No context provided. Skipping '%s' sync.", self.name)
             return []
 
-        discussions_enabled = context.get("has_discussions", False) is True
+        # 2) Discussions disabled for this repo → skip.
+        if not context.get("has_discussions", False):
+            self._context_records_skipped += 1
+            repo = context.get("repo", "unknown")
+            org = context.get("org", "unknown")
+            self.logger.info(
+                "Repository %s/%s: Discussions not enabled, skipping API call",
+                org,
+                repo,
+            )
+            return []
+
+        # 3) Discussions enabled → proceed.
+        self._context_records_processed += 1
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
-
-        if not discussions_enabled:
-            self._context_records_skipped += 1
-            self.logger.info(
-                f"Repository {org}/{repo}: Discussions not enabled, skipping API call")
-            return []
-
-        # Will make the call
-        self._context_records_processed += 1
         self.logger.info(
-            f"Repository {org}/{repo}: Discussions enabled, making API call")
+            "Repository %s/%s: Discussions enabled, making API call",
+            org,
+            repo,
+        )
         return super().get_records(context)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
@@ -2040,75 +2102,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
-    def sync(self, context: Context | None = None, **kwargs):  # noqa: ANN002, ANN003
-        """Run one repository partition sync, then update class totals.
-
-        When the number of finished partitions equals the total number of
-        repositories, emit a single grand-total summary line.
-        """
-        try:
-            super().sync(context=context, **kwargs)
-        finally:
-            # Roll per-instance counters into the class-level totals.
-            cls = self.__class__
-            cls._TOTAL_SKIPPED += self._context_records_skipped
-            cls._TOTAL_PROCESSED += self._context_records_processed
-            cls._TOTAL_RESPONSES += self._api_responses
-            cls._TOTAL_COST += self._api_rate_cost
-
-            # Determine total number of repository partitions once.
-            if not hasattr(cls, "_TOTAL_PARTITIONS"):
-                repo_stream = self._tap.streams.get("repositories")
-                cls._TOTAL_PARTITIONS = len(repo_stream.partitions or []) if repo_stream else 0
-
-            finished = cls._TOTAL_SKIPPED + cls._TOTAL_PROCESSED
-
-            # Emit the summary exactly once, after the last partition.
-            if (not cls._SUMMARY_PRINTED) and finished >= cls._TOTAL_PARTITIONS:
-                self.logger.info(
-                    "EXTRACTOR_STREAM_SUMMARY: discussion_categories – "
-                    "context_records_skipped=%d, context_records_processed=%d, "
-                    "responses=%d, cost=%d",
-                    cls._TOTAL_SKIPPED,
-                    cls._TOTAL_PROCESSED,
-                    cls._TOTAL_RESPONSES,
-                    cls._TOTAL_COST,
-                )
-                cls._SUMMARY_PRINTED = True
-
-    # ------------------------------------------------------------------
-    # Response logging
-    # ------------------------------------------------------------------
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Log headers & rate-limit, then parse payload."""
-        self._api_responses += 1
-
-        # Header dump (INFO for now; change level to DEBUG when shipping)
-        self.logger.info(
-            "Response #%d headers: %s",
-            self._api_responses,
-            dict(response.headers),
-        )
-
-        # Rate-limit cost if present
-        try:
-            resp_json = response.json()
-            cost = resp_json.get("data", {}).get("rateLimit", {}).get("cost", 0)
-            self._api_rate_cost += cost
-            self.logger.info(
-                "Response #%d rate-limit cost: %s (running total %s)",
-                self._api_responses,
-                cost,
-                self._api_rate_cost,
-            )
-        except Exception:  # pragma: no cover – diagnostic only
-            pass
-
-        # Forward parsing to base implementation.
-        yield from super().parse_response(response)
-
-
-class DiscussionsStream(GitHubGraphqlStream):
+class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussions from each repository."""
 
     name = "discussions"
@@ -2119,6 +2113,32 @@ class DiscussionsStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion is added
     use_fake_since_parameter = True
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """
+        Return a generator of row-type dictionary objects.
+        If context is None or has_discussions is False, we skip the API call entirely to optimize performance.
+        """
+        if context is None:
+            self.logger.info("No context provided. Skipping '%s' sync.", self.name)
+            return []
+
+        if not context.get("has_discussions", False):
+            self._context_records_skipped += 1
+            repo = context.get("repo", "unknown")
+            org = context.get("org", "unknown")
+            self.logger.info(
+                "Repository %s/%s: Discussions not enabled, skipping API call",
+                org, repo)
+            return []
+
+        self._context_records_processed += 1
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+        self.logger.info(
+            "Repository %s/%s: Discussions enabled, making API call",
+            org, repo)
+        return super().get_records(context)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
@@ -2151,6 +2171,7 @@ class DiscussionsStream(GitHubGraphqlStream):
             "repo_id": context["repo_id"] if context else None,
             "discussion_id": record["id"] if context else None,
             "discussion_number": record["number"] if context else None,
+            "comments_count": record.get("comments", {}).get("comments_count", 0) if context else None,
         }
 
     @property
@@ -2256,6 +2277,9 @@ class DiscussionsStream(GitHubGraphqlStream):
                     }
                   }
                   upvote_count: upvoteCount
+                  comments {
+                    comments_count: totalCount
+                  }
                   reactions(first: 100) {
                     nodes {
                       reaction_type: content
@@ -2347,7 +2371,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
-class DiscussionCommentsStream(GitHubGraphqlStream):
+class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussion comments from each repository."""
 
     name = "discussion_comments"
@@ -2359,14 +2383,32 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True # Discussion's update_at does not change when a new comment is added
     use_fake_since_parameter = True
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and log the raw GraphQL response."""
-        # Log all headers
-        self.logger.info(f"Response Headers: {dict(response.headers)}")
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """
+        Return a generator of row-type dictionary objects.
+        If context is None or empty, this means the parent discussion has no comments,
+        so we skip the API call entirely to optimize performance.
+        """
+        if context is None:
+            self.logger.info("No context provided. Skipping '%s' sync.", self.name)
+            return []
 
-        # Log the raw response
-        self.logger.info(f"Raw GraphQL Response: {response.text}")
-        return super().parse_response(response)
+        if not context.get("comments_count", 0) > 0:
+            self._context_records_skipped += 1
+            self.logger.info("No comments found for discussion %s, skipping API call", context.get("discussion_number", "unknown"))
+            return []
+
+        self._context_records_processed += 1
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+        self.logger.info(
+            "Repository %s/%s: Discussion %s has %d comments, making API call",
+            org,
+            repo,
+            context.get("discussion_number", "unknown"),
+            context.get("comments_count", 0),
+        )
+        return super().get_records(context)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
@@ -2542,7 +2584,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     ).to_dict()
 
 
-class DiscussionCommentRepliesStream(GitHubGraphqlStream):
+class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
     """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
 
     name = "discussion_comment_replies"
@@ -2562,61 +2604,19 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         If context is None or empty, this means the parent comment has no replies,
         so we skip the API call entirely to optimize performance.
         """
-        # Initialize counters
-        if not hasattr(self, '_response_headers_count'):
-            self._response_headers_count = 0
-            self._graphql_response_count = 0
-            self._records_processed_count = 0
-            self._records_skipped_count = 0
-            self._total_rate_limit_cost = 0
-
-        if not context or not context.get("comment_node_id"):
-            self.logger.info(f"No context or comment_node_id provided. Skipping '{self.name}' sync for comment.")
+        if context is None:
+            self.logger.info("No context provided. Skipping '%s' sync.", self.name)
             return []
 
-        replies_count = context.get("comment_replies_count", 0)
-        comment_node_id = context.get("comment_node_id", "unknown")
-        if replies_count == 0:
-            self._records_skipped_count += 1
-            self.logger.info(f"Comment {comment_node_id}: Has no replies ({replies_count}), skipping API call")
+        if not context.get("comment_replies_count", 0) > 0:
+            self._context_records_skipped += 1
+            self.logger.info("No replies found for comment %s, skipping API call", context.get("comment_node_id", "unknown"))
             return []
 
-        self.logger.info(f"Comment {comment_node_id}: Has replies ({replies_count}), making API call")
+        self._context_records_processed += 1
+        self.logger.info("Comment %s: Has replies (%s), making API call", context.get("comment_node_id", "unknown"), context.get("comment_replies_count", 0))
 
         return super().get_records(context)
-
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
-        """Parse the response and log the raw GraphQL response with counters."""
-        # Log all headers
-        self._response_headers_count += 1
-        self.logger.info(f"Response Headers #{self._response_headers_count}: {dict(response.headers)}")
-
-        # Log the raw response
-        try:
-            response_json = response.json()
-            self._graphql_response_count += 1
-            rate_limit_info = response_json.get("data", {}).get("rateLimit", {})
-            if rate_limit_info and 'cost' in rate_limit_info:
-                cost = rate_limit_info['cost']
-                self._total_rate_limit_cost += cost
-                rate_limit_msg = f"API call #{self._graphql_response_count}: Rate limit cost: {cost} points, cost running total: {self._total_rate_limit_cost} points"
-            else:
-                rate_limit_msg = "No rate limit info found"
-
-            self.logger.info(f"Raw GraphQL Response #{self._graphql_response_count}: {rate_limit_msg}")
-
-            # Parse records and update counters
-            parsed_records = list(super().parse_response(response))
-            self._records_processed_count += len(parsed_records)
-            self.logger.info(f"Processed {self._records_processed_count} records")
-
-            yield from parsed_records
-
-        except Exception:
-          self.logger.error(f"Failed to parse JSON response for headers #{self._response_headers_count}")
-          self.logger.error(f"Response status: {response.status_code}")
-          self.logger.error(f"Response content: {response.text}")
-          return []
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
         """
@@ -2637,17 +2637,6 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
             row["reactions"] = row["reactions"]["nodes"]
 
         return row
-
-    def post_sync(self):
-       super().post_sync()
-       self.logger.info(
-           "discussion_comment_replies – processed %d records, "
-           "skipped %d comments, %d API calls, %d points",
-           self._records_processed_count,
-           self._records_skipped_count,
-           self._graphql_response_count,
-           self._total_rate_limit_cost,
-       )
 
     @property
     def query(self) -> str:
