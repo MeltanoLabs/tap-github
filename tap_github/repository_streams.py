@@ -1976,23 +1976,30 @@ class _DiscussionLogger:
             cls._TOTAL_API_RESPONSES += self._api_responses
             cls._TOTAL_API_RATE_COST += self._api_rate_cost
 
-            # Determine total partitions exactly once
-            if not hasattr(cls, "_TOTAL_PARTITIONS"):
-                repo_stream = self._tap.streams.get("repositories")  # type: ignore[attr-defined]
-                cls._TOTAL_PARTITIONS = len(repo_stream.partitions or []) if repo_stream else 0
+            # Always keep the *largest* count seen so far.
+            # This is a workaround to avoid the issue where the first couple of
+            # child instances may run before `repositories.partitions` is populated.
+            repo_stream = self._tap.streams.get("repositories")  # type: ignore[attr-defined]
+            current_total = len(repo_stream.partitions or []) if repo_stream else 0
+            cls._TOTAL_PARTITIONS = max(getattr(cls, "_TOTAL_PARTITIONS", 0), current_total)
 
             finished = cls._TOTAL_SKIPPED + cls._TOTAL_PROCESSED
 
-            if (not cls._SUMMARY_PRINTED) and finished >= cls._TOTAL_PARTITIONS:
-                self.logger.info(
-                    "EXTRACTOR_STREAM_SUMMARY: %s – context_records_skipped=%d, context_records_processed=%d, api_responses=%d, api_rate_cost=%d",
-                    self.name,
-                    cls._TOTAL_SKIPPED,
-                    cls._TOTAL_PROCESSED,
-                    cls._TOTAL_API_RESPONSES,
-                    cls._TOTAL_API_RATE_COST,
-                )
-                cls._SUMMARY_PRINTED = True
+            # Print the grand-total once, when we've processed *all* partitions
+            if (
+                not cls._SUMMARY_PRINTED
+                and cls._TOTAL_PARTITIONS > 0
+                and finished == cls._TOTAL_PARTITIONS
+            ):
+                 self.logger.info(
+                     "EXTRACTOR_STREAM_SUMMARY: %s – context_records_skipped=%d, context_records_processed=%d, api_responses=%d, api_rate_cost=%d",
+                     self.name,
+                     cls._TOTAL_SKIPPED,
+                     cls._TOTAL_PROCESSED,
+                     cls._TOTAL_API_RESPONSES,
+                     cls._TOTAL_API_RATE_COST,
+                 )
+                 cls._SUMMARY_PRINTED = True
 
 class DiscussionCategoriesStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
@@ -2152,10 +2159,16 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
             row["repo"] = context["repo"]
             row["repo_id"] = context["repo_id"]
 
+        if "comments" in row:
+            row["comments_count"] = row["comments"].get("comments_count", 0)
+            row.pop("comments", None)
+
         if "labels" in row and "nodes" in row["labels"]:
+            row["labels_count"] = row["labels"].get("labels_count", 0)
             row["labels"] = row["labels"]["nodes"]
 
         if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions_count"] = row["reactions"].get("reactions_count", 0)
             row["reactions"] = row["reactions"]["nodes"]
 
         return row
@@ -2225,6 +2238,7 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
                     description
                   }
                   labels(first: 100) {
+                    labels_count: totalCount
                     nodes {
                       node_id: id
                       created_at: createdAt
@@ -2281,6 +2295,7 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
                     comments_count: totalCount
                   }
                   reactions(first: 100) {
+                    reactions_count: totalCount
                     nodes {
                       reaction_type: content
                       reacted_at: createdAt
@@ -2359,6 +2374,7 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("author", actor_object),
         th.Property("author_association", th.StringType),
         th.Property("category", category_object),
+        th.Property("labels_count", th.IntegerType),
         th.Property("labels", labels_array),
         th.Property("locked", th.BooleanType),
         th.Property("active_lock_reason", th.StringType),
@@ -2368,6 +2384,8 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("answer_chosen_at", th.DateTimeType),
         th.Property("answer_chosen_by", actor_object),
         th.Property("upvote_count", th.IntegerType),
+        th.Property("comments_count", th.IntegerType),
+        th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
@@ -2425,7 +2443,12 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
             row["discussion_number"] = context["discussion_number"]
 
         if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions_count"] = row["reactions"].get("reactions_count", 0)
             row["reactions"] = row["reactions"]["nodes"]
+
+        if "replies" in row:
+            row["replies_count"] = row["replies"].get("replies_count", 0)
+            row.pop("replies", None)
 
         return row
 
@@ -2451,7 +2474,7 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
             "discussion_number": context["discussion_number"] if context else None,
             "comment_id": record["id"] if context else None,
             "comment_node_id": record["node_id"] if context else None,
-            "comment_replies_count": record.get("replies", {}).get("total_count", 0) if context else None,
+            "replies_count": record.get("replies", {}).get("replies_count", 0) if context else None,
         }
 
     @property
@@ -2519,20 +2542,26 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
                       }
                     }
                     replies {
-                      total_count: totalCount
+                      replies_count: totalCount
                     }
                     reactions(first: 100) {
+                      reactions_count: totalCount
                       nodes {
                         reaction_type: content
                         reacted_at: createdAt
                         user {
-                          node_id: id
-                          id: databaseId
+                          ... on Actor {
                           login
                           avatar_url: avatarUrl
                           http_url: url
                           type: __typename
+                          resource_path: resourcePath
+                        }
+                        ... on User {
+                          node_id: id
+                          id: databaseId
                           site_admin: isSiteAdmin
+                        }
                         }
                       }
                     }
@@ -2545,10 +2574,6 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
             }
           }
         """  # noqa: E501
-
-    replies_object = th.ObjectType(
-        th.Property("total_count", th.IntegerType),
-    )
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2579,7 +2604,8 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
         th.Property("editor", actor_object),
-        th.Property("replies", replies_object),
+        th.Property("replies_count", th.IntegerType),
+        th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
@@ -2608,13 +2634,13 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
             self.logger.info("No context provided. Skipping '%s' sync.", self.name)
             return []
 
-        if not context.get("comment_replies_count", 0) > 0:
+        if not context.get("replies_count", 0) > 0:
             self._context_records_skipped += 1
             self.logger.info("No replies found for comment %s, skipping API call", context.get("comment_node_id", "unknown"))
             return []
 
         self._context_records_processed += 1
-        self.logger.info("Comment %s: Has replies (%s), making API call", context.get("comment_node_id", "unknown"), context.get("comment_replies_count", 0))
+        self.logger.info("Comment %s: Has replies (%s), making API call", context.get("comment_node_id", "unknown"), context.get("replies_count", 0))
 
         return super().get_records(context)
 
@@ -2634,6 +2660,7 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
             row["comment_id"] = context["comment_id"]
 
         if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions_count"] = row["reactions"].get("reactions_count", 0)
             row["reactions"] = row["reactions"]["nodes"]
 
         return row
@@ -2708,17 +2735,23 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
                     }
                   }
                   reactions(first: 100) {
+                    reactions_count: totalCount
                     nodes {
                       reaction_type: content
                       reacted_at: createdAt
                       user {
-                        node_id: id
-                        id: databaseId
+                        ... on Actor {
                         login
                         avatar_url: avatarUrl
                         http_url: url
                         type: __typename
-                        site_admin: isSiteAdmin
+                        resource_path: resourcePath
+                        }
+                        ... on User {
+                          node_id: id
+                          id: databaseId
+                          site_admin: isSiteAdmin
+                        }
                       }
                     }
                   }
@@ -2766,6 +2799,7 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
         th.Property("editor", actor_object),
+        th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
