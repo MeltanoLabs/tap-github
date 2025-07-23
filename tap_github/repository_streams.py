@@ -1920,14 +1920,6 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 
 class _DiscussionLogger:
     """Logger for Discusison Streams to track skipped and processed records."""
-    # --------------------------------------------------------------
-    # Class-level roll-up counters (shared by every instance).
-    # --------------------------------------------------------------
-    _SUMMARY_PRINTED: bool = False
-    _TOTAL_SKIPPED: int = 0
-    _TOTAL_PROCESSED: int = 0
-    _TOTAL_API_RESPONSES: int = 0
-    _TOTAL_API_RATE_COST: int = 0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs) #call original init method
@@ -1961,45 +1953,6 @@ class _DiscussionLogger:
             pass
         # Forward parsing to base implementation.
         yield from super().parse_response(response)
-
-    # One-time roll-up summary per stream class
-    def sync(self, context: "Context" | None = None, **kwargs):
-        """Wrap the SDK sync to accumulate totals and emit a final summary."""
-        try:
-            super().sync(context=context, **kwargs)  # type: ignore[arg-type]
-        finally:
-            cls = self.__class__  # concrete stream class using the mix-in
-
-            # Roll per-instance counters into the class totals
-            cls._TOTAL_SKIPPED += getattr(self, "_context_records_skipped", 0)
-            cls._TOTAL_PROCESSED += getattr(self, "_context_records_processed", 0)
-            cls._TOTAL_API_RESPONSES += self._api_responses
-            cls._TOTAL_API_RATE_COST += self._api_rate_cost
-
-            # Always keep the *largest* count seen so far.
-            # This is a workaround to avoid the issue where the first couple of
-            # child instances may run before `repositories.partitions` is populated.
-            repo_stream = self._tap.streams.get("repositories")  # type: ignore[attr-defined]
-            current_total = len(repo_stream.partitions or []) if repo_stream else 0
-            cls._TOTAL_PARTITIONS = max(getattr(cls, "_TOTAL_PARTITIONS", 0), current_total)
-
-            finished = cls._TOTAL_SKIPPED + cls._TOTAL_PROCESSED
-
-            # Print the grand-total once, when we've processed *all* partitions
-            if (
-                not cls._SUMMARY_PRINTED
-                and cls._TOTAL_PARTITIONS > 0
-                and finished == cls._TOTAL_PARTITIONS
-            ):
-                 self.logger.info(
-                     "EXTRACTOR_STREAM_SUMMARY: %s – context_records_skipped=%d, context_records_processed=%d, api_responses=%d, api_rate_cost=%d",
-                     self.name,
-                     cls._TOTAL_SKIPPED,
-                     cls._TOTAL_PROCESSED,
-                     cls._TOTAL_API_RESPONSES,
-                     cls._TOTAL_API_RATE_COST,
-                 )
-                 cls._SUMMARY_PRINTED = True
 
 class DiscussionCategoriesStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
@@ -2184,7 +2137,7 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
             "repo_id": context["repo_id"] if context else None,
             "discussion_id": record["id"] if context else None,
             "discussion_number": record["number"] if context else None,
-            "comments_count": record.get("comments", {}).get("comments_count", 0) if context else None,
+            "comments_count": record["comments_count"] if context else None,
         }
 
     @property
@@ -2474,7 +2427,7 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
             "discussion_number": context["discussion_number"] if context else None,
             "comment_id": record["id"] if context else None,
             "comment_node_id": record["node_id"] if context else None,
-            "replies_count": record.get("replies", {}).get("replies_count", 0) if context else None,
+            "replies_count": record["replies_count"] if context else None,
         }
 
     @property
@@ -2608,7 +2561,6 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
-
 
 class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
     """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
