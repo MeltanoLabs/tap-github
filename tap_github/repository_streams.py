@@ -2131,6 +2131,7 @@ class WorkflowRunJobsStream(GitHubRestStream):
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = [] # No state partitioning keys
     records_jsonpath = "$.jobs[*]"
+    tolerated_http_errors = [500] # Sometimes with workflow runs, GitHub returns a 500 error when there are no jobs.
 
     schema = th.PropertiesList(
         # Parent keys
