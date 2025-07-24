@@ -1924,7 +1924,8 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 class _DiscussionLogger:
     """Logger for Discusison Streams to track skipped and processed records."""
 
-    def __init__(self, *args, **kwargs):
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)  # call original init method
         # initialize counters for each state partitioning key
         self._context_records_skipped: int = 0
@@ -1952,7 +1953,7 @@ class _DiscussionLogger:
                 cost,
                 self._api_rate_cost,
             )
-        except Exception:  # pragma: no cover – diagnostic only
+        except Exception:  # diagnostic only
             pass
         # Forward parsing to base implementation.
         yield from super().parse_response(response)
@@ -1969,14 +1970,13 @@ class DiscussionCategoriesStream(_DiscussionLogger, GitHubGraphqlStream):
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = True  # Repository's update_at does not change when a new discussion category is added/modified
+    ignore_parent_replication_key = True  # Repository's update_at does not change when a new discussion category is added/modified  # noqa: E501
     use_fake_since_parameter = True
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
-        """Return a generator of row-type dictionary objects.
-
-        If context is None or has_discussions is False, this means the repository
-        doesn't have discussions enabled, so we skip the API call entirely to optimize performance.
+        """
+        Return a generator of row-type dictionary objects.
+        If discussions are not enabled, skip the API call.
         """
 
         # 1) No context → skip.
@@ -2086,7 +2086,7 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
         Return a generator of row-type dictionary objects.
-        If context is None or has_discussions is False, we skip the API call entirely to optimize performance.
+        If discussions are not enabled, skip the API call
         """
         if context is None:
             self.logger.info("No context provided. Skipping '%s' sync.", self.name)
@@ -2590,7 +2590,7 @@ class DiscussionCommentRepliesStream(_DiscussionLogger, GitHubGraphqlStream):
     parent_stream_type = DiscussionCommentsStream
     state_partitioning_keys: ClassVar[list[str]] = [
         "comment_node_id"
-    ]  # Github does not allow to query a particular comment, traversing the node is the only way to get the replies
+    ]  # Github does not allow to query a particular comment, traversing the node is the only way to get the replies # noqa: E501
     ignore_parent_replication_key = True
     use_fake_since_parameter = True
 
