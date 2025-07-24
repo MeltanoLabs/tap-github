@@ -1924,7 +1924,6 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 class _DiscussionLogger:
     """Logger for Discusison Streams to track skipped and processed records."""
 
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)  # call original init method
         # initialize counters for each state partitioning key
