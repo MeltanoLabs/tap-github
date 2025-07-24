@@ -203,7 +203,9 @@ class RepositoryStream(GitHubRestStream):
             "org": record["owner"]["login"],
             "repo": record["name"],
             "repo_id": record["id"],
-            "has_discussions": record.get("has_discussions", False), # safeguard against missing key
+            "has_discussions": record.get(
+                "has_discussions", False
+            ),  # safeguard against missing key
         }
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
@@ -1918,18 +1920,19 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         th.Property("user", user_object),
     ).to_dict()
 
+
 class _DiscussionLogger:
     """Logger for Discusison Streams to track skipped and processed records."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs) #call original init method
-        #initialize counters for each state partitioning key
+        super().__init__(*args, **kwargs)  # call original init method
+        # initialize counters for each state partitioning key
         self._context_records_skipped: int = 0
         self._context_records_processed: int = 0
         self._api_responses: int = 0
         self._api_rate_cost: int = 0
 
-    def parse_response(self, response: "requests.Response") -> Iterable[dict]:
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Log headers & rate-limit, then parse payload."""
         self._api_responses += 1
         # Header dump (INFO for now; change level to DEBUG when shipping)
@@ -1954,16 +1957,19 @@ class _DiscussionLogger:
         # Forward parsing to base implementation.
         yield from super().parse_response(response)
 
+
 class DiscussionCategoriesStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussions categories from each repository."""
 
     name = "discussion_categories"
     query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["node_id"] # id:databaseId is not available for the categories object
+    primary_keys: ClassVar[list[str]] = [
+        "node_id"
+    ]  # id:databaseId is not available for the categories object
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion category is added/modified
+    ignore_parent_replication_key = True  # Repository's update_at does not change when a new discussion category is added/modified
     use_fake_since_parameter = True
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
@@ -2062,16 +2068,19 @@ class DiscussionCategoriesStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
 
+
 class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussions from each repository."""
 
     name = "discussions"
     query_jsonpath = "$.data.repository.discussions.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["id"] # id:databaseId
+    primary_keys: ClassVar[list[str]] = ["id"]  # id:databaseId
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = True # Repository's update_at does not change when a new discussion is added
+    ignore_parent_replication_key = (
+        True  # Repository's update_at does not change when a new discussion is added
+    )
     use_fake_since_parameter = True
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
@@ -2089,15 +2098,17 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
             org = context.get("org", "unknown")
             self.logger.info(
                 "Repository %s/%s: Discussions not enabled, skipping API call",
-                org, repo)
+                org,
+                repo,
+            )
             return []
 
         self._context_records_processed += 1
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
         self.logger.info(
-            "Repository %s/%s: Discussions enabled, making API call",
-            org, repo)
+            "Repository %s/%s: Discussions enabled, making API call", org, repo
+        )
         return super().get_records(context)
 
     def post_process(self, row: dict, context: dict | None = None) -> dict:
@@ -2342,6 +2353,7 @@ class DiscussionsStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
+
 class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching discussion comments from each repository."""
 
@@ -2351,7 +2363,9 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
     replication_key = "updated_at"
     parent_stream_type = DiscussionsStream
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
-    ignore_parent_replication_key = True # Discussion's update_at does not change when a new comment is added
+    ignore_parent_replication_key = (
+        True  # Discussion's update_at does not change when a new comment is added
+    )
     use_fake_since_parameter = True
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
@@ -2366,7 +2380,10 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
 
         if not context.get("comments_count", 0) > 0:
             self._context_records_skipped += 1
-            self.logger.info("No comments found for discussion %s, skipping API call", context.get("discussion_number", "unknown"))
+            self.logger.info(
+                "No comments found for discussion %s, skipping API call",
+                context.get("discussion_number", "unknown"),
+            )
             return []
 
         self._context_records_processed += 1
@@ -2410,7 +2427,7 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
 
         Only return context if the's a valid node_id.
         """
-        #This check is a safeguard in case of malformed records
+        # This check is a safeguard in case of malformed records
         if not record.get("node_id"):
             self.logger.info(
                 f"discussion#{(context or {}).get('discussion_id', 'unknown')}/"
@@ -2562,17 +2579,18 @@ class DiscussionCommentsStream(_DiscussionLogger, GitHubGraphqlStream):
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
-class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
+
+class DiscussionCommentRepliesStream(_DiscussionLogger, GitHubGraphqlStream):
     """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
 
     name = "discussion_comment_replies"
-    query_jsonpath = (
-        "$.data.node.replies.nodes.[*]"
-    )
+    query_jsonpath = "$.data.node.replies.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]  # id is databaseId
     replication_key = "updated_at"
     parent_stream_type = DiscussionCommentsStream
-    state_partitioning_keys: ClassVar[list[str]] = ["comment_node_id"] # Github does not allow to query a particular comment, traversing the node is the only way to get the replies
+    state_partitioning_keys: ClassVar[list[str]] = [
+        "comment_node_id"
+    ]  # Github does not allow to query a particular comment, traversing the node is the only way to get the replies
     ignore_parent_replication_key = True
     use_fake_since_parameter = True
 
@@ -2588,11 +2606,18 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
 
         if not context.get("replies_count", 0) > 0:
             self._context_records_skipped += 1
-            self.logger.info("No replies found for comment %s, skipping API call", context.get("comment_node_id", "unknown"))
+            self.logger.info(
+                "No replies found for comment %s, skipping API call",
+                context.get("comment_node_id", "unknown"),
+            )
             return []
 
         self._context_records_processed += 1
-        self.logger.info("Comment %s: Has replies (%s), making API call", context.get("comment_node_id", "unknown"), context.get("replies_count", 0))
+        self.logger.info(
+            "Comment %s: Has replies (%s), making API call",
+            context.get("comment_node_id", "unknown"),
+            context.get("replies_count", 0),
+        )
 
         return super().get_records(context)
 
@@ -2719,7 +2744,7 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
               cost
             }
           }
-        """  # noqa: E501
+        """
 
     schema = th.PropertiesList(
         # Parent keys
@@ -2754,6 +2779,7 @@ class DiscussionCommentRepliesStream(_DiscussionLogger,GitHubGraphqlStream):
         th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
+
 
 class StatsContributorsStream(GitHubRestStream):
     """
@@ -3228,6 +3254,8 @@ class DependenciesStream(GitHubGraphqlStream):
             ),
         ),
     ).to_dict()
+
+
 class TrafficRestStream(GitHubRestStream):
     """Base class for Traffic Streams"""
 
