@@ -2310,13 +2310,14 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         comments_count = context.get("comments_count", 0)
         if not comments_count:
             self.logger.debug(
-                f"{org}/{repo} Discussion {discussion_number}: No comments found, skipping API call",
+                f"{org}/{repo} Discussion {discussion_number}: "
+                f"No comments found, skipping API call",
             )
             return []
 
         self.logger.debug(
-            f"{org}/{repo}: Discussion {discussion_number}: {comments_count} comments found, "
-            f"making API call",
+            f"{org}/{repo} Discussion {discussion_number}: "
+            f"{comments_count} comments found, making API call",
         )
         return super().get_records(context)
 
@@ -2516,7 +2517,8 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         discussion_number = context.get("discussion_number", "unknown")
         if not replies_count:
             self.logger.debug(
-                f"{org}/{repo} Discussion {discussion_number}/ Comment {comment_node_id}: "
+                f"{org}/{repo} Discussion {discussion_number}/ "
+                f"Comment {comment_node_id}: "
                 f"No replies found, skipping API call",
             )
             return []
