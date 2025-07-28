@@ -1968,7 +1968,6 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id.
-        There is no databaseId for the discussionCategories object.
         """
 
         return """
@@ -2026,6 +2025,28 @@ class DiscussionsStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
     use_fake_since_parameter = True
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if oldest updated_at is older than the replication bookmark.
+        """
+        cutoff = self.get_starting_timestamp(context=None)
+        self.logger.info("Cutoff: %s", cutoff)
+        if cutoff:
+            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
+            if results:
+                last_updated = parse(results[-1]["updated_at"])
+                if last_updated < parse(cutoff):
+                    self.logger.info( "Early exit: oldest=%s, cutoff=%s",
+                        last_updated,
+                        cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
