@@ -2041,7 +2041,8 @@ class DiscussionsStream(GitHubGraphqlStream):
             if results:
                 last_updated = parse(results[-1]["updated_at"])
                 if last_updated < parse(cutoff):
-                    self.logger.info( "Early exit: oldest=%s, cutoff=%s",
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
                         last_updated,
                         cutoff,
                     )
