@@ -2035,9 +2035,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
-        self.logger.info("URL Params - Starting")
         self.cutoff = self.get_starting_timestamp(context)
-        self.logger.info("URL Params - Starting timestamp: %s", self.cutoff)
         return super().get_url_params(context, next_page_token)
 
     def get_next_page_token(
@@ -2048,7 +2046,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         """
         Exit early if oldest updated_at is older than the replication bookmark.
         """
-        self.logger.info("Cutoff: %s", self.cutoff)
+        self.logger.debug("Cutoff: %s", self.cutoff)
         if self.cutoff:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
             if results:
