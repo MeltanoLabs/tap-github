@@ -2026,6 +2026,20 @@ class DiscussionsStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
     use_fake_since_parameter = True
 
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.logger.info("URL Params - Starting")
+        self.cutoff = self.get_starting_timestamp(context)
+        self.logger.info("URL Params - Starting timestamp: %s", self.cutoff)
+        return super().get_url_params(context, next_page_token)
+
     def get_next_page_token(
         self,
         response: requests.Response,
@@ -2034,17 +2048,16 @@ class DiscussionsStream(GitHubGraphqlStream):
         """
         Exit early if oldest updated_at is older than the replication bookmark.
         """
-        cutoff = self.get_starting_timestamp(context=None)
-        self.logger.info("Cutoff: %s", cutoff)
-        if cutoff:
+        self.logger.info("Cutoff: %s", self.cutoff)
+        if self.cutoff:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
             if results:
-                last_updated = parse(results[-1]["updated_at"])
-                if last_updated < parse(cutoff):
+                oldest_updated_at = parse(results[-1]["updated_at"])
+                if oldest_updated_at < self.cutoff:
                     self.logger.info(
                         "Early exit: oldest=%s, cutoff=%s",
-                        last_updated,
-                        cutoff,
+                        oldest_updated_at,
+                        self.cutoff,
                     )
                     return None  # early exit
         return super().get_next_page_token(response, previous_token)
