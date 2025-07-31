@@ -2535,10 +2535,10 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = [
         "discussion_id"
     ]  # Note: A discussion's updated_at changes when new comments or replies are added
-       # (but *not* when they are edited), which is sufficient for incremental replication
-       # while keeping the state footprint manageable.
+    # (but *not* when they are edited), which is sufficient for incremental replication
+    # while keeping the state footprint manageable.
     ignore_parent_replication_key = True
-    use_fake_since_parameter = True #dead code
+    use_fake_since_parameter = True  # dead code
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
