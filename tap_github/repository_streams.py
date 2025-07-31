@@ -2533,10 +2533,12 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     replication_key = "updated_at"
     parent_stream_type = DiscussionCommentsStream
     state_partitioning_keys: ClassVar[list[str]] = [
-        "comment_node_id"
-    ]  # GitHub does not allow to query a particular comment, traversing the node is the only way to get the replies # noqa: E501
+        "discussion_id"
+    ]  # Note: A discussion's updated_at changes when new comments or replies are added
+       # (but *not* when they are edited), which is sufficient for incremental replication
+       # while keeping the state footprint manageable.
     ignore_parent_replication_key = True
-    use_fake_since_parameter = True
+    use_fake_since_parameter = True #dead code
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
