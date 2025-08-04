@@ -19,18 +19,6 @@ user_object = th.ObjectType(
     th.Property("site_admin", th.BooleanType),
 )
 
-# The actor object is common through GraphQL
-actor_object = th.ObjectType(
-    th.Property("login", th.StringType),
-    th.Property("id", th.IntegerType),
-    th.Property("node_id", th.StringType),
-    th.Property("avatar_url", th.StringType),
-    th.Property("http_url", th.StringType),
-    th.Property("type", th.StringType),
-    th.Property("site_admin", th.BooleanType),
-    th.Property("resource_path", th.StringType),
-)
-
 # some objects are shared between issues and pull requests
 label_object = th.ObjectType(
     th.Property("id", th.IntegerType),
@@ -75,7 +63,7 @@ reactions_object = th.ObjectType(
 reaction_type_object = th.ObjectType(
     th.Property("reaction_type", th.StringType),
     th.Property("reacted_at", th.DateTimeType),
-    th.Property("user", actor_object),
+    th.Property("user", user_object),
 )
 
 files_object = th.ObjectType(

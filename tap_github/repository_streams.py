@@ -12,7 +12,6 @@ from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubDiffStream, GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
-    actor_object,
     files_object,
     label_object,
     milestone_object,
@@ -2150,9 +2149,8 @@ class DiscussionsStream(GitHubGraphqlStream):
                     ... on Actor {
                       login
                       avatar_url: avatarUrl
-                      http_url: url
+                      html_url: url
                       type: __typename
-                      resource_path: resourcePath
                     }
                     ... on User {
                       node_id: id
@@ -2193,9 +2191,8 @@ class DiscussionsStream(GitHubGraphqlStream):
                       ... on Actor {
                         login
                         avatar_url: avatarUrl
-                        http_url: url
+                        html_url: url
                         type: __typename
-                        resource_path: resourcePath
                       }
                       ... on User {
                         node_id: id
@@ -2210,9 +2207,8 @@ class DiscussionsStream(GitHubGraphqlStream):
                     ... on Actor {
                       login
                       avatar_url: avatarUrl
-                      http_url: url
+                      html_url: url
                       type: __typename
-                      resource_path: resourcePath
                     }
                     ... on User {
                       node_id: id
@@ -2233,9 +2229,8 @@ class DiscussionsStream(GitHubGraphqlStream):
                         ... on Actor {
                           login
                           avatar_url: avatarUrl
-                          http_url: url
+                          html_url: url
                           type: __typename
-                          resource_path: resourcePath
                         }
                         ... on User {
                           node_id: id
@@ -2265,7 +2260,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("body", th.StringType),
-        th.Property("author", actor_object),
+        th.Property("author", user_object),
         th.Property("author_association", th.StringType),
     )
 
@@ -2301,7 +2296,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("updated_at", th.DateTimeType),
         th.Property("closed_at", th.DateTimeType),
         th.Property("created_via_email", th.BooleanType),
-        th.Property("author", actor_object),
+        th.Property("author", user_object),
         th.Property("author_association", th.StringType),
         th.Property("category", category_object),
         th.Property("labels_count", th.IntegerType),
@@ -2312,7 +2307,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         th.Property("is_answered", th.BooleanType),
         th.Property("answer", answer_object),
         th.Property("answer_chosen_at", th.DateTimeType),
-        th.Property("answer_chosen_by", actor_object),
+        th.Property("answer_chosen_by", user_object),
         th.Property("upvote_count", th.IntegerType),
         th.Property("comments_count", th.IntegerType),
         th.Property("reactions_count", th.IntegerType),
@@ -2414,9 +2409,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                       ... on Actor {
                         login
                         avatar_url: avatarUrl
-                        http_url: url
+                        html_url: url
                         type: __typename
-                        resource_path: resourcePath
                       }
                       ... on User {
                         node_id: id
@@ -2445,9 +2439,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                       ... on Actor {
                         login
                         avatar_url: avatarUrl
-                        http_url: url
+                        html_url: url
                         type: __typename
-                        resource_path: resourcePath
                       }
                       ... on User {
                         node_id: id
@@ -2465,17 +2458,16 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
                         reacted_at: createdAt
                         user {
                           ... on Actor {
-                          login
-                          avatar_url: avatarUrl
-                          http_url: url
-                          type: __typename
-                          resource_path: resourcePath
-                        }
-                        ... on User {
-                          node_id: id
-                          id: databaseId
-                          site_admin: isSiteAdmin
-                        }
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                          }
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            site_admin: isSiteAdmin
+                          }
                         }
                       }
                     }
@@ -2499,7 +2491,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         # Discussion Comments keys
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
-        th.Property("author", actor_object),
+        th.Property("author", user_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("body_html", th.StringType),
@@ -2517,7 +2509,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         th.Property("upvote_count", th.IntegerType),
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
-        th.Property("editor", actor_object),
+        th.Property("editor", user_object),
         th.Property("replies_count", th.IntegerType),
         th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
@@ -2534,10 +2526,9 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     parent_stream_type = DiscussionCommentsStream
     state_partitioning_keys: ClassVar[list[str]] = [
         "discussion_id"
-    ]  # Note: A discussion's updated_at changes when new comments or replies are added
-    # (but *not* when they are edited), which is sufficient for incremental replication
-    # while keeping the state footprint manageable.
-    ignore_parent_replication_key = True
+    ]  # Note: Extraction for objects that can't be sorted by the replication_key,
+       # can not be resumed if interrupted. Therefore the granularity of the
+       # state partitioning is irrelevant.
     use_fake_since_parameter = True  # dead code
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
@@ -2614,9 +2605,8 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                     ... on Actor {
                       login
                       avatar_url: avatarUrl
-                      http_url: url
+                      html_url: url
                       type: __typename
-                      resource_path: resourcePath
                     }
                     ... on User {
                       node_id: id
@@ -2645,9 +2635,8 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                     ... on Actor {
                       login
                       avatar_url: avatarUrl
-                      http_url: url
+                      html_url: url
                       type: __typename
-                      resource_path: resourcePath
                     }
                     ... on User {
                       node_id: id
@@ -2662,11 +2651,10 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                       reacted_at: createdAt
                       user {
                         ... on Actor {
-                        login
-                        avatar_url: avatarUrl
-                        http_url: url
-                        type: __typename
-                        resource_path: resourcePath
+                          login
+                          avatar_url: avatarUrl
+                          html_url: url
+                          type: __typename
                         }
                         ... on User {
                           node_id: id
@@ -2701,7 +2689,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         # Discussion Comment Replies Keys
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
-        th.Property("author", actor_object),
+        th.Property("author", user_object),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property("body_html", th.StringType),
@@ -2719,7 +2707,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("upvote_count", th.IntegerType),
         th.Property("html_url", th.StringType),
         th.Property("resource_path", th.StringType),
-        th.Property("editor", actor_object),
+        th.Property("editor", user_object),
         th.Property("reactions_count", th.IntegerType),
         th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
