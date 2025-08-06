@@ -865,17 +865,6 @@ class IssuesStream(GitHubRestStream):
         params["state"] = "all"
         return params
 
-    @property
-    def http_headers(self) -> dict:
-        """Return the http headers needed.
-
-        Overridden to use beta endpoint which includes reactions as described here:
-        https://developer.github.com/changes/2016-05-12-reactions-api-preview/
-        """
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
-        return headers
-
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
         row["type"] = "pull_request" if "pull_request" in row else "issue"
@@ -1261,17 +1250,6 @@ class PullRequestsStream(GitHubRestStream):
         # Fetch all pull requests regardless of state (OPEN, CLOSED, MERGED).
         params["state"] = "all"
         return params
-
-    @property
-    def http_headers(self) -> dict:
-        """Return the http headers needed.
-
-        Overridden to use beta endpoint which includes reactions as described here:
-        https://developer.github.com/changes/2016-05-12-reactions-api-preview/
-        """
-        headers = super().http_headers
-        headers["Accept"] = "application/vnd.github.squirrel-girl-preview"
-        return headers
 
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
