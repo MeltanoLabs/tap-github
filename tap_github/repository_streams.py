@@ -2100,7 +2100,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         if self.cutoff:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
             if results:
-                oldest_updated_at = parse(results[-1]["updated_at"])
+                oldest_updated_at = parse(results[-1][self.replication_key])
                 if oldest_updated_at < self.cutoff:
                     self.logger.info(
                         "Early exit: oldest=%s, cutoff=%s",
@@ -2413,7 +2413,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         if self.cutoff:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
             if results:
-                oldest_created_at = parse(results[0]["created_at"])
+                oldest_created_at = parse(results[0][self.replication_key])
                 if oldest_created_at < self.cutoff:
                     self.logger.info(
                         "Early exit: oldest=%s, cutoff=%s",
@@ -2665,7 +2665,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
             )
             results = list(extract_jsonpath(replies_jsonpath, input=response.json()))
             if results:
-                oldest_created_at = parse(results[0]["created_at"])
+                oldest_created_at = parse(results[0][self.replication_key])
                 if oldest_created_at < self.cutoff:
                     self.logger.info(
                         "Early exit: oldest=%s, cutoff=%s",
