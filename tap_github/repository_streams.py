@@ -1935,7 +1935,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
     primary_keys: ClassVar[list[str]] = [
         "node_id"
-    ]  # id:databaseId is not available for the categories object # noqa: E501
+    ]  # id:databaseId is not available for the categories object
     replication_key = "created_at"  # The API does not support sorting by updated_at, so we must default to created_at to support smart pagination for incremental replication. # noqa: E501
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
@@ -2829,7 +2829,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
               cost
             }
           }
-        """  # noqa: E501
+        """
 
     schema = th.PropertiesList(
         # Parent keys
