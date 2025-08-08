@@ -2014,7 +2014,12 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
 
 
 class DiscussionsStream(GitHubGraphqlStream):
-    """Defines stream fetching discussions from each repository."""
+    """
+    Defines stream fetching discussions from each repository.
+
+    Singer SDK does not support smart pagination for GraphQL,
+    so progress for this stream is not resumable if interrupted.
+    """
 
     name = "discussions"
     query_jsonpath = "$.data.repository.discussions.nodes.[*]"
@@ -2023,6 +2028,7 @@ class DiscussionsStream(GitHubGraphqlStream):
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
+    is_sorted = False
     use_fake_since_parameter = True
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
@@ -2321,11 +2327,50 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     name = "discussion_comments"
     query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]  # id:databaseId
-    replication_key = "updated_at"
+    # The API does not support sorting by updated_at, so we must default to created_at
+    # to support incremental replication.
+    replication_key = "created_at"
     parent_stream_type = DiscussionsStream
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
-    ignore_parent_replication_key = True  # Discussion's update_at does not change when a new comment is added  # noqa: E501
+    # ignore_parent_replication_key = True
+    is_sorted = False
     use_fake_since_parameter = True
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.cutoff = self.get_starting_timestamp(context)
+        return super().get_url_params(context, next_page_token)
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if first (oldest) record in the page is older than the replication
+        bookmark. With github's default record ordering, each page contains records
+        in ascending order, so the first record is the oldest in that page.
+        """
+        self.logger.debug("Cutoff: %s", self.cutoff)
+        if self.cutoff:
+            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
+            if results:
+                oldest_created_at = parse(results[0]["created_at"])
+                if oldest_created_at < self.cutoff:
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
+                        oldest_created_at,
+                        self.cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -2373,34 +2418,36 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
 
         return row
 
-    def get_child_context(self, record: dict, context: Context | None) -> dict:
-        """Return a context dictionary for child stream(s)."""
-        return {
-            "org": context["org"] if context else None,
-            "repo": context["repo"] if context else None,
-            "repo_id": context["repo_id"] if context else None,
-            "discussion_id": context["discussion_id"] if context else None,
-            "discussion_number": context["discussion_number"] if context else None,
-            "comment_id": record["id"] if context else None,
-            "comment_node_id": record["node_id"] if context else None,
-            "replies_count": record["replies_count"] if context else None,
-        }
+    # def get_child_context(self, record: dict, context: Context | None) -> dict:
+    #     """Return a context dictionary for child stream(s)."""
+    #     return {
+    #         "org": context["org"] if context else None,
+    #         "repo": context["repo"] if context else None,
+    #         "repo_id": context["repo_id"] if context else None,
+    #         "discussion_id": context["discussion_id"] if context else None,
+    #         "discussion_number": context["discussion_number"] if context else None,
+    #         "comment_id": record["id"] if context else None,
+    #         "comment_node_id": record["node_id"] if context else None,
+    #         "replies_count": record["replies_count"] if context else None,
+    #     }
 
     @property
     def query(self) -> str:
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        The API does not support record ordering by updated_at, so we must use
+        tail-first pagination.
         """
         return """
           query DiscussionComments($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String) {
             repository(name: $repo, owner: $org) {
               discussion(number: $discussion_number) {
-                comments(first: 100, after: $nextPageCursor_0) {
+                comments(last: 100, before: $nextPageCursor_0) {
                   pageInfo {
-                    hasNextPage_0: hasNextPage
-                    startCursor_0: startCursor
-                    endCursor_0: endCursor
+                    hasNextPage_0: hasPreviousPage
+                    startCursor_0: endCursor
+                    endCursor_0: startCursor
                   }
                   nodes {
                     node_id: id
@@ -2517,41 +2564,99 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
 
 
 class DiscussionCommentRepliesStream(GitHubGraphqlStream):
-    """Defines stream fetching replies for each discussion comment from each repository."""  # noqa: E501
+    """
+    Defines stream fetching replies for each discussion comment from each repository.
+
+    Edits made to replies after extraction are not reflected in the stream.
+    Full refresh is required to see the changes.
+
+    Singer SDK does not support smart pagination for GraphQL,
+    so progress for this stream is not resumable if interrupted.
+    """
 
     name = "discussion_comment_replies"
-    query_jsonpath = "$.data.node.replies.nodes.[*]"
+    query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]  # id is databaseId
-    replication_key = "updated_at"
-    parent_stream_type = DiscussionCommentsStream
-    state_partitioning_keys: ClassVar[list[str]] = [
-        "discussion_id"
-    ]  # Note: Extraction for objects that can't be sorted by the replication_key,
-       # can not be resumed if interrupted. Therefore the granularity of the
-       # state partitioning is irrelevant.
+    # The API does not support sorting by updated_at, so we must default to created_at
+    # to support incremental replication.
+    replication_key = "created_at"
+    parent_stream_type = DiscussionsStream
+    state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
+    is_sorted = False
     use_fake_since_parameter = True  # dead code
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and flatten nested comments/replies structure."""
+
+        comments = extract_jsonpath(self.query_jsonpath, input=response.json())
+
+        for comment in comments:
+            comment_id = comment.get("comment_id")
+            replies = comment.get("replies", {}).get("nodes", [])
+
+            for reply in replies:
+                # Add comment_id to each reply, so we can link it back
+                reply["comment_id"] = comment_id
+                yield reply
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.cutoff = self.get_starting_timestamp(context)
+        return super().get_url_params(context, next_page_token)
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if first (oldest) record in the page is older than the replication
+        bookmark. With github's default record ordering, each page contains records
+        in ascending order, so the first record is the oldest in that page.
+        """
+        self.logger.debug("Cutoff: %s", self.cutoff)
+        if self.cutoff:
+            replies_jsonpath = (
+                "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
+            )
+            results = list(extract_jsonpath(replies_jsonpath, input=response.json()))
+            if results:
+                oldest_created_at = parse(results[0]["created_at"])
+                if oldest_created_at < self.cutoff:
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
+                        oldest_created_at,
+                        self.cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
-
-        If the parent comment has no replies, skip the API call.
+        If the parent discussion has no comments, skip the replies API call.
         """
-        comment_node_id = context.get("comment_node_id", "unknown")
-        replies_count = context.get("replies_count", 0)
+        # comment_node_id = context.get("comment_node_id", "unknown")
+        comments_count = context.get("comments_count", 0)
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
         discussion_number = context.get("discussion_number", "unknown")
-        if not replies_count:
+        if not comments_count:
             self.logger.debug(
                 f"{org}/{repo} Discussion {discussion_number}/ "
-                f"Comment {comment_node_id}: "
-                f"No replies found, skipping API call",
+                f"No comments found, skipping API call for replies",
             )
             return []
 
         self.logger.debug(
-            f"{org}/{repo} Discussion {discussion_number}/ Comment {comment_node_id}: "
-            f"{replies_count} replies found, making API call",
+            f"{org}/{repo} Discussion {discussion_number}: "
+            f"{comments_count} comments found, making API call for replies",
         )
 
         return super().get_records(context)
@@ -2569,12 +2674,10 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
             row["repo_id"] = context["repo_id"]
             row["discussion_id"] = context["discussion_id"]
             row["discussion_number"] = context["discussion_number"]
-            row["comment_id"] = context["comment_id"]
 
         if "reactions" in row and "nodes" in row["reactions"]:
             row["reactions_count"] = row["reactions"].get("reactions_count", 0)
             row["reactions"] = row["reactions"]["nodes"]
-
         return row
 
     @property
@@ -2582,91 +2685,104 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        The API does not support record ordering by updated_at, so we must use
+        tail-first pagination.
         """
         return """
           query DiscussionCommentReplies(
-            $comment_node_id: ID!,
-            $nextPageCursor_0: String
+          $repo: String!,
+          $org: String!,
+          $discussion_number: Int!,
+          $nextPageCursor_0: String,
+          $nextPageCursor_1: String
           ) {
-            node(id: $comment_node_id) {
-              ... on DiscussionComment {
-                id: databaseId
-                node_id: id
-                replies(first: 100, after: $nextPageCursor_0) {
-                pageInfo {
-                  hasNextPage_0: hasNextPage
-                  startCursor_0: startCursor
-                  endCursor_0: endCursor
-                }
-                nodes {
-                  node_id: id
-                  id: databaseId
-                  author {
-                    ... on Actor {
-                      login
-                      avatar_url: avatarUrl
-                      html_url: url
-                      type: __typename
-                    }
-                    ... on User {
-                      node_id: id
-                      id: databaseId
-                      site_admin: isSiteAdmin
-                    }
+            repository(name: $repo, owner: $org) {
+              discussion(number: $discussion_number) {
+                comments(last: 50, before: $nextPageCursor_0) {
+                  pageInfo {
+                    hasNextPage_0: hasPreviousPage
+                    startCursor_0: endCursor
+                    endCursor_0: startCursor
                   }
-                  author_association: authorAssociation
-                  body
-                  body_html: bodyHTML
-                  body_text: bodyText
-                  created_at: createdAt
-                  published_at: publishedAt
-                  last_edited_at: lastEditedAt
-                  updated_at: updatedAt
-                  created_via_email: createdViaEmail
-                  deleted_at: deletedAt
-                  includes_created_edit: includesCreatedEdit
-                  is_answer: isAnswer
-                  is_minimized: isMinimized
-                  minimized_reason: minimizedReason
-                  upvote_count: upvoteCount
-                  html_url: url
-                  resource_path: resourcePath
-                  editor {
-                    ... on Actor {
-                      login
-                      avatar_url: avatarUrl
-                      html_url: url
-                      type: __typename
-                    }
-                    ... on User {
-                      node_id: id
-                      id: databaseId
-                      site_admin: isSiteAdmin
-                    }
-                  }
-                  reactions(first: 100) {
-                    reactions_count: totalCount
-                    nodes {
-                      reaction_type: content
-                      reacted_at: createdAt
-                      user {
-                        ... on Actor {
-                          login
-                          avatar_url: avatarUrl
-                          html_url: url
-                          type: __typename
+                  nodes {
+                    comment_id: databaseId
+                    replies(last: 50, before: $nextPageCursor_1) {
+                      pageInfo {
+                        hasNextPage_1: hasPreviousPage
+                        startCursor_1: endCursor
+                        endCursor_1: startCursor
+                      }
+                      nodes {
+                        node_id: id
+                        id: databaseId
+                        author {
+                          ... on Actor {
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                          }
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            site_admin: isSiteAdmin
+                          }
                         }
-                        ... on User {
-                          node_id: id
-                          id: databaseId
-                          site_admin: isSiteAdmin
+                        author_association: authorAssociation
+                        body
+                        body_html: bodyHTML
+                        body_text: bodyText
+                        created_at: createdAt
+                        published_at: publishedAt
+                        last_edited_at: lastEditedAt
+                        updated_at: updatedAt
+                        created_via_email: createdViaEmail
+                        deleted_at: deletedAt
+                        includes_created_edit: includesCreatedEdit
+                        is_answer: isAnswer
+                        is_minimized: isMinimized
+                        minimized_reason: minimizedReason
+                        upvote_count: upvoteCount
+                        html_url: url
+                        resource_path: resourcePath
+                        editor {
+                          ... on Actor {
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                          }
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            site_admin: isSiteAdmin
+                          }
+                        }
+                        reactions(first: 100) {
+                          reactions_count: totalCount
+                          nodes {
+                            reaction_type: content
+                            reacted_at: createdAt
+                            user {
+                              ... on Actor {
+                                login
+                                avatar_url: avatarUrl
+                                html_url: url
+                                type: __typename
+                              }
+                              ... on User {
+                                node_id: id
+                                id: databaseId
+                                site_admin: isSiteAdmin
+                              }
+                            }
+                          }
                         }
                       }
                     }
                   }
                 }
               }
-            }
             }
             rateLimit {
               limit
@@ -2685,8 +2801,8 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         th.Property("repo_id", th.IntegerType),
         th.Property("discussion_id", th.IntegerType),
         th.Property("discussion_number", th.IntegerType),
-        th.Property("comment_id", th.IntegerType),
         # Discussion Comment Replies Keys
+        th.Property("comment_id", th.IntegerType),
         th.Property("node_id", th.StringType),
         th.Property("id", th.IntegerType),
         th.Property("author", user_object),
