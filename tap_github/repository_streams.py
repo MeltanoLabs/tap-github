@@ -1924,7 +1924,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     """
     Defines stream fetching discussions categories from each repository.
 
-    Edits made to discussions categories after extraction are not reflected in the stream.
+    Edits made to categories after extraction are not reflected in the stream.
     Full refresh is required to see the changes.
 
     Singer SDK does not support smart pagination for GraphQL,
@@ -1968,7 +1968,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         if self.cutoff:
             results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
             if results:
-                oldest_created_at = parse(results[0]["created_at"])
+                oldest_created_at = parse(results[0][self.replication_key])
                 if oldest_created_at < self.cutoff:
                     self.logger.info(
                         "Early exit: oldest=%s, cutoff=%s",
@@ -2829,7 +2829,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
               cost
             }
           }
-        """
+        """  # noqa: E501
 
     schema = th.PropertiesList(
         # Parent keys
