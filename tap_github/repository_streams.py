@@ -1921,18 +1921,60 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
 
 
 class DiscussionCategoriesStream(GitHubGraphqlStream):
-    """Defines stream fetching discussions categories from each repository."""
+    """
+    Defines stream fetching discussions categories from each repository.
+
+    Edits made to discussions categories after extraction are not reflected in the stream.
+    Full refresh is required to see the changes.
+
+    Singer SDK does not support smart pagination for GraphQL,
+    so progress for this stream is not resumable if interrupted.
+    """
 
     name = "discussion_categories"
     query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = [
-        "node_id"
-    ]  # id:databaseId is not available for the categories object
-    replication_key = "updated_at"
+    primary_keys: ClassVar[list[str]] = ["node_id"] # id:databaseId is not available for the categories object # noqa: E501
+    replication_key = "created_at" # The API does not support sorting by updated_at, so we must default to created_at to support smart pagination for incremental replication. # noqa: E501
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion category is added/modified  # noqa: E501
-    use_fake_since_parameter = True
+    is_sorted = False
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.cutoff = self.get_starting_timestamp(context)
+        return super().get_url_params(context, next_page_token)
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if first (oldest) record in the page is older than the replication
+        bookmark. With github's default record ordering, each page contains records
+        in ascending order.
+        """
+        self.logger.debug("Cutoff: %s", self.cutoff)
+        if self.cutoff:
+            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
+            if results:
+                oldest_created_at = parse(results[0]["created_at"])
+                if oldest_created_at < self.cutoff:
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
+                        oldest_created_at,
+                        self.cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -1967,16 +2009,18 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id.
+        The API does not support custom record ordering and direction, so we must use
+        tail-first pagination to get the newest records first.
         """
 
         return """
           query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
             repository(name: $repo, owner: $org) {
-              discussionCategories(first: 100, after: $nextPageCursor_0) {
+              discussionCategories(last: 100, before: $nextPageCursor_0) {
                 pageInfo {
-                  hasNextPage_0: hasNextPage
-                  startCursor_0: startCursor
-                  endCursor_0: endCursor
+                  hasNextPage_0: hasPreviousPage
+                  startCursor_0: endCursor
+                  endCursor_0: startCursor
                 }
                 nodes {
                   node_id: id
@@ -2029,7 +2073,6 @@ class DiscussionsStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
     is_sorted = False
-    use_fake_since_parameter = True
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
@@ -2322,19 +2365,25 @@ class DiscussionsStream(GitHubGraphqlStream):
 
 
 class DiscussionCommentsStream(GitHubGraphqlStream):
-    """Defines stream fetching discussion comments from each repository."""
+    """
+    Defines stream fetching discussion comments from each repository.
+
+    Edits made to comments after extraction are not reflected in the stream.
+    Full refresh is required to see the changes.
+
+    Singer SDK does not support smart pagination for GraphQL,
+    so progress for this stream is not resumable if interrupted.
+    """
 
     name = "discussion_comments"
     query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]  # id:databaseId
-    # The API does not support sorting by updated_at, so we must default to created_at
-    # to support incremental replication.
     replication_key = "created_at"
+    # The API does not support sorting by updated_at, so we must default to created_at
+    # to support smart pagination for incremental replication.
     parent_stream_type = DiscussionsStream
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
-    # ignore_parent_replication_key = True
     is_sorted = False
-    use_fake_since_parameter = True
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
@@ -2356,7 +2405,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         """
         Exit early if first (oldest) record in the page is older than the replication
         bookmark. With github's default record ordering, each page contains records
-        in ascending order, so the first record is the oldest in that page.
+        in ascending order.
         """
         self.logger.debug("Cutoff: %s", self.cutoff)
         if self.cutoff:
@@ -2418,26 +2467,13 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
 
         return row
 
-    # def get_child_context(self, record: dict, context: Context | None) -> dict:
-    #     """Return a context dictionary for child stream(s)."""
-    #     return {
-    #         "org": context["org"] if context else None,
-    #         "repo": context["repo"] if context else None,
-    #         "repo_id": context["repo_id"] if context else None,
-    #         "discussion_id": context["discussion_id"] if context else None,
-    #         "discussion_number": context["discussion_number"] if context else None,
-    #         "comment_id": record["id"] if context else None,
-    #         "comment_node_id": record["node_id"] if context else None,
-    #         "replies_count": record["replies_count"] if context else None,
-    #     }
-
     @property
     def query(self) -> str:
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
-        The API does not support record ordering by updated_at, so we must use
-        tail-first pagination.
+        The API does not support record ordering and direction, so we must use
+        tail-first pagination to get the newest records first.
         """
         return """
           query DiscussionComments($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String) {
@@ -2578,12 +2614,11 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
     primary_keys: ClassVar[list[str]] = ["id"]  # id is databaseId
     # The API does not support sorting by updated_at, so we must default to created_at
-    # to support incremental replication.
+    # to support smart pagination for incremental replication.
     replication_key = "created_at"
     parent_stream_type = DiscussionsStream
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
     is_sorted = False
-    use_fake_since_parameter = True  # dead code
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and flatten nested comments/replies structure."""
@@ -2619,7 +2654,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """
         Exit early if first (oldest) record in the page is older than the replication
         bookmark. With github's default record ordering, each page contains records
-        in ascending order, so the first record is the oldest in that page.
+        in ascending order.
         """
         self.logger.debug("Cutoff: %s", self.cutoff)
         if self.cutoff:
@@ -2642,7 +2677,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """Return a generator of row-type dictionary objects.
         If the parent discussion has no comments, skip the replies API call.
         """
-        # comment_node_id = context.get("comment_node_id", "unknown")
+
         comments_count = context.get("comments_count", 0)
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
@@ -2685,8 +2720,8 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
-        The API does not support record ordering by updated_at, so we must use
-        tail-first pagination.
+        The API does not support custom record ordering and direction, so we must use
+        tail-first pagination to get the newest records first.
         """
         return """
           query DiscussionCommentReplies(
