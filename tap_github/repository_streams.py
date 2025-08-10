@@ -1924,11 +1924,9 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     """
     Defines stream fetching discussions categories from each repository.
 
-    Edits made to categories after extraction are not reflected in the stream.
-    Full refresh is required to see the changes.
-
-    Singer SDK does not support smart pagination for GraphQL,
-    so progress for this stream is not resumable if interrupted.
+    This stream is full drop. Categories are returned alphabetically
+    by GitHub, not chronologically. This means the smart pagination and
+    resuming if interrupted features are not supported.
     """
 
     name = "discussion_categories"
@@ -1936,47 +1934,9 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     primary_keys: ClassVar[list[str]] = [
         "node_id"
     ]  # id:databaseId is not available for the categories object
-    replication_key = "created_at"  # The API does not support sorting by updated_at, so we must default to created_at to support smart pagination for incremental replication. # noqa: E501
-    parent_stream_type = RepositoryStream
-    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
+    replication_method = "full_table"
+    parent_stream_type = RepositoryStream # Github allows a maximum of 25 categories per repository. # noqa: E501
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion category is added/modified  # noqa: E501
-    is_sorted = False
-
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """
-        Exit early if first (oldest) record in the page is older than the replication
-        bookmark. With github's default record ordering, each page contains records
-        in ascending order.
-        """
-        self.logger.debug("Cutoff: %s", self.cutoff)
-        if self.cutoff:
-            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
-            if results:
-                oldest_created_at = parse(results[0][self.replication_key])
-                if oldest_created_at < self.cutoff:
-                    self.logger.info(
-                        "Early exit: oldest=%s, cutoff=%s",
-                        oldest_created_at,
-                        self.cutoff,
-                    )
-                    return None  # early exit
-        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -2011,18 +1971,17 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id.
-        The API does not support custom record ordering and direction, so we must use
-        tail-first pagination to get the newest records first.
+
         """
 
         return """
           query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
             repository(name: $repo, owner: $org) {
-              discussionCategories(last: 100, before: $nextPageCursor_0) {
+              discussionCategories(first: 100, after: $nextPageCursor_0) {
                 pageInfo {
-                  hasNextPage_0: hasPreviousPage
-                  startCursor_0: endCursor
-                  endCursor_0: startCursor
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
                 }
                 nodes {
                   node_id: id
