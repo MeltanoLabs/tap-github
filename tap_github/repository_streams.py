@@ -1935,7 +1935,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         "node_id"
     ]  # id:databaseId is not available for the categories object
     replication_method = "full_table"
-    parent_stream_type = RepositoryStream # Github allows a maximum of 25 categories per repository. # noqa: E501
+    parent_stream_type = RepositoryStream  # Github allows a maximum of 25 categories per repository. # noqa: E501
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion category is added/modified  # noqa: E501
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
