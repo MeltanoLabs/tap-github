@@ -15,6 +15,7 @@ from tap_github.schema_objects import (
     files_object,
     label_object,
     milestone_object,
+    reaction_type_object,
     reactions_object,
     user_object,
 )
@@ -201,6 +202,9 @@ class RepositoryStream(GitHubRestStream):
             "org": record["owner"]["login"],
             "repo": record["name"],
             "repo_id": record["id"],
+            "has_discussions": record.get(
+                "has_discussions", False
+            ),  # GitHub repos not updated after the feature was released in 2021 will not have this field. # noqa: E501
         }
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
@@ -1913,6 +1917,935 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         th.Property("user_id", th.IntegerType),
         th.Property("starred_at", th.DateTimeType),
         th.Property("user", user_object),
+    ).to_dict()
+
+
+class DiscussionCategoriesStream(GitHubGraphqlStream):
+    """
+    Defines stream fetching discussions categories from each repository.
+
+    This stream is full drop. Categories are returned alphabetically
+    by GitHub, not chronologically. This means the smart pagination and
+    resuming if interrupted features are not supported.
+
+    Maximum estimated cost per call: 1 point
+    This translates to 1 point per repository.
+    """
+
+    name = "discussion_categories"
+    query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = [
+        "node_id"
+    ]  # Renamed id to node_id to keep tap consistent with REST streams. databaseId is not available for this object. # noqa: E501
+    replication_method = "full_table"
+    parent_stream_type = RepositoryStream  # Github allows a maximum of 25 categories per repository. # noqa: E501
+    ignore_parent_replication_key = True  # Repository's updated_at does not change when a discussion category is added/modified  # noqa: E501
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """
+        Return a generator of row-type dictionary objects.
+        If discussions are not enabled, skip the API call.
+        """
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+        if not context.get("has_discussions", False):
+            self.logger.debug(
+                f"Repository {org}/{repo}: Discussions not enabled, skipping API call",
+            )
+            return []
+
+        self.logger.debug(
+            f"Repository {org}/{repo}: Discussions enabled, making API call",
+        )
+        return super().get_records(context)
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Set parent fields from context.
+        """
+        if context:
+            row["org"] = context.get("org")
+            row["repo"] = context.get("repo")
+            row["repo_id"] = context.get("repo_id")
+        return row
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id.
+        """
+
+        return """
+          query DiscussionCategories($repo: String!, $org: String!, $nextPageCursor_0: String) {
+            repository(name: $repo, owner: $org) {
+              discussionCategories(first: 100, after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  node_id: id
+                  slug
+                  name
+                  description
+                  is_answerable: isAnswerable
+                  emoji
+                  created_at: createdAt
+                  updated_at: updatedAt
+                }
+              }
+            }
+            rateLimit {
+              cost
+            }
+          }
+        """  # noqa: E501
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Categories Info
+        th.Property("node_id", th.StringType),
+        th.Property("slug", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+        th.Property("is_answerable", th.BooleanType),
+        th.Property("emoji", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+    ).to_dict()
+
+
+class DiscussionsStream(GitHubGraphqlStream):
+    """
+    Defines stream fetching discussions from each repository.
+
+    Note that this stream is not resumable if interrupted.
+    Data is extracted in descending order and we exit early when
+    we've seen records that go back as far as we need.
+
+    Maximum estimated cost per call: 2 points.
+    """
+
+    name = "discussions"
+    query_jsonpath = "$.data.repository.discussions.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = [
+        "id"
+    ]  # databaseId renamed to id to keep tap consistent with REST streams.
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
+    ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
+    is_sorted = False  # Singer recognizes as unsorted.
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.cutoff = self.get_starting_timestamp(context)
+        return super().get_url_params(context, next_page_token)
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if oldest updated_at is older than the replication bookmark.
+        """
+        self.logger.debug("Cutoff: %s", self.cutoff)
+        if self.cutoff:
+            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
+            if results:
+                oldest_updated_at = parse(results[-1][self.replication_key])
+                if oldest_updated_at < self.cutoff:
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
+                        oldest_updated_at,
+                        self.cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """
+        Return a generator of row-type dictionary objects.
+        If discussions are not enabled, skip the API call
+        """
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+        if not context.get("has_discussions", False):
+            self.logger.debug(
+                f"Repository {org}/{repo}: Discussions not enabled, skipping API call",
+            )
+            return []
+
+        self.logger.debug(
+            f"Repository {org}/{repo}: Discussions enabled, making API call",
+        )
+        return super().get_records(context)
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Transform the nodes arrays to flatten the nested structure
+        and set parent fields.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+
+        if "comments" in row:
+            row["comments_count"] = row["comments"].get("comments_count", 0)
+            row.pop("comments", None)
+
+        if "labels" in row and "nodes" in row["labels"]:
+            row["labels_count"] = row["labels"].get("labels_count", 0)
+            row["labels"] = row["labels"]["nodes"]
+
+        if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions_count"] = row["reactions"].get("reactions_count", 0)
+            row["reactions"] = row["reactions"]["nodes"]
+
+        return row
+
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        """
+        Return a context dictionary for child stream(s).
+        """
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "discussion_id": record["id"] if context else None,
+            "discussion_number": record["number"] if context else None,
+            "comments_count": record["comments_count"] if context else None,
+        }
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        """
+        return """
+          query repositoryDiscussions($repo: String!, $org: String!, $nextPageCursor_0: String) {
+            repository(name: $repo, owner: $org) {
+              discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}, after: $nextPageCursor_0) {
+                pageInfo {
+                  hasNextPage_0: hasNextPage
+                  startCursor_0: startCursor
+                  endCursor_0: endCursor
+                }
+                nodes {
+                  node_id: id
+                  id: databaseId
+                  number
+                  title
+                  body: bodyText
+                  url
+                  created_at: createdAt
+                  published_at: publishedAt
+                  last_edited_at: lastEditedAt
+                  updated_at: updatedAt
+                  closed_at: closedAt
+                  created_via_email: createdViaEmail
+                  is_answered: isAnswered
+                  author {
+                    ... on Actor {
+                      login
+                      avatar_url: avatarUrl
+                      html_url: url
+                      type: __typename
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      site_admin: isSiteAdmin
+                    }
+                  }
+                  author_association: authorAssociation
+                  category {
+                    node_id: id
+                    slug
+                    name
+                    description
+                  }
+                  labels(first: 100) {
+                    labels_count: totalCount
+                    nodes {
+                      node_id: id
+                      created_at: createdAt
+                      updated_at: updatedAt
+                      name
+                      description
+                      url
+                      resource_path: resourcePath
+                      color
+                      default: isDefault
+                    }
+                  }
+                  locked
+                  active_lock_reason: activeLockReason
+                  closed
+                  is_answered: isAnswered
+                  answer {
+                    id: databaseId
+                    node_id: id
+                    body
+                    author {
+                      ... on Actor {
+                        login
+                        avatar_url: avatarUrl
+                        html_url: url
+                        type: __typename
+                      }
+                      ... on User {
+                        node_id: id
+                        id: databaseId
+                        site_admin: isSiteAdmin
+                      }
+                    }
+                    author_association: authorAssociation
+                  }
+                  answer_chosen_at: answerChosenAt
+                  answer_chosen_by: answerChosenBy {
+                    ... on Actor {
+                      login
+                      avatar_url: avatarUrl
+                      html_url: url
+                      type: __typename
+                    }
+                    ... on User {
+                      node_id: id
+                      id: databaseId
+                      site_admin: isSiteAdmin
+                    }
+                  }
+                  upvote_count: upvoteCount
+                  comments {
+                    comments_count: totalCount
+                  }
+                  reactions(first: 100) {
+                    reactions_count: totalCount
+                    nodes {
+                      reaction_type: content
+                      reacted_at: createdAt
+                      user {
+                        ... on Actor {
+                          login
+                          avatar_url: avatarUrl
+                          html_url: url
+                          type: __typename
+                        }
+                        ... on User {
+                          node_id: id
+                          id: databaseId
+                          site_admin: isSiteAdmin
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rateLimit {
+              cost
+            }
+          }
+        """  # noqa: E501
+
+    category_object = th.ObjectType(
+        th.Property("node_id", th.StringType),
+        th.Property("slug", th.StringType),
+        th.Property("name", th.StringType),
+        th.Property("description", th.StringType),
+    )
+
+    answer_object = th.ObjectType(
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("author", user_object),
+        th.Property("author_association", th.StringType),
+    )
+
+    labels_array = th.ArrayType(
+        th.ObjectType(
+            th.Property("node_id", th.StringType),
+            th.Property("created_at", th.DateTimeType),
+            th.Property("updated_at", th.DateTimeType),
+            th.Property("name", th.StringType),
+            th.Property("description", th.StringType),
+            th.Property("url", th.StringType),
+            th.Property("resource_path", th.StringType),
+            th.Property("color", th.StringType),
+            th.Property("default", th.BooleanType),
+        )
+    )
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Discussion Info
+        th.Property("node_id", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("number", th.IntegerType),
+        th.Property("title", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("published_at", th.DateTimeType),
+        th.Property("last_edited_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("closed_at", th.DateTimeType),
+        th.Property("created_via_email", th.BooleanType),
+        th.Property("author", user_object),
+        th.Property("author_association", th.StringType),
+        th.Property("category", category_object),
+        th.Property("labels_count", th.IntegerType),
+        th.Property("labels", labels_array),
+        th.Property("locked", th.BooleanType),
+        th.Property("active_lock_reason", th.StringType),
+        th.Property("closed", th.BooleanType),
+        th.Property("is_answered", th.BooleanType),
+        th.Property("answer", answer_object),
+        th.Property("answer_chosen_at", th.DateTimeType),
+        th.Property("answer_chosen_by", user_object),
+        th.Property("upvote_count", th.IntegerType),
+        th.Property("comments_count", th.IntegerType),
+        th.Property("reactions_count", th.IntegerType),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
+    ).to_dict()
+
+
+class DiscussionCommentsStream(GitHubGraphqlStream):
+    """
+    Defines stream fetching discussion comments from each repository.
+
+    Edits made to comments after extraction are not reflected in the stream.
+    Full refresh is required to see the changes. Note that this stream is
+    not resumable if interrupted.
+
+    NOTE: Special handling is needed to avoid data loss.
+          This stream return pages in DESC order, but records within pages
+          are sorted as ASC, due to the API's default ordering.
+          We use tail-first pagination and exit early when we've seen records
+          that go back as far as we need.
+
+    Maximum estimated cost per call: 1 point.
+    """
+
+    name = "discussion_comments"
+    query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = [
+        "id"
+    ]  # databaseId renamed to id to keep tap consistent with REST streams.
+    replication_key = "created_at"  # API's default record ordering field.
+    parent_stream_type = DiscussionsStream
+    state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
+    is_sorted = False  # Set as False to avoid data loss.
+    # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.cutoff = self.get_starting_timestamp(context)
+        return super().get_url_params(context, next_page_token)
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if first (oldest) record in the page is older than the replication
+        bookmark. With github's default record ordering, each page contains records
+        in ascending order.
+        """
+        self.logger.debug("Cutoff: %s", self.cutoff)
+        if self.cutoff:
+            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
+            if results:
+                oldest_created_at = parse(results[0][self.replication_key])
+                if oldest_created_at < self.cutoff:
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
+                        oldest_created_at,
+                        self.cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """
+        Return a generator of row-type dictionary objects.
+        If the parent discussion has no comments, skip the API call.
+        """
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+        discussion_number = context.get("discussion_number", "unknown")
+        comments_count = context.get("comments_count", 0)
+        if not comments_count:
+            self.logger.debug(
+                f"{org}/{repo} Discussion {discussion_number}: "
+                f"No comments found, skipping API call",
+            )
+            return []
+
+        self.logger.debug(
+            f"{org}/{repo} Discussion {discussion_number}: "
+            f"{comments_count} comments found, making API call",
+        )
+        return super().get_records(context)
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Transform the nodes arrays to flatten the nested structure
+        and set parent fields.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["discussion_id"] = context["discussion_id"]
+            row["discussion_number"] = context["discussion_number"]
+
+        if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions_count"] = row["reactions"].get("reactions_count", 0)
+            row["reactions"] = row["reactions"]["nodes"]
+
+        if "replies" in row:
+            row["replies_count"] = row["replies"].get("replies_count", 0)
+            row.pop("replies", None)
+
+        return row
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        The API does not support record ordering and direction, so we must use
+        tail-first pagination to get the newest records first.
+        """
+        return """
+          query DiscussionComments($repo: String!, $org: String!, $discussion_number: Int!, $nextPageCursor_0: String) {
+            repository(name: $repo, owner: $org) {
+              discussion(number: $discussion_number) {
+                comments(last: 100, before: $nextPageCursor_0) {
+                  pageInfo {
+                    hasNextPage_0: hasPreviousPage
+                    startCursor_0: endCursor
+                    endCursor_0: startCursor
+                  }
+                  nodes {
+                    node_id: id
+                    id: databaseId
+                    author {
+                      ... on Actor {
+                        login
+                        avatar_url: avatarUrl
+                        html_url: url
+                        type: __typename
+                      }
+                      ... on User {
+                        node_id: id
+                        id: databaseId
+                        site_admin: isSiteAdmin
+                      }
+                    }
+                    author_association: authorAssociation
+                    body
+                    body_html: bodyHTML
+                    body_text: bodyText
+                    created_at: createdAt
+                    published_at: publishedAt
+                    last_edited_at: lastEditedAt
+                    updated_at: updatedAt
+                    created_via_email: createdViaEmail
+                    deleted_at: deletedAt
+                    includes_created_edit: includesCreatedEdit
+                    is_answer: isAnswer
+                    is_minimized: isMinimized
+                    minimized_reason: minimizedReason
+                    upvote_count: upvoteCount
+                    html_url: url
+                    resource_path: resourcePath
+                    editor {
+                      ... on Actor {
+                        login
+                        avatar_url: avatarUrl
+                        html_url: url
+                        type: __typename
+                      }
+                      ... on User {
+                        node_id: id
+                        id: databaseId
+                        site_admin: isSiteAdmin
+                      }
+                    }
+                    replies {
+                      replies_count: totalCount
+                    }
+                    reactions(first: 100) {
+                      reactions_count: totalCount
+                      nodes {
+                        reaction_type: content
+                        reacted_at: createdAt
+                        user {
+                          ... on Actor {
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                          }
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            site_admin: isSiteAdmin
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rateLimit {
+              cost
+            }
+          }
+        """  # noqa: E501
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("discussion_id", th.IntegerType),
+        th.Property("discussion_number", th.IntegerType),
+        # Discussion Comments keys
+        th.Property("node_id", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("author", user_object),
+        th.Property("author_association", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("body_html", th.StringType),
+        th.Property("body_text", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("published_at", th.DateTimeType),
+        th.Property("last_edited_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("created_via_email", th.BooleanType),
+        th.Property("deleted_at", th.DateTimeType),
+        th.Property("includes_created_edit", th.BooleanType),
+        th.Property("is_answer", th.BooleanType),
+        th.Property("is_minimized", th.BooleanType),
+        th.Property("minimized_reason", th.StringType),
+        th.Property("upvote_count", th.IntegerType),
+        th.Property("html_url", th.StringType),
+        th.Property("resource_path", th.StringType),
+        th.Property("editor", user_object),
+        th.Property("replies_count", th.IntegerType),
+        th.Property("reactions_count", th.IntegerType),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
+    ).to_dict()
+
+
+class DiscussionCommentRepliesStream(GitHubGraphqlStream):
+    """
+    Defines stream fetching replies for each discussion comment from each repository.
+
+    Edits made to replies after extraction are not reflected in the stream.
+    Full refresh is required to see the changes.  Note that this stream is
+    not resumable if interrupted.
+
+    NOTE: Special handling is needed to avoid data loss.
+          This stream return pages in DESC order, but records within pages
+          are sorted as ASC, due to the API's default ordering.
+          We use tail-first pagination and exit early when we've seen records
+          that go back as far as we need.
+
+    Maximum estimated cost per call: 25 points.
+
+    This stream batches 50 comments per discussion, and then extracts their nested
+    replies. This means less calls overall.
+    """
+
+    name = "discussion_comment_replies"
+    query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
+    primary_keys: ClassVar[list[str]] = [
+        "id"
+    ]  # databaseId renamed to id to keep tap consistent with REST streams.
+    replication_key = "created_at"  # API's default record ordering field.
+    parent_stream_type = DiscussionsStream  # Only Discussion's timestamp is affected by replies. # noqa: E501
+    state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
+    is_sorted = False  # Set as False to avoid data loss.
+    # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and flatten nested comments/replies structure."""
+
+        comments = extract_jsonpath(self.query_jsonpath, input=response.json())
+
+        for comment in comments:
+            comment_id = comment.get("comment_id")
+            replies = comment.get("replies", {}).get("nodes", [])
+
+            for reply in replies:
+                # Add comment_id to each reply, so we can link it back
+                reply["comment_id"] = comment_id
+                yield reply
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.cutoff = None
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        self.cutoff = self.get_starting_timestamp(context)
+        return super().get_url_params(context, next_page_token)
+
+    def get_next_page_token(
+        self,
+        response: requests.Response,
+        previous_token: Any | None,  # noqa: ANN401
+    ) -> Any | None:  # noqa: ANN401
+        """
+        Exit early if first (oldest) record in the page is older than the replication
+        bookmark. With github's default record ordering, each page contains records
+        in ascending order.
+        """
+        self.logger.debug("Cutoff: %s", self.cutoff)
+        if self.cutoff:
+            replies_jsonpath = (
+                "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
+            )
+            results = list(extract_jsonpath(replies_jsonpath, input=response.json()))
+            if results:
+                oldest_created_at = parse(results[0][self.replication_key])
+                if oldest_created_at < self.cutoff:
+                    self.logger.info(
+                        "Early exit: oldest=%s, cutoff=%s",
+                        oldest_created_at,
+                        self.cutoff,
+                    )
+                    return None  # early exit
+        return super().get_next_page_token(response, previous_token)
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """Return a generator of row-type dictionary objects.
+        If the parent discussion has no comments, skip the replies API call.
+        """
+
+        comments_count = context.get("comments_count", 0)
+        repo = context.get("repo", "unknown")
+        org = context.get("org", "unknown")
+        discussion_number = context.get("discussion_number", "unknown")
+        if not comments_count:
+            self.logger.debug(
+                f"{org}/{repo} Discussion {discussion_number}/ "
+                f"No comments found, skipping API call for replies",
+            )
+            return []
+
+        self.logger.debug(
+            f"{org}/{repo} Discussion {discussion_number}: "
+            f"{comments_count} comments found, making API call for replies",
+        )
+
+        return super().get_records(context)
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict:
+        """
+        Transform the nodes arrays to flatten the nested structure
+        and set parent fields.
+        """
+        row = super().post_process(row, context)
+
+        if context is not None:
+            row["org"] = context["org"]
+            row["repo"] = context["repo"]
+            row["repo_id"] = context["repo_id"]
+            row["discussion_id"] = context["discussion_id"]
+            row["discussion_number"] = context["discussion_number"]
+
+        if "reactions" in row and "nodes" in row["reactions"]:
+            row["reactions_count"] = row["reactions"].get("reactions_count", 0)
+            row["reactions"] = row["reactions"]["nodes"]
+        return row
+
+    @property
+    def query(self) -> str:
+        """
+        Return dynamic GraphQL query.
+        Note: To keep the tap consistent, we rename id to node_id and databaseId to id.
+        The API does not support custom record ordering and direction, so we must use
+        tail-first pagination to get the newest records first.
+        """
+        return """
+          query DiscussionCommentReplies(
+          $repo: String!,
+          $org: String!,
+          $discussion_number: Int!,
+          $nextPageCursor_0: String,
+          $nextPageCursor_1: String
+          ) {
+            repository(name: $repo, owner: $org) {
+              discussion(number: $discussion_number) {
+                comments(last: 50, before: $nextPageCursor_0) {
+                  pageInfo {
+                    hasNextPage_0: hasPreviousPage
+                    startCursor_0: endCursor
+                    endCursor_0: startCursor
+                  }
+                  nodes {
+                    comment_id: databaseId
+                    replies(last: 50, before: $nextPageCursor_1) {
+                      pageInfo {
+                        hasNextPage_1: hasPreviousPage
+                        startCursor_1: endCursor
+                        endCursor_1: startCursor
+                      }
+                      nodes {
+                        node_id: id
+                        id: databaseId
+                        author {
+                          ... on Actor {
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                          }
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            site_admin: isSiteAdmin
+                          }
+                        }
+                        author_association: authorAssociation
+                        body
+                        body_html: bodyHTML
+                        body_text: bodyText
+                        created_at: createdAt
+                        published_at: publishedAt
+                        last_edited_at: lastEditedAt
+                        updated_at: updatedAt
+                        created_via_email: createdViaEmail
+                        deleted_at: deletedAt
+                        includes_created_edit: includesCreatedEdit
+                        is_answer: isAnswer
+                        is_minimized: isMinimized
+                        minimized_reason: minimizedReason
+                        upvote_count: upvoteCount
+                        html_url: url
+                        resource_path: resourcePath
+                        editor {
+                          ... on Actor {
+                            login
+                            avatar_url: avatarUrl
+                            html_url: url
+                            type: __typename
+                          }
+                          ... on User {
+                            node_id: id
+                            id: databaseId
+                            site_admin: isSiteAdmin
+                          }
+                        }
+                        reactions(first: 100) {
+                          reactions_count: totalCount
+                          nodes {
+                            reaction_type: content
+                            reacted_at: createdAt
+                            user {
+                              ... on Actor {
+                                login
+                                avatar_url: avatarUrl
+                                html_url: url
+                                type: __typename
+                              }
+                              ... on User {
+                                node_id: id
+                                id: databaseId
+                                site_admin: isSiteAdmin
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            rateLimit {
+              limit
+              remaining
+              used
+              resetAt
+              cost
+            }
+          }
+        """
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("discussion_id", th.IntegerType),
+        th.Property("discussion_number", th.IntegerType),
+        # Discussion Comment Replies Keys
+        th.Property("comment_id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("id", th.IntegerType),
+        th.Property("author", user_object),
+        th.Property("author_association", th.StringType),
+        th.Property("body", th.StringType),
+        th.Property("body_html", th.StringType),
+        th.Property("body_text", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("published_at", th.DateTimeType),
+        th.Property("last_edited_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("created_via_email", th.BooleanType),
+        th.Property("deleted_at", th.DateTimeType),
+        th.Property("includes_created_edit", th.BooleanType),
+        th.Property("is_answer", th.BooleanType),
+        th.Property("is_minimized", th.BooleanType),
+        th.Property("minimized_reason", th.StringType),
+        th.Property("upvote_count", th.IntegerType),
+        th.Property("html_url", th.StringType),
+        th.Property("resource_path", th.StringType),
+        th.Property("editor", user_object),
+        th.Property("reactions_count", th.IntegerType),
+        th.Property("reactions", th.ArrayType(reaction_type_object)),
     ).to_dict()
 
 
