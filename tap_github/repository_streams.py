@@ -1927,16 +1927,19 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
     This stream is full drop. Categories are returned alphabetically
     by GitHub, not chronologically. This means the smart pagination and
     resuming if interrupted features are not supported.
+
+    Maximum estimated cost per call: 1 point
+    This translates to 1 point per repository.
     """
 
     name = "discussion_categories"
     query_jsonpath = "$.data.repository.discussionCategories.nodes.[*]"
     primary_keys: ClassVar[list[str]] = [
         "node_id"
-    ]  # id:databaseId is not available for the categories object
+    ]  # Renamed id to node_id to keep tap consistent with REST streams. databaseId is not available for this object. # noqa: E501
     replication_method = "full_table"
     parent_stream_type = RepositoryStream  # Github allows a maximum of 25 categories per repository. # noqa: E501
-    ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion category is added/modified  # noqa: E501
+    ignore_parent_replication_key = True  # Repository's updated_at does not change when a discussion category is added/modified  # noqa: E501
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -1971,7 +1974,6 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         """
         Return dynamic GraphQL query.
         Note: To keep the tap consistent, we rename id to node_id.
-
         """
 
         return """
@@ -2022,18 +2024,23 @@ class DiscussionsStream(GitHubGraphqlStream):
     """
     Defines stream fetching discussions from each repository.
 
-    Singer SDK does not support smart pagination for GraphQL,
-    so progress for this stream is not resumable if interrupted.
+    Note that this stream is not resumable if interrupted.
+    Data is extracted in descending order and we exit early when
+    we've seen records that go back as far as we need.
+
+    Maximum estimated cost per call: 2 points.
     """
 
     name = "discussions"
     query_jsonpath = "$.data.repository.discussions.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["id"]  # id:databaseId
+    primary_keys: ClassVar[list[str]] = [
+        "id"
+    ]  # databaseId renamed to id to keep tap consistent with REST streams.
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
-    is_sorted = False
+    is_sorted = False  # Singer recognizes as unsorted.
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
@@ -2330,21 +2337,28 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     Defines stream fetching discussion comments from each repository.
 
     Edits made to comments after extraction are not reflected in the stream.
-    Full refresh is required to see the changes.
+    Full refresh is required to see the changes. Note that this stream is
+    not resumable if interrupted.
 
-    Singer SDK does not support smart pagination for GraphQL,
-    so progress for this stream is not resumable if interrupted.
+    NOTE: Special handling is needed to avoid data loss.
+          This stream return pages in DESC order, but records within pages
+          are sorted as ASC, due to the API's default ordering.
+          We use tail-first pagination and exit early when we've seen records
+          that go back as far as we need.
+
+    Maximum estimated cost per call: 1 point.
     """
 
     name = "discussion_comments"
     query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["id"]  # id:databaseId
-    replication_key = "created_at"
-    # The API does not support sorting by updated_at, so we must default to created_at
-    # to support smart pagination for incremental replication.
+    primary_keys: ClassVar[list[str]] = [
+        "id"
+    ]  # databaseId renamed to id to keep tap consistent with REST streams.
+    replication_key = "created_at"  # API's default record ordering field.
     parent_stream_type = DiscussionsStream
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
-    is_sorted = False
+    is_sorted = False  # Set as False to avoid data loss.
+    # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
@@ -2565,21 +2579,31 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
     Defines stream fetching replies for each discussion comment from each repository.
 
     Edits made to replies after extraction are not reflected in the stream.
-    Full refresh is required to see the changes.
+    Full refresh is required to see the changes.  Note that this stream is
+    not resumable if interrupted.
 
-    Singer SDK does not support smart pagination for GraphQL,
-    so progress for this stream is not resumable if interrupted.
+    NOTE: Special handling is needed to avoid data loss.
+          This stream return pages in DESC order, but records within pages
+          are sorted as ASC, due to the API's default ordering.
+          We use tail-first pagination and exit early when we've seen records
+          that go back as far as we need.
+
+    Maximum estimated cost per call: 25 points.
+
+    This stream batches 50 comments per discussion, and then extracts their nested
+    replies. This means less calls overall.
     """
 
     name = "discussion_comment_replies"
     query_jsonpath = "$.data.repository.discussion.comments.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["id"]  # id is databaseId
-    # The API does not support sorting by updated_at, so we must default to created_at
-    # to support smart pagination for incremental replication.
-    replication_key = "created_at"
-    parent_stream_type = DiscussionsStream
+    primary_keys: ClassVar[list[str]] = [
+        "id"
+    ]  # databaseId renamed to id to keep tap consistent with REST streams.
+    replication_key = "created_at"  # API's default record ordering field.
+    parent_stream_type = DiscussionsStream  # Only Discussion's timestamp is affected by replies. # noqa: E501
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
-    is_sorted = False
+    is_sorted = False  # Set as False to avoid data loss.
+    # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and flatten nested comments/replies structure."""
