@@ -59,6 +59,7 @@ from tap_github.repository_streams import (
     WorkflowsStream,
 )
 from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
+from tap_github.search_count_streams import IssueSearchCountStream, PRSearchCountStream
 
 if TYPE_CHECKING:
     from singer_sdk.streams.core import Stream
@@ -143,6 +144,13 @@ class Streams(Enum):
             ProjectsStream,
             ProjectFieldConfigurationsStream,
             ProjectItemsStream,
+        ],
+    )
+    SEARCH_COUNTS = (
+        {"search_count_queries", "search_orgs", "search_scope"},
+        [
+            IssueSearchCountStream,
+            PRSearchCountStream,
         ],
     )
 

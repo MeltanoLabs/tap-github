@@ -27,9 +27,9 @@ class TapGitHub(Tap):
         """
 
         LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()  # noqa: N806
-        assert LOGLEVEL in logging._levelToName.values(), (
-            f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
-        )
+        assert (
+            LOGLEVEL in logging._levelToName.values()
+        ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
         logger = logging.getLogger(cls.name)
         logger.setLevel(LOGLEVEL)
         return logger
@@ -131,6 +131,91 @@ class TapGitHub(Tap):
                 additional_properties=False,
             ),
             description="Options which change the behaviour of a specific stream.",
+        ),
+        th.Property(
+            "search_count_queries",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("name", th.StringType, required=True),
+                    th.Property("query", th.StringType, required=True),
+                    th.Property(
+                        "type",
+                        th.StringType,
+                        allowed_values=["issue", "pr"],
+                        default="issue",
+                    ),
+                    th.Property("month", th.StringType),
+                )
+            ),
+            description=(
+                "Array of search count query objects for statistics collection:\n"
+                '"name" - human readable identifier\n'
+                '"query" - GitHub search syntax (e.g., "org:Automattic type:issue state:open")\n'
+                '"type" - either "issue" or "pr"\n'
+                '"month" - optional month filter in YYYY-MM format'
+            ),
+        ),
+        th.Property(
+            "github_instances",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("name", th.StringType, required=True),
+                    th.Property("api_url_base", th.StringType, required=True),
+                    th.Property("auth_token", th.StringType, required=True),
+                )
+            ),
+            description=(
+                "Array of GitHub instance configurations for multi-instance support:\n"
+                '"name" - instance identifier (e.g., "github.com", "github.example.com")\n'
+                '"api_url_base" - base API URL (e.g., "https://api.github.com")\n'
+                '"auth_token" - authentication token for this instance'
+            ),
+        ),
+        th.Property(
+            "search_orgs",
+            th.ArrayType(th.StringType),
+            description="List of GitHub organization names for programmatic search count generation",
+        ),
+        th.Property(
+            "date_range",
+            th.ObjectType(
+                th.Property("start", th.StringType, required=True),
+                th.Property("end", th.StringType, required=True),
+            ),
+            description=(
+                "Date range for programmatic query generation:\n"
+                '"start" - start date in YYYY-MM-DD format\n'
+                '"end" - end date in YYYY-MM-DD format'
+            ),
+        ),
+        th.Property(
+            "search_scope",
+            th.ObjectType(
+                th.Property(
+                    "org_level",
+                    th.ArrayType(th.StringType),
+                    description="Organizations for org-level aggregated queries",
+                ),
+                th.Property(
+                    "repo_level",
+                    th.ObjectType(
+                        th.Property("org", th.StringType, required=True),
+                        th.Property("limit", th.IntegerType, default=20),
+                        th.Property(
+                            "sort_by",
+                            th.StringType,
+                            default="issues",
+                            allowed_values=["issues", "stars", "forks", "updated"],
+                        ),
+                    ),
+                    description="Configuration for top N repositories by specified criteria",
+                ),
+            ),
+            description=(
+                "Search scope configuration for both org-level and repo-level queries:\n"
+                '"org_level" - list of organizations for org:X queries\n'
+                '"repo_level" - get top N repos from an org sorted by issues/stars/forks/updated'
+            ),
         ),
     ).to_dict()
 
