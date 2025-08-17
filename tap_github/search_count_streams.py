@@ -47,14 +47,16 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     count_field: ClassVar[str] = "issue_count"
     
     # Performance configuration
-    DEFAULT_MAX_PARTITIONS = 1000
-    DEFAULT_WARNING_THRESHOLD = 500
+    DEFAULT_MAX_PARTITIONS = 5000
+    DEFAULT_WARNING_THRESHOLD = 2000
     DEFAULT_CACHE_TTL_MINUTES = 60
+    DEFAULT_BATCH_SIZE = 10
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
         self._cache_ttl_minutes = self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
+        self._batch_size = self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
 
     # Search query templates for org-level queries
     ISSUE_QUERY_TEMPLATE = "org:{org} type:issue state:open created:{start}..{end}"
@@ -89,6 +91,33 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             remaining
           }
         }
+        """
+
+    def _build_batch_query(self, search_queries: List[str]) -> str:
+        """Build a batched GraphQL query for multiple search queries."""
+        query_parts = []
+        variable_parts = []
+        
+        for i, _ in enumerate(search_queries):
+            alias = f"search{i}"
+            var_name = f"q{i}"
+            variable_parts.append(f"${var_name}: String!")
+            query_parts.append(f"""
+          {alias}: search(query: ${var_name}, type: ISSUE, first: 1) {{
+            issueCount
+          }}""")
+        
+        variables_str = ", ".join(variable_parts)
+        searches_str = "\n".join(query_parts)
+        
+        return f"""
+        query({variables_str}) {{
+          {searches_str}
+          rateLimit {{
+            cost
+            remaining
+          }}
+        }}
         """
 
     def prepare_request_payload(
@@ -1124,14 +1153,133 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         return queries
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
-        """Override to handle custom partitioning."""
+        """Override to handle custom partitioning with batch processing."""
         partitions = self.get_partitions(context)
-
+        
+        # Group partitions by instance for batch processing
+        instance_partitions: Dict[str, List[dict]] = {}
         for partition in partitions:
-            # Store the current partition context for post_process
-            self._current_partition_context = partition
-            # Yield records for this partition
-            yield from self.request_records(partition)
+            instance = partition.get("source", "github.com")
+            if instance not in instance_partitions:
+                instance_partitions[instance] = []
+            instance_partitions[instance].append(partition)
+        
+        # Process each instance's partitions in batches
+        for instance, instance_partition_list in instance_partitions.items():
+            yield from self._process_partitions_in_batches(instance_partition_list)
+
+    def _process_partitions_in_batches(self, partitions: List[dict]) -> Iterable[dict[str, Any]]:
+        """Process partitions in batches for better performance."""
+        batch_size = self._batch_size
+        
+        for i in range(0, len(partitions), batch_size):
+            batch_partitions = partitions[i:i + batch_size]
+            
+            if len(batch_partitions) == 1:
+                # Single query - use regular method
+                partition = batch_partitions[0]
+                self._current_partition_context = partition
+                yield from self.request_records(partition)
+            else:
+                # Batch query - use optimized method
+                yield from self._process_batch_request(batch_partitions)
+
+    def _process_batch_request(self, batch_partitions: List[dict]) -> Iterable[dict[str, Any]]:
+        """Process multiple partitions in a single batched GraphQL request."""
+        search_queries = [p.get("search_query", "") for p in batch_partitions]
+        
+        # Build batch query and variables
+        batch_query = self._build_batch_query(search_queries)
+        variables = {f"q{i}": query for i, query in enumerate(search_queries)}
+        
+        # Set up API URL for this batch (all partitions in batch have same instance)
+        first_partition = batch_partitions[0]
+        self._current_partition = first_partition
+        
+        # Make the batched GraphQL request
+        response = self._make_batch_graphql_request(batch_query, variables, first_partition)
+        
+        if not response or "data" not in response:
+            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+            return
+        
+        # Parse batch results and yield records
+        data = response["data"]
+        for i, partition in enumerate(batch_partitions):
+            search_result = data.get(f"search{i}")
+            if search_result:
+                # Store partition context for post_process
+                self._current_partition_context = partition
+                
+                # Create record from batch result
+                record = self.post_process(search_result, partition)
+                yield record
+            else:
+                self.logger.warning(f"No result for search{i} in batch")
+
+    def _make_batch_graphql_request(self, query: str, variables: dict, partition: dict) -> Optional[dict]:
+        """Make a batched GraphQL request using instance-specific configuration."""
+        from urllib.parse import urljoin
+        import requests
+        from requests.exceptions import ConnectionError, HTTPError, Timeout
+        
+        # Get instance configuration
+        api_url_base = partition.get("api_url_base", "https://api.github.com")
+        source = partition.get("source", "github.com")
+        
+        # Get instance-specific token
+        instances = self._get_github_instances()
+        auth_token = None
+        for instance in instances:
+            if instance.name == source:
+                auth_token = instance.auth_token
+                break
+                
+        if not auth_token:
+            self.logger.error(f"No auth token found for instance {source}")
+            return None
+        
+        graphql_url = urljoin(api_url_base, "/graphql")
+        payload = {"query": query, "variables": variables}
+        timeout = self.config.get("stream_request_timeout", 300)
+        
+        try:
+            response = requests.post(
+                graphql_url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {auth_token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            
+            json_resp = response.json()
+            
+            # Check for GraphQL errors
+            if "errors" in json_resp:
+                errors = json_resp.get("errors", [])
+                for error in errors:
+                    error_msg = error.get("message", str(error))
+                    self.logger.warning(f"GraphQL batch query warning for {source}: {error_msg}")
+            
+            # Log batch performance metrics
+            rate_limit = json_resp.get("data", {}).get("rateLimit", {})
+            cost = rate_limit.get("cost", len(variables))
+            remaining = rate_limit.get("remaining", "unknown")
+            
+            self.logger.info(
+                f"Batch request completed: {len(variables)} queries, "
+                f"cost: {cost} points, remaining: {remaining}"
+            )
+            
+            return json_resp
+            
+        except Exception as e:
+            self.logger.error(f"Batch GraphQL request failed for {source}: {e}")
+            return None
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:

@@ -64,7 +64,8 @@ class TapGitHub(Tap):
         th.Property(
             "rate_limit_buffer",
             th.IntegerType,
-            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 1000.",  # noqa: E501
+            default=200,
+            description="Add a buffer to avoid consuming all query points for the token at hand. Defaults to 200 for aggressive performance.",  # noqa: E501
         ),
         th.Property(
             "expiry_time_buffer",
@@ -249,8 +250,8 @@ class TapGitHub(Tap):
         th.Property(
             "max_partitions",
             th.IntegerType,
-            default=1000,
-            description="Maximum number of partitions allowed for search count streams",
+            default=5000,
+            description="Maximum number of partitions allowed for search count streams (increased for performance)",
         ),
         th.Property(
             "partition_warning_threshold",
@@ -261,14 +262,26 @@ class TapGitHub(Tap):
         th.Property(
             "enforce_partition_limit",
             th.BooleanType,
-            default=True,
-            description="Enforce maximum partition limit (raises error when exceeded)",
+            default=False,
+            description="Enforce maximum partition limit (disabled by default for performance)",
         ),
         th.Property(
             "repo_discovery_cache_ttl",
             th.IntegerType,
             default=60,
             description="Cache TTL in minutes for repository discovery results",
+        ),
+        th.Property(
+            "batch_query_size",
+            th.IntegerType,
+            default=10,
+            description="Number of search queries to batch in a single GraphQL request for performance",
+        ),
+        th.Property(
+            "max_concurrent_requests",
+            th.IntegerType,
+            default=4,
+            description="Maximum number of concurrent API requests per token",
         ),
     ).to_dict()
 
