@@ -192,31 +192,45 @@ class TapGitHub(Tap):
             "search_scope",
             th.ObjectType(
                 th.Property(
-                    "org_level",
-                    th.ArrayType(th.StringType),
-                    description="Organizations for org-level aggregated queries",
-                ),
-                th.Property(
-                    "repo_level",
+                    "instances",
                     th.ArrayType(
                         th.ObjectType(
-                            th.Property("org", th.StringType, required=True),
-                            th.Property("limit", th.IntegerType, default=20),
+                            th.Property("instance", th.StringType, required=True),
+                            th.Property("api_url_base", th.StringType, required=True),
+                            th.Property("auth_token", th.StringType),
                             th.Property(
-                                "sort_by",
-                                th.StringType,
-                                default="issues",
-                                allowed_values=["issues", "stars", "forks", "updated"],
+                                "org_level",
+                                th.ArrayType(th.StringType),
+                                description="Organizations for org-level aggregated queries",
                             ),
+                            th.Property(
+                                "repo_level",
+                                th.ArrayType(
+                                    th.ObjectType(
+                                        th.Property("org", th.StringType, required=True),
+                                        th.Property("limit", th.IntegerType, default=20),
+                                        th.Property(
+                                            "sort_by",
+                                            th.StringType,
+                                            default="issues",
+                                            allowed_values=["issues", "stars", "forks", "updated"],
+                                        ),
+                                    )
+                                ),
+                                description="List of configurations for top N repositories by specified criteria",
+                            ),
+                            th.Property("max_partitions", th.IntegerType, default=1000),
+                            th.Property("partition_warning_threshold", th.IntegerType, default=500),
+                            th.Property("enforce_partition_limit", th.BooleanType, default=True),
+                            th.Property("repo_discovery_cache_ttl", th.IntegerType, default=60),
                         )
                     ),
-                    description="List of configurations for top N repositories by specified criteria",
+                    description="List of GitHub instances with their specific org/repo configurations",
                 ),
             ),
             description=(
-                "Search scope configuration for both org-level and repo-level queries:\n"
-                '"org_level" - list of organizations for org:X queries\n'
-                '"repo_level" - get top N repos from an org sorted by issues/stars/forks/updated'
+                "Search scope configuration for multi-instance GitHub environments:\n"
+                '"instances" - array of GitHub instances with instance->org->repo mapping'
             ),
         ),
         # Performance and validation configuration for search count streams

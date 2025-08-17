@@ -467,7 +467,6 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                             "source": instance.name,
                             "month": query.month,
                             "api_url_base": instance.api_url_base,
-                            "auth_token": instance.auth_token,
                         }
                         partitions.append(partition)
 
@@ -482,65 +481,149 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             msg = "date_range is required when using search_scope"
             raise ValueError(msg)
 
-        partitions = []
-        instances = self._get_github_instances()
         month_ranges = self._generate_month_ranges()
 
-        # Generate org-level partitions
-        org_level_orgs = scope_config.get("org_level", [])
-        if org_level_orgs:
-            self._validate_org_names(org_level_orgs)
-            for org in org_level_orgs:
-                for start_date, end_date, month_id in month_ranges:
-                    search_queries = self._create_search_queries_for_month(
-                        org, start_date, end_date, month_id
-                    )
-                    for query in search_queries:
-                        for instance in instances:
-                            partition = {
-                                "search_name": query.name,
-                                "search_query": query.query,
-                                "source": instance.name,
-                                "month": query.month,
-                                "api_url_base": instance.api_url_base,
-                            }
-                            partitions.append(partition)
+        # Instance-based configuration is required
+        if "instances" not in scope_config:
+            msg = "search_scope.instances is required. Please use the new instance-based configuration format."
+            raise ValueError(msg)
 
-        # Generate repo-level partitions
-        repo_level_configs = scope_config.get("repo_level", [])
+        return self._generate_instance_scoped_partitions(scope_config, month_ranges)
+
+    def _generate_instance_scoped_partitions(self, scope_config: dict, month_ranges: List[Tuple[str, str, str]]) -> list[dict]:
+        """Generate partitions from new instance-scoped configuration."""
+        partitions = []
         
-        # Handle both single dict (backward compat) and list of dicts
-        if isinstance(repo_level_configs, dict):
-            repo_level_configs = [repo_level_configs]
+        for instance_config in scope_config["instances"]:
+            instance_name = instance_config["instance"]
+            api_url_base = instance_config["api_url_base"]
             
-        for repo_config in repo_level_configs:
-            org = repo_config["org"]
-            limit = repo_config.get("limit", 20)
-            sort_by = repo_config.get("sort_by", "issues")
+            # Instance-specific performance settings
+            max_partitions = instance_config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
+            warning_threshold = instance_config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
+            enforce_limit = instance_config.get("enforce_partition_limit", True)
+            cache_ttl = instance_config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
             
-            # Get top repositories
-            top_repos = self._get_top_repos(org, limit, sort_by)
-
-            for repo in top_repos:
-                for start_date, end_date, month_id in month_ranges:
-                    search_queries = self._generate_repo_queries(
-                        repo, start_date, end_date, month_id
-                    )
-                    for query in search_queries:
-                        for instance in instances:
+            instance_partitions = []
+            
+            # Generate org-level partitions for this instance
+            org_level_orgs = instance_config.get("org_level", [])
+            if org_level_orgs:
+                self._validate_org_names(org_level_orgs)
+                for org in org_level_orgs:
+                    for start_date, end_date, month_id in month_ranges:
+                        search_queries = self._create_search_queries_for_month(
+                            org, start_date, end_date, month_id
+                        )
+                        for query in search_queries:
                             partition = {
                                 "search_name": query.name,
                                 "search_query": query.query,
-                                "source": instance.name,
+                                "source": instance_name,
                                 "month": query.month,
-                                "api_url_base": instance.api_url_base,
+                                "api_url_base": api_url_base,
                             }
-                            partitions.append(partition)
+                            instance_partitions.append(partition)
 
-        total_partitions = len(partitions)
-        self._check_partition_limits(total_partitions)
+            # Generate repo-level partitions for this instance
+            repo_level_configs = instance_config.get("repo_level", [])
+            for repo_config in repo_level_configs:
+                org = repo_config["org"]
+                limit = repo_config.get("limit", 20)
+                sort_by = repo_config.get("sort_by", "issues")
+                
+                # Get top repositories for this specific instance
+                top_repos = self._get_top_repos_for_instance(instance_config, org, limit, sort_by, cache_ttl)
+
+                for repo in top_repos:
+                    for start_date, end_date, month_id in month_ranges:
+                        search_queries = self._generate_repo_queries(
+                            repo, start_date, end_date, month_id
+                        )
+                        for query in search_queries:
+                            partition = {
+                                "search_name": query.name,
+                                "search_query": query.query,
+                                "source": instance_name,
+                                "month": query.month,
+                                "api_url_base": api_url_base,
+                            }
+                            instance_partitions.append(partition)
+
+            # Check instance-specific partition limits
+            self._check_instance_partition_limits(
+                len(instance_partitions), instance_name, max_partitions, warning_threshold, enforce_limit
+            )
+            
+            partitions.extend(instance_partitions)
 
         return partitions
+
+
+    def _get_top_repos_for_instance(self, instance_config: dict, org: str, limit: int, sort_by: str, cache_ttl: int) -> List[str]:
+        """Get top N repositories for a specific instance."""
+        instance_name = instance_config["instance"]
+        cache_key = f"{instance_name}:{org}:{limit}:{sort_by}"
+        
+        # Check instance-specific cache
+        if cache_key in self._repo_cache:
+            repos, cached_at = self._repo_cache[cache_key]
+            cache_age = datetime.now() - cached_at
+            if cache_age.total_seconds() < (cache_ttl * 60):
+                self.logger.debug(f"Using cached repositories for {cache_key}")
+                return repos
+            else:
+                del self._repo_cache[cache_key]
+        
+        # Create temporary GitHubInstance object for this instance
+        auth_token = (
+            instance_config.get("auth_token") 
+            or self.config.get("auth_token")
+            or self.config.get("access_token")
+        )
+        
+        if not auth_token:
+            self.logger.warning(f"No auth token available for instance {instance_name}")
+            return []
+        
+        instance = GitHubInstance(
+            name=instance_name,
+            api_url_base=instance_config["api_url_base"],
+            auth_token=auth_token
+        )
+        
+        # Fetch repositories using instance-specific API
+        if sort_by == "issues":
+            repos = self._get_top_repos_by_issues_for_instance(instance, org, limit)
+        elif sort_by == "stars":
+            repos = self._get_top_repos_by_stars_for_instance(instance, org, limit)
+        elif sort_by == "forks":
+            repos = self._get_top_repos_by_forks_for_instance(instance, org, limit)
+        elif sort_by == "updated":
+            repos = self._get_top_repos_by_updated_for_instance(instance, org, limit)
+        else:
+            msg = f"Unsupported sort_by criteria: {sort_by}"
+            raise ValueError(msg)
+        
+        # Cache the results with instance-specific TTL
+        self._repo_cache[cache_key] = (repos, datetime.now())
+        self.logger.debug(f"Cached {len(repos)} repositories for {cache_key}")
+        
+        return repos
+
+    def _check_instance_partition_limits(self, total_partitions: int, instance_name: str, max_partitions: int, warning_threshold: int, enforce_limit: bool) -> None:
+        """Check partition count limits for a specific instance."""
+        if total_partitions > max_partitions and enforce_limit:
+            raise ValueError(
+                f"Instance '{instance_name}' partition count {total_partitions} exceeds maximum {max_partitions}. "
+                f"Consider reducing date range, repository count, or disable enforcement "
+                f"with enforce_partition_limit=false"
+            )
+        elif total_partitions > warning_threshold:
+            self.logger.warning(
+                f"Instance '{instance_name}' high partition count: {total_partitions} (threshold: {warning_threshold}). "
+                f"This may result in rate limiting or performance issues."
+            )
 
     def _get_top_repos(self, org: str, limit: int, sort_by: str) -> List[str]:
         """Get top N repositories from an organization sorted by the specified criteria.
@@ -810,6 +893,190 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 self._current_partition = original_partition
             else:
                 delattr(self, "_current_partition")
+
+    def _get_top_repos_by_issues_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
+        """Get top N repositories sorted by open issue count for a specific instance."""
+        fetch_limit = min(limit * 5, 100)
+
+        query = """
+        query($org: String!, $limit: Int!) {
+          organization(login: $org) {
+            repositories(first: $limit, orderBy: {field: STARGAZERS, direction: DESC}) {
+              nodes {
+                nameWithOwner
+                issues(states: OPEN) {
+                  totalCount
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = {"org": org, "limit": fetch_limit}
+        response = self._make_graphql_request_for_instance(instance, query, variables)
+
+        if not response or "data" not in response:
+            self.logger.warning(f"No data returned for org {org} on instance {instance.name}")
+            return []
+
+        org_data = response["data"].get("organization")
+        if not org_data:
+            self.logger.warning(f"Organization {org} not found on instance {instance.name}")
+            return []
+
+        repos = org_data.get("repositories", {}).get("nodes", [])
+        repos_with_counts = [
+            {"name": repo["nameWithOwner"], "issue_count": repo["issues"]["totalCount"]}
+            for repo in repos
+        ]
+
+        sorted_repos = sorted(
+            repos_with_counts, key=lambda x: x["issue_count"], reverse=True
+        )
+        return [repo["name"] for repo in sorted_repos[:limit]]
+
+    def _get_top_repos_by_stars_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
+        """Get top N repositories sorted by star count for a specific instance."""
+        query = """
+        query($org: String!, $limit: Int!) {
+          organization(login: $org) {
+            repositories(first: $limit, orderBy: {field: STARGAZERS, direction: DESC}) {
+              nodes {
+                nameWithOwner
+              }
+            }
+          }
+        }
+        """
+
+        variables = {"org": org, "limit": limit}
+        response = self._make_graphql_request_for_instance(instance, query, variables)
+
+        if not response or "data" not in response:
+            return []
+
+        org_data = response["data"].get("organization")
+        if not org_data:
+            return []
+
+        repos = org_data.get("repositories", {}).get("nodes", [])
+        return [repo["nameWithOwner"] for repo in repos]
+
+    def _get_top_repos_by_forks_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
+        """Get top N repositories sorted by fork count for a specific instance."""
+        query = """
+        query($org: String!, $limit: Int!) {
+          organization(login: $org) {
+            repositories(first: $limit, orderBy: {field: FORKS, direction: DESC}) {
+              nodes {
+                nameWithOwner
+              }
+            }
+          }
+        }
+        """
+
+        variables = {"org": org, "limit": limit}
+        response = self._make_graphql_request_for_instance(instance, query, variables)
+
+        if not response or "data" not in response:
+            return []
+
+        org_data = response["data"].get("organization")
+        if not org_data:
+            return []
+
+        repos = org_data.get("repositories", {}).get("nodes", [])
+        return [repo["nameWithOwner"] for repo in repos]
+
+    def _get_top_repos_by_updated_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
+        """Get top N repositories sorted by last update for a specific instance."""
+        query = """
+        query($org: String!, $limit: Int!) {
+          organization(login: $org) {
+            repositories(first: $limit, orderBy: {field: UPDATED_AT, direction: DESC}) {
+              nodes {
+                nameWithOwner
+              }
+            }
+          }
+        }
+        """
+
+        variables = {"org": org, "limit": limit}
+        response = self._make_graphql_request_for_instance(instance, query, variables)
+
+        if not response or "data" not in response:
+            return []
+
+        org_data = response["data"].get("organization")
+        if not org_data:
+            return []
+
+        repos = org_data.get("repositories", {}).get("nodes", [])
+        return [repo["nameWithOwner"] for repo in repos]
+
+    def _make_graphql_request_for_instance(self, instance: GitHubInstance, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make a GraphQL request to a specific GitHub instance."""
+        from urllib.parse import urljoin
+        import requests
+        from requests.exceptions import ConnectionError, HTTPError, Timeout
+
+        graphql_url = urljoin(instance.api_url_base, "/graphql")
+        payload = {
+            "query": query,
+            "variables": variables,
+        }
+
+        timeout = self.config.get("stream_request_timeout", 300)
+
+        try:
+            response = requests.post(
+                graphql_url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {instance.auth_token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+                timeout=timeout,
+            )
+            response.raise_for_status()
+
+            json_resp = response.json()
+
+            # Check for GraphQL errors
+            if "errors" in json_resp:
+                errors = json_resp.get("errors", [])
+                for error in errors:
+                    error_msg = error.get("message", str(error))
+                    self.logger.warning(f"GraphQL query warning for {instance.name}: {error_msg}")
+
+            return json_resp
+
+        except HTTPError as e:
+            if e.response.status_code == 401:
+                self.logger.error(f"Authentication failed for {instance.name}: {e}")
+            elif e.response.status_code == 403:
+                self.logger.error(f"Permission denied for {instance.name}: {e}")
+            elif e.response.status_code == 404:
+                self.logger.error(f"GraphQL endpoint not found for {instance.name}: {e}")
+            else:
+                self.logger.error(f"HTTP error for {instance.name}: {e}")
+            return None
+
+        except Timeout:
+            self.logger.error(f"Request timed out for {instance.name} after {timeout} seconds")
+            return None
+
+        except ConnectionError as e:
+            self.logger.error(f"Connection error for {instance.name}: {e}")
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error for {instance.name}: {e}")
+            return None
 
     def _generate_repo_queries(
         self, repo: str, start_date: str, end_date: str, month_id: str
