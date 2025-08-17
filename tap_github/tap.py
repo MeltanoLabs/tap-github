@@ -180,12 +180,12 @@ class TapGitHub(Tap):
             "date_range",
             th.ObjectType(
                 th.Property("start", th.StringType, required=True),
-                th.Property("end", th.StringType, required=True),
+                th.Property("end", th.StringType, required=False),
             ),
             description=(
                 "Date range for programmatic query generation:\n"
                 '"start" - start date in YYYY-MM-DD format\n'
-                '"end" - end date in YYYY-MM-DD format'
+                '"end" - end date in YYYY-MM-DD format (optional, defaults to last complete month)'
             ),
         ),
         th.Property(
@@ -198,17 +198,19 @@ class TapGitHub(Tap):
                 ),
                 th.Property(
                     "repo_level",
-                    th.ObjectType(
-                        th.Property("org", th.StringType, required=True),
-                        th.Property("limit", th.IntegerType, default=20),
-                        th.Property(
-                            "sort_by",
-                            th.StringType,
-                            default="issues",
-                            allowed_values=["issues", "stars", "forks", "updated"],
-                        ),
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property("org", th.StringType, required=True),
+                            th.Property("limit", th.IntegerType, default=20),
+                            th.Property(
+                                "sort_by",
+                                th.StringType,
+                                default="issues",
+                                allowed_values=["issues", "stars", "forks", "updated"],
+                            ),
+                        )
                     ),
-                    description="Configuration for top N repositories by specified criteria",
+                    description="List of configurations for top N repositories by specified criteria",
                 ),
             ),
             description=(

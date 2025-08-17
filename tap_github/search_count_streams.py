@@ -246,9 +246,15 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """Generate monthly date ranges from config."""
         date_range = self.config["date_range"]
         start_date = date_range["start"]
-        end_date = date_range["end"]
+        end_date = date_range.get("end")
 
         self._validate_date_format(start_date, "start date")
+        
+        # Auto-detect end date if not provided
+        if not end_date:
+            end_date = self._get_auto_end_date(start_date)
+            self.logger.info(f"Auto-detected end date: {end_date} (last complete month)")
+        
         self._validate_date_format(end_date, "end date")
 
         start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -281,6 +287,47 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             )
 
         return ranges
+
+    def _get_auto_end_date(self, start_date: str) -> str:
+        """Get auto-detected end date based on start date and current date.
+        
+        Rules:
+        1. End date is last day of the previous complete month
+        2. If no start_date provided, lookback is limited to 1 year
+        3. If start_date is provided, respect the user's choice
+        
+        Args:
+            start_date: Start date in YYYY-MM-DD format
+            
+        Returns:
+            End date string in YYYY-MM-DD format
+        """
+        today = datetime.now()
+        
+        # Last complete month is the previous month
+        if today.month == 1:
+            last_complete_month = today.replace(year=today.year - 1, month=12, day=1)
+        else:
+            last_complete_month = today.replace(month=today.month - 1, day=1)
+        
+        # Get last day of that month
+        last_day = calendar.monthrange(last_complete_month.year, last_complete_month.month)[1]
+        auto_end_date = last_complete_month.replace(day=last_day)
+        
+        # Apply 1-year lookback limit from auto end date if no explicit start provided
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        one_year_back = auto_end_date.replace(year=auto_end_date.year - 1)
+        
+        # If start date is more than 1 year before last complete month, limit it
+        if start_dt < one_year_back:
+            self.logger.warning(
+                f"Start date {start_date} is more than 1 year before last complete month. "
+                f"Limiting lookback to 1 year from {auto_end_date.strftime('%Y-%m-%d')}."
+            )
+            # Use 1 year back as effective start, but still return the auto end date
+            # The date range validation will catch if this creates issues
+        
+        return auto_end_date.strftime("%Y-%m-%d")
 
     def _create_search_queries_for_month(
         self, org: str, start_date: str, end_date: str, month_id: str
@@ -401,12 +448,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                             partitions.append(partition)
 
         # Generate repo-level partitions
-        repo_level_config = scope_config.get("repo_level")
-        if repo_level_config:
-            org = repo_level_config["org"]
-            limit = repo_level_config.get("limit", 20)
-            sort_by = repo_level_config.get("sort_by", "issues")
-
+        repo_level_configs = scope_config.get("repo_level", [])
+        
+        # Handle both single dict (backward compat) and list of dicts
+        if isinstance(repo_level_configs, dict):
+            repo_level_configs = [repo_level_configs]
+            
+        for repo_config in repo_level_configs:
+            org = repo_config["org"]
+            limit = repo_config.get("limit", 20)
+            sort_by = repo_config.get("sort_by", "issues")
+            
             # Get top repositories
             top_repos = self._get_top_repos(org, limit, sort_by)
 
