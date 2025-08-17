@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tap_github.search_count_streams import IssueSearchCountStream, PRSearchCountStream
 from tap_github.tap import TapGitHub
 

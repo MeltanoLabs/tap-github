@@ -58,8 +58,8 @@ from tap_github.repository_streams import (
     WorkflowRunsStream,
     WorkflowsStream,
 )
-from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 from tap_github.search_count_streams import IssueSearchCountStream, PRSearchCountStream
+from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 
 if TYPE_CHECKING:
     from singer_sdk.streams.core import Stream

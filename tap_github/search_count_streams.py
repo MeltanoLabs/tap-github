@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import calendar
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar, Iterable, Mapping
+from typing import Any, ClassVar
 
 from singer_sdk import typing as th
 from singer_sdk.exceptions import RetriableAPIError
@@ -52,9 +53,11 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         "created:{start}..{end}"
     )
     PR_QUERY_TEMPLATE = "org:{org} type:pr is:merged merged:{start}..{end}"
-    
+
     # Search query templates for repo-level queries
-    REPO_ISSUE_QUERY_TEMPLATE = "repo:{repo} type:issue state:open created:{start}..{end}"
+    REPO_ISSUE_QUERY_TEMPLATE = (
+        "repo:{repo} type:issue state:open created:{start}..{end}"
+    )
     REPO_BUG_QUERY_TEMPLATE = (
         "repo:{repo} type:issue state:open "
         'label:bug,defect,"[type] bug","type: bug" '
@@ -139,40 +142,41 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _get_github_instances(self) -> list[GitHubInstance]:
         """Get GitHub instances from config with sensible defaults.
-        
+
         Authentication priority (first non-empty value wins):
         1. Instance-specific auth_token in github_instances config
         2. Global auth_token in config
         3. Global access_token in config (legacy)
         4. GITHUB_TOKEN environment variable
         5. GITHUB_TOKEN* environment variables (for multiple tokens)
-        
+
         Best practice: Use environment variables to avoid storing tokens in config files.
         """
         import os
-        
+
         # Get default token from config or environment
         default_token = (
-            self.config.get("auth_token") 
+            self.config.get("auth_token")
             or self.config.get("access_token")
             or os.environ.get("GITHUB_TOKEN")
         )
-        
+
         # Check for multiple tokens in environment (GITHUB_TOKEN, GITHUB_TOKEN_2, etc.)
         if not default_token:
             env_tokens = [
-                value for key, value in os.environ.items()
+                value
+                for key, value in os.environ.items()
                 if key.startswith("GITHUB_TOKEN") and value
             ]
             if env_tokens:
                 default_token = env_tokens[0]  # Use first available token
-                
+
         if not default_token:
             self.logger.warning(
                 "No authentication token found. Please set auth_token in config "
                 "or GITHUB_TOKEN environment variable."
             )
-        
+
         instances_config = self.config.get(
             "github_instances",
             [
@@ -194,11 +198,13 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 or os.environ.get(instance_env_key)
                 or default_token
             )
-            
+
             if not instance_token:
-                self.logger.warning(f"No auth token for instance {instance['name']}, skipping")
+                self.logger.warning(
+                    f"No auth token for instance {instance['name']}, skipping"
+                )
                 continue
-                
+
             instances.append(
                 GitHubInstance(
                     name=instance["name"],
@@ -206,7 +212,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     auth_token=instance_token,
                 )
             )
-            
+
         return instances
 
     def _validate_date_format(self, date_str: str, field_name: str) -> None:
@@ -364,22 +370,24 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """Generate partitions from search_scope configuration."""
         scope_config = self.config["search_scope"]
         date_range = self.config.get("date_range")
-        
+
         if not date_range:
             msg = "date_range is required when using search_scope"
             raise ValueError(msg)
-            
+
         partitions = []
         instances = self._get_github_instances()
         month_ranges = self._generate_month_ranges()
-        
+
         # Generate org-level partitions
         org_level_orgs = scope_config.get("org_level", [])
         if org_level_orgs:
             self._validate_org_names(org_level_orgs)
             for org in org_level_orgs:
                 for start_date, end_date, month_id in month_ranges:
-                    search_queries = self._create_search_queries_for_month(org, start_date, end_date, month_id)
+                    search_queries = self._create_search_queries_for_month(
+                        org, start_date, end_date, month_id
+                    )
                     for query in search_queries:
                         for instance in instances:
                             partition = {
@@ -391,20 +399,22 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                                 "auth_token": instance.auth_token,
                             }
                             partitions.append(partition)
-        
+
         # Generate repo-level partitions
         repo_level_config = scope_config.get("repo_level")
         if repo_level_config:
             org = repo_level_config["org"]
             limit = repo_level_config.get("limit", 20)
             sort_by = repo_level_config.get("sort_by", "issues")
-            
+
             # Get top repositories
             top_repos = self._get_top_repos(org, limit, sort_by)
-            
+
             for repo in top_repos:
                 for start_date, end_date, month_id in month_ranges:
-                    search_queries = self._generate_repo_queries(repo, start_date, end_date, month_id)
+                    search_queries = self._generate_repo_queries(
+                        repo, start_date, end_date, month_id
+                    )
                     for query in search_queries:
                         for instance in instances:
                             partition = {
@@ -416,16 +426,16 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                                 "auth_token": instance.auth_token,
                             }
                             partitions.append(partition)
-        
+
         total_partitions = len(partitions)
         if total_partitions > 1000:
             self.logger.warning(
                 f"Large number of partitions detected: {total_partitions}. "
                 "This may result in rate limiting. Consider reducing date range or repository count."
             )
-        
+
         return partitions
-    
+
     def _get_top_repos(self, org: str, limit: int, sort_by: str) -> list[str]:
         """Get top N repositories from an organization sorted by the specified criteria."""
         if sort_by == "issues":
@@ -439,17 +449,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         else:
             msg = f"Unsupported sort_by criteria: {sort_by}"
             raise ValueError(msg)
-    
+
     def _get_top_repos_by_issues(self, org: str, limit: int) -> list[str]:
         """Get top N repositories sorted by open issue count (descending).
-        
+
         Note: GitHub GraphQL API doesn't support direct sorting by issue count,
         so we fetch more repos sorted by stars and then sort locally by issues.
         This may miss repositories with high issue counts but low star counts.
         """
         # Fetch 100 repos to increase chances of getting the actual top by issues
         fetch_limit = min(limit * 5, 100)
-        
+
         query = """
         query($org: String!, $limit: Int!) {
           organization(login: $org) {
@@ -464,35 +474,34 @@ class BaseSearchCountStream(GitHubGraphqlStream):
           }
         }
         """
-        
+
         variables = {"org": org, "limit": fetch_limit}
-        
+
         # Make GraphQL request using SDK methods
         response = self._make_graphql_request(query, variables)
-        
+
         if not response or "data" not in response:
             self.logger.warning(f"No data returned for org {org}")
             return []
-            
+
         org_data = response["data"].get("organization")
         if not org_data:
             self.logger.warning(f"Organization {org} not found")
             return []
-            
+
         repos = org_data.get("repositories", {}).get("nodes", [])
-        
+
         # Sort by issue count descending
         repos_with_counts = [
-            {
-                "name": repo["nameWithOwner"],
-                "issue_count": repo["issues"]["totalCount"]
-            }
+            {"name": repo["nameWithOwner"], "issue_count": repo["issues"]["totalCount"]}
             for repo in repos
         ]
-        
-        sorted_repos = sorted(repos_with_counts, key=lambda x: x["issue_count"], reverse=True)
+
+        sorted_repos = sorted(
+            repos_with_counts, key=lambda x: x["issue_count"], reverse=True
+        )
         return [repo["name"] for repo in sorted_repos[:limit]]
-    
+
     def _get_top_repos_by_stars(self, org: str, limit: int) -> list[str]:
         """Get top N repositories sorted by star count (descending)."""
         query = """
@@ -506,20 +515,20 @@ class BaseSearchCountStream(GitHubGraphqlStream):
           }
         }
         """
-        
+
         variables = {"org": org, "limit": limit}
         response = self._make_graphql_request(query, variables)
-        
+
         if not response or "data" not in response:
             return []
-            
+
         org_data = response["data"].get("organization")
         if not org_data:
             return []
-            
+
         repos = org_data.get("repositories", {}).get("nodes", [])
         return [repo["nameWithOwner"] for repo in repos]
-    
+
     def _get_top_repos_by_forks(self, org: str, limit: int) -> list[str]:
         """Get top N repositories sorted by fork count (descending)."""
         query = """
@@ -533,20 +542,20 @@ class BaseSearchCountStream(GitHubGraphqlStream):
           }
         }
         """
-        
+
         variables = {"org": org, "limit": limit}
         response = self._make_graphql_request(query, variables)
-        
+
         if not response or "data" not in response:
             return []
-            
+
         org_data = response["data"].get("organization")
         if not org_data:
             return []
-            
+
         repos = org_data.get("repositories", {}).get("nodes", [])
         return [repo["nameWithOwner"] for repo in repos]
-    
+
     def _get_top_repos_by_updated(self, org: str, limit: int) -> list[str]:
         """Get top N repositories sorted by last update (descending)."""
         query = """
@@ -560,75 +569,78 @@ class BaseSearchCountStream(GitHubGraphqlStream):
           }
         }
         """
-        
+
         variables = {"org": org, "limit": limit}
         response = self._make_graphql_request(query, variables)
-        
+
         if not response or "data" not in response:
             return []
-            
+
         org_data = response["data"].get("organization")
         if not org_data:
             return []
-            
+
         repos = org_data.get("repositories", {}).get("nodes", [])
         return [repo["nameWithOwner"] for repo in repos]
-    
+
     def _make_graphql_request(self, query: str, variables: dict) -> dict | None:
         """Make a GraphQL request and return the response.
-        
+
         Uses the stream's built-in HTTP methods for consistency with authentication,
         retry logic, and timeout configuration.
         """
         from urllib.parse import urljoin
+
         import requests
-        from requests.exceptions import HTTPError, Timeout, ConnectionError
-        
+        from requests.exceptions import ConnectionError, HTTPError, Timeout
+
         # Use the first instance's configuration for repo discovery
         instances = self._get_github_instances()
         if not instances:
             self.logger.error("No GitHub instances configured")
             return None
-            
+
         instance = instances[0]  # Use first instance for discovery
-        
+
         # Store current partition temporarily to use instance auth
         original_partition = getattr(self, "_current_partition", None)
         self._current_partition = {
             "auth_token": instance.auth_token,
             "api_url_base": instance.api_url_base,
         }
-        
+
         # Build the GraphQL endpoint URL
         graphql_url = urljoin(instance.api_url_base, "/graphql")
-        
+
         # Prepare request payload
         payload = {
             "query": query,
             "variables": variables,
         }
-        
+
         # Get timeout from config or use default
         timeout = self.config.get("stream_request_timeout", 300)
-        
+
         try:
             # Create a session for this request with proper auth headers
             session = requests.Session()
-            session.headers.update({
-                "Authorization": f"Bearer {instance.auth_token}",
-                "Content-Type": "application/json",
-                "Accept": "application/vnd.github.v3+json",
-            })
-            
+            session.headers.update(
+                {
+                    "Authorization": f"Bearer {instance.auth_token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/vnd.github.v3+json",
+                }
+            )
+
             response = session.post(
                 graphql_url,
                 json=payload,
                 timeout=timeout,
             )
             response.raise_for_status()
-            
+
             json_resp = response.json()
-            
+
             # Check for GraphQL errors
             if "errors" in json_resp:
                 errors = json_resp.get("errors", [])
@@ -636,44 +648,52 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     error_msg = error.get("message", str(error))
                     # Log GraphQL errors but continue if it's just a query issue
                     self.logger.warning(f"GraphQL query warning: {error_msg}")
-                    
+
             return json_resp
-            
+
         except HTTPError as e:
             if e.response.status_code == 401:
                 self.logger.error(f"Authentication failed: {e}. Check your auth token.")
             elif e.response.status_code == 403:
-                self.logger.error(f"Permission denied: {e}. Token may lack required scopes.")
+                self.logger.error(
+                    f"Permission denied: {e}. Token may lack required scopes."
+                )
             elif e.response.status_code == 404:
-                self.logger.error(f"GraphQL endpoint not found: {e}. Check api_url_base.")
+                self.logger.error(
+                    f"GraphQL endpoint not found: {e}. Check api_url_base."
+                )
             else:
                 self.logger.error(f"HTTP error occurred: {e}")
             return None
-            
+
         except Timeout:
-            self.logger.error(f"Request timed out after {timeout} seconds. Consider increasing stream_request_timeout.")
+            self.logger.error(
+                f"Request timed out after {timeout} seconds. Consider increasing stream_request_timeout."
+            )
             return None
-            
+
         except ConnectionError as e:
             self.logger.error(f"Connection error: {e}. Check network and API URL.")
             return None
-            
+
         except Exception as e:
             self.logger.error(f"Unexpected error in GraphQL request: {e}")
             return None
-            
+
         finally:
             # Restore original partition context
             if original_partition is not None:
                 self._current_partition = original_partition
             else:
                 delattr(self, "_current_partition")
-    
-    def _generate_repo_queries(self, repo: str, start_date: str, end_date: str, month_id: str) -> list[SearchQuery]:
+
+    def _generate_repo_queries(
+        self, repo: str, start_date: str, end_date: str, month_id: str
+    ) -> list[SearchQuery]:
         """Generate search queries for a specific repository and month."""
         queries = []
         repo_clean = repo.replace("/", "_").replace("-", "_").lower()
-        
+
         if self.stream_type == "pr":
             queries.append(
                 SearchQuery(
@@ -697,7 +717,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     month=month_id,
                 )
             )
-            
+
             # Bug issues
             queries.append(
                 SearchQuery(
@@ -709,7 +729,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     month=month_id,
                 )
             )
-        
+
         return queries
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
@@ -749,7 +769,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     def post_process(self, row: dict, context: Mapping[str, Any] | None = None) -> dict:
         """Transform GraphQL response to our schema."""
         partition_context = getattr(self, "_current_partition_context", {})
-        
+
         # Extract org and repo from search query
         search_query = partition_context.get("search_query", "")
         org, repo = self._extract_org_repo_from_query(search_query)
@@ -764,33 +784,35 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             "updated_at": datetime.utcnow().isoformat(),
             self.count_field: row.get("issueCount", 0) if row else 0,
         }
-    
-    def _extract_org_repo_from_query(self, search_query: str) -> tuple[str | None, str | None]:
+
+    def _extract_org_repo_from_query(
+        self, search_query: str
+    ) -> tuple[str | None, str | None]:
         """Extract organization and repository from GitHub search query.
-        
+
         Args:
             search_query: GitHub search query string
-            
+
         Returns:
             Tuple of (org, repo) where repo is None for org-level queries
-            
+
         Examples:
             "org:Automattic type:issue" → ("Automattic", None)
             "repo:Automattic/wp-calypso type:issue" → ("Automattic", "wp-calypso")
         """
         # Check for repo-level query first (repo:owner/name)
-        repo_match = re.search(r'repo:([^/\s]+)/([^\s]+)', search_query)
+        repo_match = re.search(r"repo:([^/\s]+)/([^\s]+)", search_query)
         if repo_match:
             org = repo_match.group(1)
             repo = repo_match.group(2)
             return org, repo
-        
+
         # Check for org-level query (org:name)
-        org_match = re.search(r'org:([^\s]+)', search_query)
+        org_match = re.search(r"org:([^\s]+)", search_query)
         if org_match:
             org = org_match.group(1)
             return org, None
-        
+
         # Fallback if no match found
         return None, None
 
@@ -825,7 +847,11 @@ class IssueSearchCountStream(BaseSearchCountStream):
         th.Property("source", th.StringType, required=True),
         th.Property("month", th.StringType),
         th.Property("org", th.StringType, description="GitHub organization name"),
-        th.Property("repo", th.StringType, description="Repository name (null for org-level queries)"),
+        th.Property(
+            "repo",
+            th.StringType,
+            description="Repository name (null for org-level queries)",
+        ),
         th.Property("issue_count", th.IntegerType, required=True),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
@@ -844,7 +870,11 @@ class PRSearchCountStream(BaseSearchCountStream):
         th.Property("source", th.StringType, required=True),
         th.Property("month", th.StringType),
         th.Property("org", th.StringType, description="GitHub organization name"),
-        th.Property("repo", th.StringType, description="Repository name (null for org-level queries)"),
+        th.Property(
+            "repo",
+            th.StringType,
+            description="Repository name (null for org-level queries)",
+        ),
         th.Property("pr_count", th.IntegerType, required=True),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()

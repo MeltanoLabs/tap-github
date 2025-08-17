@@ -27,9 +27,9 @@ class TapGitHub(Tap):
         """
 
         LOGLEVEL = os.environ.get("LOGLEVEL", "INFO").upper()  # noqa: N806
-        assert (
-            LOGLEVEL in logging._levelToName.values()
-        ), f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
+        assert LOGLEVEL in logging._levelToName.values(), (
+            f"Invalid LOGLEVEL configuration: {LOGLEVEL}"
+        )
         logger = logging.getLogger(cls.name)
         logger.setLevel(LOGLEVEL)
         return logger
