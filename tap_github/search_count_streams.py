@@ -749,15 +749,50 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     def post_process(self, row: dict, context: Mapping[str, Any] | None = None) -> dict:
         """Transform GraphQL response to our schema."""
         partition_context = getattr(self, "_current_partition_context", {})
+        
+        # Extract org and repo from search query
+        search_query = partition_context.get("search_query", "")
+        org, repo = self._extract_org_repo_from_query(search_query)
 
         return {
             "search_name": partition_context.get("search_name"),
-            "search_query": partition_context.get("search_query"),
+            "search_query": search_query,
             "source": partition_context.get("source", "github.com"),
             "month": partition_context.get("month"),
+            "org": org,
+            "repo": repo,
             "updated_at": datetime.utcnow().isoformat(),
             self.count_field: row.get("issueCount", 0) if row else 0,
         }
+    
+    def _extract_org_repo_from_query(self, search_query: str) -> tuple[str | None, str | None]:
+        """Extract organization and repository from GitHub search query.
+        
+        Args:
+            search_query: GitHub search query string
+            
+        Returns:
+            Tuple of (org, repo) where repo is None for org-level queries
+            
+        Examples:
+            "org:Automattic type:issue" → ("Automattic", None)
+            "repo:Automattic/wp-calypso type:issue" → ("Automattic", "wp-calypso")
+        """
+        # Check for repo-level query first (repo:owner/name)
+        repo_match = re.search(r'repo:([^/\s]+)/([^\s]+)', search_query)
+        if repo_match:
+            org = repo_match.group(1)
+            repo = repo_match.group(2)
+            return org, repo
+        
+        # Check for org-level query (org:name)
+        org_match = re.search(r'org:([^\s]+)', search_query)
+        if org_match:
+            org = org_match.group(1)
+            return org, None
+        
+        # Fallback if no match found
+        return None, None
 
     def validate_response(self, response) -> None:
         """Validate HTTP response and handle GraphQL errors."""
@@ -789,6 +824,8 @@ class IssueSearchCountStream(BaseSearchCountStream):
         th.Property("search_query", th.StringType, required=True),
         th.Property("source", th.StringType, required=True),
         th.Property("month", th.StringType),
+        th.Property("org", th.StringType, description="GitHub organization name"),
+        th.Property("repo", th.StringType, description="Repository name (null for org-level queries)"),
         th.Property("issue_count", th.IntegerType, required=True),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
@@ -806,6 +843,8 @@ class PRSearchCountStream(BaseSearchCountStream):
         th.Property("search_query", th.StringType, required=True),
         th.Property("source", th.StringType, required=True),
         th.Property("month", th.StringType),
+        th.Property("org", th.StringType, description="GitHub organization name"),
+        th.Property("repo", th.StringType, description="Repository name (null for org-level queries)"),
         th.Property("pr_count", th.IntegerType, required=True),
         th.Property("updated_at", th.DateTimeType),
     ).to_dict()
