@@ -7,7 +7,8 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Optional, List, Dict, Tuple
+from functools import lru_cache
 
 from singer_sdk import typing as th
 from singer_sdk.exceptions import RetriableAPIError
@@ -44,6 +45,16 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["source", "search_name"]
     stream_type: ClassVar[str] = "issue"
     count_field: ClassVar[str] = "issue_count"
+    
+    # Performance configuration
+    DEFAULT_MAX_PARTITIONS = 1000
+    DEFAULT_WARNING_THRESHOLD = 500
+    DEFAULT_CACHE_TTL_MINUTES = 60
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
+        self._cache_ttl_minutes = self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
 
     # Search query templates for org-level queries
     ISSUE_QUERY_TEMPLATE = "org:{org} type:issue state:open created:{start}..{end}"
@@ -134,13 +145,12 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                         "source": instance.name,
                         "month": search_query.month,
                         "api_url_base": instance.api_url_base,
-                        "auth_token": instance.auth_token,
                     }
                     partitions.append(partition)
 
         return partitions
 
-    def _get_github_instances(self) -> list[GitHubInstance]:
+    def _get_github_instances(self) -> List[GitHubInstance]:
         """Get GitHub instances from config with sensible defaults.
 
         Authentication priority (first non-empty value wins):
@@ -242,27 +252,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 msg = f"Invalid organization name '{org}'. Must contain only alphanumeric characters and hyphens, cannot start or end with hyphen."
                 raise ValueError(msg)
 
-    def _generate_month_ranges(self) -> list[tuple[str, str, str]]:
+    def _generate_month_ranges(self) -> List[Tuple[str, str, str]]:
         """Generate monthly date ranges from config."""
         date_range = self.config["date_range"]
-        start_date = date_range["start"]
-        end_date = date_range.get("end")
+        raw_start_date = date_range["start"]
+        raw_end_date = date_range.get("end")
 
-        self._validate_date_format(start_date, "start date")
-        
-        # Auto-detect end date if not provided
-        if not end_date:
-            end_date = self._get_auto_end_date(start_date)
-            self.logger.info(f"Auto-detected end date: {end_date} (last complete month)")
-        
-        self._validate_date_format(end_date, "end date")
+        # Validate and potentially adjust the date range
+        start_date, end_date = self._validate_and_adjust_date_range(raw_start_date, raw_end_date)
 
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
-
-        if start > end:
-            msg = f"Start date '{start_date}' must be before or equal to end date '{end_date}'"
-            raise ValueError(msg)
 
         ranges = []
         current = start.replace(day=1)
@@ -293,8 +293,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         
         Rules:
         1. End date is last day of the previous complete month
-        2. If no start_date provided, lookback is limited to 1 year
-        3. If start_date is provided, respect the user's choice
+        2. Configurable lookback limit (default: 1 year)
+        3. Can enforce or warn based on configuration
         
         Args:
             start_date: Start date in YYYY-MM-DD format
@@ -314,24 +314,87 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         last_day = calendar.monthrange(last_complete_month.year, last_complete_month.month)[1]
         auto_end_date = last_complete_month.replace(day=last_day)
         
-        # Apply 1-year lookback limit from auto end date if no explicit start provided
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        one_year_back = auto_end_date.replace(year=auto_end_date.year - 1)
-        
-        # If start date is more than 1 year before last complete month, limit it
-        if start_dt < one_year_back:
-            self.logger.warning(
-                f"Start date {start_date} is more than 1 year before last complete month. "
-                f"Limiting lookback to 1 year from {auto_end_date.strftime('%Y-%m-%d')}."
-            )
-            # Use 1 year back as effective start, but still return the auto end date
-            # The date range validation will catch if this creates issues
-        
         return auto_end_date.strftime("%Y-%m-%d")
+    
+    def _validate_and_adjust_date_range(self, start_date: str, end_date: Optional[str] = None) -> Tuple[str, str]:
+        """Validate and potentially adjust date range based on configuration.
+        
+        Args:
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format (optional)
+            
+        Returns:
+            Tuple of (validated_start_date, validated_end_date)
+            
+        Raises:
+            ValueError: If dates are invalid or exceed limits when enforcement is enabled
+        """
+        # Configuration options
+        enforce_lookback_limit = self.config.get("enforce_lookback_limit", False)
+        max_lookback_years = self.config.get("max_lookback_years", 1)
+        
+        self._validate_date_format(start_date, "start date")
+        
+        if not end_date:
+            end_date = self._get_auto_end_date(start_date)
+            self.logger.info(f"Auto-detected end date: {end_date} (last complete month)")
+        
+        self._validate_date_format(end_date, "end date")
+        
+        # Parse dates
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        if start_dt > end_dt:
+            raise ValueError(f"Start date '{start_date}' must be before or equal to end date '{end_date}'")
+        
+        # Check lookback limit
+        max_lookback = end_dt.replace(year=end_dt.year - max_lookback_years)
+        
+        if start_dt < max_lookback:
+            if enforce_lookback_limit:
+                adjusted_start = max_lookback.strftime("%Y-%m-%d")
+                self.logger.warning(
+                    f"Start date {start_date} exceeds {max_lookback_years}-year limit. "
+                    f"Enforcing limit by adjusting to {adjusted_start}"
+                )
+                return adjusted_start, end_date
+            else:
+                self.logger.warning(
+                    f"Start date {start_date} exceeds recommended {max_lookback_years}-year lookback. "
+                    f"Consider setting enforce_lookback_limit=true to automatically adjust."
+                )
+        
+        return start_date, end_date
+
+    def _check_partition_limits(self, total_partitions: int) -> None:
+        """Check partition count limits and warn or raise if exceeded.
+        
+        Args:
+            total_partitions: Total number of partitions to be generated
+            
+        Raises:
+            ValueError: If partition count exceeds maximum when enforcement is enabled
+        """
+        max_partitions = self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
+        warning_threshold = self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
+        enforce_partition_limit = self.config.get("enforce_partition_limit", True)
+        
+        if total_partitions > max_partitions and enforce_partition_limit:
+            raise ValueError(
+                f"Partition count {total_partitions} exceeds maximum {max_partitions}. "
+                f"Consider reducing date range, repository count, or disable enforcement "
+                f"with enforce_partition_limit=false"
+            )
+        elif total_partitions > warning_threshold:
+            self.logger.warning(
+                f"High partition count: {total_partitions} (threshold: {warning_threshold}). "
+                f"This may result in rate limiting or performance issues."
+            )
 
     def _create_search_queries_for_month(
         self, org: str, start_date: str, end_date: str, month_id: str
-    ) -> list[SearchQuery]:
+    ) -> List[SearchQuery]:
         """Create search queries for a specific organization and month."""
         org_clean = org.lower().replace("-", "_")
         queries = []
@@ -387,11 +450,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         if self.stream_type == "issue":
             total_partitions *= 2  # Both issue and bug queries
 
-        if total_partitions > 1000:
-            self.logger.warning(
-                f"Large partition count: {total_partitions} partitions will be generated. "
-                f"Consider reducing the date range or number of organizations for better performance."
-            )
+        # Check partition limits
+        self._check_partition_limits(total_partitions)
 
         for start_date, end_date, month_id in month_ranges:
             for org in organizations:
@@ -443,7 +503,6 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                                 "source": instance.name,
                                 "month": query.month,
                                 "api_url_base": instance.api_url_base,
-                                "auth_token": instance.auth_token,
                             }
                             partitions.append(partition)
 
@@ -475,34 +534,52 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                                 "source": instance.name,
                                 "month": query.month,
                                 "api_url_base": instance.api_url_base,
-                                "auth_token": instance.auth_token,
                             }
                             partitions.append(partition)
 
         total_partitions = len(partitions)
-        if total_partitions > 1000:
-            self.logger.warning(
-                f"Large number of partitions detected: {total_partitions}. "
-                "This may result in rate limiting. Consider reducing date range or repository count."
-            )
+        self._check_partition_limits(total_partitions)
 
         return partitions
 
-    def _get_top_repos(self, org: str, limit: int, sort_by: str) -> list[str]:
-        """Get top N repositories from an organization sorted by the specified criteria."""
+    def _get_top_repos(self, org: str, limit: int, sort_by: str) -> List[str]:
+        """Get top N repositories from an organization sorted by the specified criteria.
+        
+        Uses caching to avoid repeated API calls for the same org/criteria combination.
+        """
+        cache_key = f"{org}:{limit}:{sort_by}"
+        
+        # Check cache first
+        if cache_key in self._repo_cache:
+            repos, cached_at = self._repo_cache[cache_key]
+            cache_age = datetime.now() - cached_at
+            if cache_age.total_seconds() < (self._cache_ttl_minutes * 60):
+                self.logger.debug(f"Using cached repositories for {cache_key}")
+                return repos
+            else:
+                # Cache expired, remove it
+                del self._repo_cache[cache_key]
+        
+        # Fetch fresh data
         if sort_by == "issues":
-            return self._get_top_repos_by_issues(org, limit)
+            repos = self._get_top_repos_by_issues(org, limit)
         elif sort_by == "stars":
-            return self._get_top_repos_by_stars(org, limit)
+            repos = self._get_top_repos_by_stars(org, limit)
         elif sort_by == "forks":
-            return self._get_top_repos_by_forks(org, limit)
+            repos = self._get_top_repos_by_forks(org, limit)
         elif sort_by == "updated":
-            return self._get_top_repos_by_updated(org, limit)
+            repos = self._get_top_repos_by_updated(org, limit)
         else:
             msg = f"Unsupported sort_by criteria: {sort_by}"
             raise ValueError(msg)
+        
+        # Cache the results
+        self._repo_cache[cache_key] = (repos, datetime.now())
+        self.logger.debug(f"Cached {len(repos)} repositories for {cache_key}")
+        
+        return repos
 
-    def _get_top_repos_by_issues(self, org: str, limit: int) -> list[str]:
+    def _get_top_repos_by_issues(self, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by open issue count (descending).
 
         Note: GitHub GraphQL API doesn't support direct sorting by issue count,
@@ -554,7 +631,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         )
         return [repo["name"] for repo in sorted_repos[:limit]]
 
-    def _get_top_repos_by_stars(self, org: str, limit: int) -> list[str]:
+    def _get_top_repos_by_stars(self, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by star count (descending)."""
         query = """
         query($org: String!, $limit: Int!) {
@@ -581,7 +658,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         repos = org_data.get("repositories", {}).get("nodes", [])
         return [repo["nameWithOwner"] for repo in repos]
 
-    def _get_top_repos_by_forks(self, org: str, limit: int) -> list[str]:
+    def _get_top_repos_by_forks(self, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by fork count (descending)."""
         query = """
         query($org: String!, $limit: Int!) {
@@ -608,7 +685,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         repos = org_data.get("repositories", {}).get("nodes", [])
         return [repo["nameWithOwner"] for repo in repos]
 
-    def _get_top_repos_by_updated(self, org: str, limit: int) -> list[str]:
+    def _get_top_repos_by_updated(self, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by last update (descending)."""
         query = """
         query($org: String!, $limit: Int!) {
@@ -635,7 +712,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         repos = org_data.get("repositories", {}).get("nodes", [])
         return [repo["nameWithOwner"] for repo in repos]
 
-    def _make_graphql_request(self, query: str, variables: dict) -> dict | None:
+    def _make_graphql_request(self, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Make a GraphQL request and return the response.
 
         Uses the stream's built-in HTTP methods for consistency with authentication,
@@ -654,10 +731,9 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
         instance = instances[0]  # Use first instance for discovery
 
-        # Store current partition temporarily to use instance auth
+        # Store current partition temporarily to use instance config
         original_partition = getattr(self, "_current_partition", None)
         self._current_partition = {
-            "auth_token": instance.auth_token,
             "api_url_base": instance.api_url_base,
         }
 
@@ -674,22 +750,18 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         timeout = self.config.get("stream_request_timeout", 300)
 
         try:
-            # Create a session for this request with proper auth headers
-            session = requests.Session()
-            session.headers.update(
-                {
+            # Use direct requests for repository discovery GraphQL calls
+            # This is outside the main stream flow and doesn't need Singer SDK request handling
+            response = requests.post(
+                graphql_url,
+                json=payload,
+                headers={
                     "Authorization": f"Bearer {instance.auth_token}",
                     "Content-Type": "application/json",
                     "Accept": "application/vnd.github.v3+json",
-                }
-            )
-
-            response = session.post(
-                graphql_url,
-                json=payload,
+                },
                 timeout=timeout,
             )
-            response.raise_for_status()
 
             json_resp = response.json()
 
@@ -741,7 +813,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _generate_repo_queries(
         self, repo: str, start_date: str, end_date: str, month_id: str
-    ) -> list[SearchQuery]:
+    ) -> List[SearchQuery]:
         """Generate search queries for a specific repository and month."""
         queries = []
         repo_clean = repo.replace("/", "_").replace("-", "_").lower()
@@ -796,7 +868,29 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
-        """Use instance-specific authentication."""
+        """Use instance-specific authentication.
+        
+        Note: For multi-instance support, we override the config with 
+        instance-specific tokens based on current partition context.
+        """
+        # Create a copy of config for this instance
+        instance_config = dict(self.config)
+        
+        # Override with instance-specific token if we have partition context
+        if hasattr(self, '_current_partition'):
+            source = self._current_partition.get('source', 'github.com')
+            instances = self._get_github_instances()
+            
+            # Find the matching instance and use its token
+            for instance in instances:
+                if instance.name == source:
+                    instance_config['auth_token'] = instance.auth_token
+                    break
+        
+        # For multi-instance support, we need instance-specific authenticators
+        # Since the authenticator is mainly used for token management and 
+        # we handle tokens explicitly in our requests, we can use the default authenticator
+        # and override tokens as needed in _make_graphql_request
         return GitHubTokenAuthenticator(stream=self)
 
     def prepare_request(
@@ -839,7 +933,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _extract_org_repo_from_query(
         self, search_query: str
-    ) -> tuple[str | None, str | None]:
+    ) -> Tuple[Optional[str], Optional[str]]:
         """Extract organization and repository from GitHub search query.
 
         Args:

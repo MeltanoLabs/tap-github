@@ -219,6 +219,43 @@ class TapGitHub(Tap):
                 '"repo_level" - get top N repos from an org sorted by issues/stars/forks/updated'
             ),
         ),
+        # Performance and validation configuration for search count streams
+        th.Property(
+            "enforce_lookback_limit",
+            th.BooleanType,
+            default=False,
+            description="Enforce maximum lookback period for date ranges (default: warn only)",
+        ),
+        th.Property(
+            "max_lookback_years",
+            th.IntegerType,
+            default=1,
+            description="Maximum lookback period in years for date range validation",
+        ),
+        th.Property(
+            "max_partitions",
+            th.IntegerType,
+            default=1000,
+            description="Maximum number of partitions allowed for search count streams",
+        ),
+        th.Property(
+            "partition_warning_threshold",
+            th.IntegerType,
+            default=500,
+            description="Partition count threshold for performance warnings",
+        ),
+        th.Property(
+            "enforce_partition_limit",
+            th.BooleanType,
+            default=True,
+            description="Enforce maximum partition limit (raises error when exceeded)",
+        ),
+        th.Property(
+            "repo_discovery_cache_ttl",
+            th.IntegerType,
+            default=60,
+            description="Cache TTL in minutes for repository discovery results",
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[Stream]:
