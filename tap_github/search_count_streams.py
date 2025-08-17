@@ -1175,14 +1175,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         for i in range(0, len(partitions), batch_size):
             batch_partitions = partitions[i:i + batch_size]
             
-            if len(batch_partitions) == 1:
-                # Single query - use regular method
-                partition = batch_partitions[0]
-                self._current_partition_context = partition
-                yield from self.request_records(partition)
-            else:
-                # Batch query - use optimized method
-                yield from self._process_batch_request(batch_partitions)
+            # Always use batch processing (works for both single and multiple queries)
+            yield from self._process_batch_request(batch_partitions)
 
     def _process_batch_request(self, batch_partitions: List[dict]) -> Iterable[dict[str, Any]]:
         """Process multiple partitions in a single batched GraphQL request."""
