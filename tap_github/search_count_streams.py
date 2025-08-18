@@ -37,6 +37,9 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         if "search_count_queries" in self.config:
             return self._build_explicit_partitions()
         
+        if "search_scope" in self.config:
+            return self._build_scope_partitions()
+        
         if "search_orgs" in self.config and "date_range" in self.config:
             return self._build_monthly_partitions()
         
@@ -58,6 +61,77 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                         "month": query_config.get("month"),
                         "type": query_config.get("type", "issue")
                     })
+        return partitions
+
+    def _build_scope_partitions(self) -> list[dict]:
+        """Build partitions from search_scope configuration."""
+        partitions = []
+        scope_config = self.config["search_scope"]
+        date_range = self.config.get("date_range")
+        
+        if not date_range:
+            self.logger.warning("date_range is required when using search_scope")
+            return []
+
+        # Generate month ranges
+        start_date = datetime.strptime(date_range["start"], "%Y-%m-%d")
+        end_date = datetime.strptime(
+            date_range.get("end", self._get_last_complete_month()), "%Y-%m-%d"
+        )
+        
+        current = start_date.replace(day=1)
+        month_ranges = []
+        while current <= end_date:
+            month_id = f"{current.year}-{current.month:02d}"
+            last_day = calendar.monthrange(current.year, current.month)[1]
+            month_start = f"{current.year}-{current.month:02d}-01"
+            month_end = f"{current.year}-{current.month:02d}-{last_day:02d}"
+            month_ranges.append((month_start, month_end, month_id))
+            
+            # Next month
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+
+        # Generate partitions for each instance
+        for instance_config in scope_config.get("instances", []):
+            # Org-level partitions
+            for org in instance_config.get("org_level", []):
+                for start_date, end_date, month_id in month_ranges:
+                    for query_type in self._get_query_types():
+                        query = self._build_search_query(query_type, org, start_date, end_date)
+                        search_name = f"{org}_{query_type}s_{month_id}".replace("-", "_").lower()
+                        
+                        partitions.append({
+                            "search_name": search_name,
+                            "search_query": query,
+                            "source": instance_config["instance"],
+                            "api_url_base": instance_config["api_url_base"],
+                            "month": month_id,
+                            "type": self.stream_type
+                        })
+            
+            # Repo-level partitions (simplified - just top repos for now)
+            for repo_config in instance_config.get("repo_level", []):
+                org = repo_config["org"]
+                # For now, generate a few sample repo queries
+                # In production, this would use repository discovery
+                for start_date, end_date, month_id in month_ranges:
+                    for query_type in self._get_query_types():
+                        # Generate org-level query as placeholder
+                        query = self._build_search_query(query_type, org, start_date, end_date)
+                        search_name = f"{org}_repos_{query_type}s_{month_id}".replace("-", "_").lower()
+                        
+                        partitions.append({
+                            "search_name": search_name,
+                            "search_query": query,
+                            "source": instance_config["instance"],
+                            "api_url_base": instance_config["api_url_base"],
+                            "month": month_id,
+                            "type": self.stream_type
+                        })
+        
         return partitions
 
     def _build_monthly_partitions(self) -> list[dict]:
