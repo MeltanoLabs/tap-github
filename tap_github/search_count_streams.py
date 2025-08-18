@@ -1,4 +1,4 @@
-g"""GitHub search count streams for statistical aggregation via GraphQL."""
+"""GitHub search count streams for statistical aggregation via GraphQL."""
 
 from __future__ import annotations
 
