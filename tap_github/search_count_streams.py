@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import time
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any, ClassVar
@@ -27,7 +28,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._batch_size = self.config.get("batch_query_size", 20)
+        self._batch_size = self.config.get("batch_query_size", 10)
         self._http_client = GitHubGraphQLClient(self.config, self.logger)
         self._authenticator = None
 
@@ -290,6 +291,9 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
             return
 
+        # Small delay to avoid overwhelming GitHub API
+        time.sleep(0.5)
+
         # Parse results
         data = response["data"]
         graphql_field = "issueCount"  # GitHub API always uses issueCount for all search types
@@ -318,12 +322,10 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """Build batched GraphQL query."""
         variables = [f"$q{i}: String!" for i in range(len(search_queries))]
         
-        if self.stream_type == "issue":
-            search_type = "ISSUE"
-            graphql_field = "issueCount"
-        else:
-            search_type = "ISSUE"  # GitHub API uses ISSUE for both issues and PRs
-            graphql_field = "issueCount"  # GitHub API always uses issueCount field
+        # GitHub GraphQL always uses ISSUE type and issueCount field
+        # The actual filtering (issue vs PR) is done in the search query string
+        search_type = "ISSUE"
+        graphql_field = "issueCount"
         
         searches = [
             f"search{i}: search(query: $q{i}, type: {search_type}, first: 1) {{\n            {graphql_field}\n          }}"
@@ -344,37 +346,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """
 
     def _get_github_instances(self) -> list[GitHubInstance]:
-        """Get GitHub instances with simple token resolution."""
-        import os
-        
-        # Simple token resolution
-        default_token = (
-            self.config.get("auth_token") 
-            or self.config.get("access_token")
-            or os.environ.get("GITHUB_TOKEN")
-        )
-        
-        if not default_token:
-            self.logger.warning("No GitHub token found")
-            return []
-
-        instances_config = self.config.get(
-            "github_instances",
-            [{
-                "name": "github.com",
-                "api_url_base": "https://api.github.com",
-                "auth_token": default_token,
-            }]
-        )
-
+        """Get GitHub instances from search_scope configuration."""
+        scope_config = self.config["search_scope"]
         instances = []
-        for instance_config in instances_config:
-            token = instance_config.get("auth_token", default_token)
-            if token:
+        
+        for instance_config in scope_config.get("instances", []):
+            auth_token = instance_config.get("auth_token")
+            if auth_token:
                 instances.append(GitHubInstance(
-                    name=instance_config["name"],
+                    name=instance_config["instance"],
                     api_url_base=instance_config["api_url_base"],
-                    auth_token=token
+                    auth_token=auth_token
                 ))
         
         return instances
