@@ -434,7 +434,6 @@ class IssueSearchCountStream(BaseSearchCountStream):
     """Simplified stream for GitHub issue search counts."""
 
     name = "issue_search_counts"
-    selected_by_default = False
     stream_type = "issue"
     count_field = "issue_count"
     
@@ -455,7 +454,6 @@ class PRSearchCountStream(BaseSearchCountStream):
     """Simplified stream for GitHub PR search counts."""
 
     name = "pr_search_counts"
-    selected_by_default = False
     stream_type = "pr"
     count_field = "pr_count"
     
