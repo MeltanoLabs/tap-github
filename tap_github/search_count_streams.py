@@ -594,9 +594,9 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
     def _check_instance_partition_limits_from_config(self, instance_config: dict, partition_count: int) -> None:
         """Check partition limits using instance configuration."""
-        max_partitions = int(instance_config.get("max_partitions", self.max_partitions))
-        warning_threshold = int(instance_config.get("partition_warning_threshold", self.warning_threshold))
-        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.enforce_partition_limit))
+        max_partitions = int(instance_config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS))
+        warning_threshold = int(instance_config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD))
+        enforce_limit = bool(instance_config.get("enforce_partition_limit", True))
         instance_name = instance_config["instance"]
         
         self._check_instance_partition_limits(
