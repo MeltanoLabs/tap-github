@@ -31,8 +31,12 @@ class RepositoryDiscovery:
     def __init__(self, graphql_requester):
         """Initialize with a GraphQL requester (stream instance)."""
         self.requester = graphql_requester
-        self.http_client = getattr(graphql_requester, '_http_client', None)
         self.logger = logging.getLogger(__name__)
+    
+    @property
+    def http_client(self):
+        """Lazy-loaded HTTP client."""
+        return getattr(self.requester, '_http_client', None)
     
     def get_top_repos(
         self,
