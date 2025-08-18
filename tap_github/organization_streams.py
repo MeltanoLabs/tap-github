@@ -605,9 +605,6 @@ class ProjectItemsStream(GitHubGraphqlStream):
     state_partitioning_keys: ClassVar[list[str]] = ["org", "project_number"]
     query_jsonpath = "$.data.organization.projectV2.items.nodes[*]"
 
-    # To store field configurations from context for query and post_process
-    _current_project_field_configurations: ClassVar[list[dict]] = []
-
     # Project's custom fields supports types: Text, Number, Date, SingleSelect,
     # Iteration, so we fetch values from the corresponding types.
     #
@@ -632,6 +629,10 @@ class ProjectItemsStream(GitHubGraphqlStream):
         "Title": {"column": "title", "type": "ProjectV2ItemFieldTextValue"},
         "Status": {"column": "status", "type": "ProjectV2ItemFieldSingleSelectValue"},
     }
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self._current_project_field_configurations: list[dict] = []
 
     def request_records(self, context: Context | None) -> Iterable[dict]:
         """Request records from the API, handling FORBIDDEN errors gracefully.

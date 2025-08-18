@@ -7,8 +7,8 @@ from unittest.mock import patch
 import pytest
 from bs4 import BeautifulSoup
 from dateutil.parser import isoparse
-from singer_sdk._singerlib import Catalog
 from singer_sdk.helpers import _catalog as cat_helpers
+from singer_sdk.singerlib import Catalog
 
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
