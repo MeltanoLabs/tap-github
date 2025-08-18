@@ -7,7 +7,7 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Dict, List, Tuple
 from functools import lru_cache
 
 from singer_sdk import typing as th
@@ -55,7 +55,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
     DEFAULT_MAX_PARTITIONS = 5000
     DEFAULT_WARNING_THRESHOLD = 2000
     DEFAULT_CACHE_TTL_MINUTES = 60
-    DEFAULT_BATCH_SIZE = 10
     
     @property
     def max_partitions(self) -> int:
@@ -72,10 +71,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         """Repository discovery cache TTL in minutes."""
         return self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
     
-    @property
-    def batch_size(self) -> int:
-        """Batch query size."""
-        return self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
     
     @property
     def enforce_partition_limit(self) -> bool:
@@ -96,7 +91,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         super().__init__(*args, **kwargs)
         self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
         self._cache_ttl_minutes = self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
-        self._batch_size = self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
         
         # Initialize utility classes
         self._repo_discovery = RepositoryDiscovery(self)
@@ -199,26 +193,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         }
         """
 
-    def _build_batch_query(self, search_queries: list[str]) -> str:
-        """Build a batched GraphQL query for multiple search queries."""
-        variables = [f"$q{i}: String!" for i in range(len(search_queries))]
-        searches = [
-            f"search{i}: search(query: $q{i}, type: ISSUE, first: 1) {{\n            issueCount\n          }}"
-            for i in range(len(search_queries))
-        ]
-        
-        variables_str = ", ".join(variables)
-        searches_str = "\n          ".join(searches)
-        
-        return f"""
-        query({variables_str}) {{
-          {searches_str}
-          rateLimit {{
-            cost
-            remaining
-          }}
-        }}
-        """
 
     def prepare_request_payload(
         self, context: Mapping[str, Any] | None, next_page_token: Any | None
@@ -235,49 +209,132 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
     query_jsonpath: str = "$.data.search"
 
-    def get_partitions(self, context: Mapping[str, Any] | None = None) -> list[dict]:
-        """Generate partitions for search count queries across instances."""
-        partitions: list[dict] = []
-
+    @property
+    def partitions(self) -> list[dict] | None:
+        """Singer SDK partition property - returns all partition contexts."""
+        return self._build_partition_contexts()
+    
+    def _build_partition_contexts(self) -> list[dict]:
+        """Build partition contexts for Singer SDK."""
         # Check for explicit queries first
         if "search_count_queries" in self.config:
-            return self._get_explicit_partitions()
+            return self._get_explicit_partition_contexts()
 
-        # Generate queries from search_scope configuration
+        # Generate from search_scope configuration
         if "search_scope" in self.config:
-            return self._generate_scope_partitions()
+            return self._get_scope_partition_contexts()
 
-        # Fallback: Generate queries programmatically from search_orgs and date range
+        # Fallback: Generate from search_orgs and date range
         if "search_orgs" in self.config and "date_range" in self.config:
-            return self._generate_monthly_partitions()
+            return self._get_monthly_partition_contexts()
 
-        return partitions
+        return []
 
-    def _get_explicit_partitions(self) -> list[dict]:
-        """Get partitions from explicit search_count_queries config."""
-        partitions = []
+    def _get_explicit_partition_contexts(self) -> list[dict]:
+        """Get simplified partition contexts from explicit search_count_queries config."""
+        contexts = []
         instances = self._get_github_instances()
 
         for query_config in self.config["search_count_queries"]:
             if query_config.get("type", "issue") == self.stream_type:
-                search_query = SearchQuery(
-                    name=query_config["name"],
-                    query=query_config["query"],
-                    type=query_config.get("type", "issue"),
-                    month=query_config.get("month"),
-                )
-
                 for instance in instances:
-                    partition = {
-                        "search_name": search_query.name,
-                        "search_query": search_query.query,
+                    contexts.append({
+                        "search_name": query_config["name"],
+                        "search_query": query_config["query"], 
                         "source": instance.name,
-                        "month": search_query.month,
                         "api_url_base": instance.api_url_base,
-                    }
-                    partitions.append(partition)
+                        "month": query_config.get("month"),
+                        "type": query_config.get("type", "issue")
+                    })
+        return contexts
 
-        return partitions
+    def _get_scope_partition_contexts(self) -> list[dict]:
+        """Get simplified partition contexts from search_scope configuration."""
+        contexts = []
+        scope_config = self.config["search_scope"]
+        
+        if not scope_config.get("instances"):
+            self.logger.warning("search_scope.instances is required")
+            return []
+            
+        date_range = self.config.get("date_range", {})
+        if not date_range:
+            self.logger.warning("date_range is required when using search_scope")
+            return []
+
+        month_ranges = self._generate_month_ranges()
+        
+        for instance_config in scope_config["instances"]:
+            for start_date, end_date, month_id in month_ranges:
+                # Org-level contexts
+                for org in instance_config.get("org_level", []):
+                    for query_kind in self._query_kinds():
+                        query = self._query_generator.build_search_query(
+                            query_type=query_kind, scope="org", target=org, 
+                            start_date=start_date, end_date=end_date
+                        )
+                        contexts.append({
+                            "search_name": f"{self._slug(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
+                            "search_query": query,
+                            "source": instance_config["instance"],
+                            "api_url_base": instance_config["api_url_base"], 
+                            "month": month_id,
+                            "type": self.stream_type
+                        })
+                
+                # Repo-level contexts  
+                for repo_config in instance_config.get("repo_level", []):
+                    org = repo_config["org"]
+                    repos = self._get_top_repos_for_instance(
+                        instance_config, org, 
+                        repo_config.get("limit", 20),
+                        repo_config.get("sort_by", "issues"),
+                        instance_config.get("repo_discovery_cache_ttl", 60)
+                    )
+                    for repo in repos:
+                        for query_kind in self._query_kinds():
+                            query = self._query_generator.build_search_query(
+                                query_type=query_kind, scope="repo", target=repo,
+                                start_date=start_date, end_date=end_date
+                            )
+                            contexts.append({
+                                "search_name": f"{self._slug(repo)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
+                                "search_query": query,
+                                "source": instance_config["instance"],
+                                "api_url_base": instance_config["api_url_base"],
+                                "month": month_id, 
+                                "type": self.stream_type
+                            })
+        return contexts
+
+    def _get_monthly_partition_contexts(self) -> list[dict]:
+        """Get simplified partition contexts from legacy search_orgs configuration."""
+        contexts = []
+        organizations = self.config["search_orgs"]
+        month_ranges = self._generate_month_ranges()
+        instances = self._get_github_instances()
+
+        for org in organizations:
+            for start_date, end_date, month_id in month_ranges:
+                for instance in instances:
+                    for query_kind in self._query_kinds():
+                        query = self._query_generator.build_search_query(
+                            query_type=query_kind, scope="org", target=org,
+                            start_date=start_date, end_date=end_date
+                        )
+                        contexts.append({
+                            "search_name": f"{self._slug(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
+                            "search_query": query,
+                            "source": instance.name,
+                            "api_url_base": instance.api_url_base,
+                            "month": month_id,
+                            "type": self.stream_type
+                        })
+        return contexts
+
+    # Legacy get_partitions method removed - replaced with Singer SDK partitions property
+
+    # Legacy _get_explicit_partitions removed
 
     def _get_github_instances(self) -> list[GitHubInstance]:
         """Get GitHub instances from config with sensible defaults.
@@ -694,74 +751,67 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         return self._queries_for("repo", repo, start_date, end_date, month_id)
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
-        """Override to handle custom partitioning with batch processing."""
-        partitions = self.get_partitions(context)
-        
-        # Group partitions by instance for batch processing
-        instance_partitions: dict[str, list[dict]] = {}
-        for partition in partitions:
-            instance = partition.get("source", "github.com")
-            if instance not in instance_partitions:
-                instance_partitions[instance] = []
-            instance_partitions[instance].append(partition)
-        
-        # Process each instance's partitions in batches
-        for instance, instance_partition_list in instance_partitions.items():
-            yield from self._process_partitions_in_batches(instance_partition_list)
-
-    def _process_partitions_in_batches(self, partitions: list[dict]) -> Iterable[dict[str, Any]]:
-        """Process partitions in batches for better performance."""
-        batch_size = self._batch_size
-        
-        for i in range(0, len(partitions), batch_size):
-            batch_partitions = partitions[i:i + batch_size]
-            yield from self._process_batch_request(batch_partitions)
-
-    def _process_batch_request(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
-        """Process multiple partitions in a single batched GraphQL request."""
-        search_queries = [p.get("search_query", "") for p in batch_partitions]
-        
-        # Build batch query and variables
-        batch_query = self._build_batch_query(search_queries)
-        variables = {f"q{i}": query for i, query in enumerate(search_queries)}
-        
-        # Set up API URL for this batch (all partitions in batch have same instance)
-        first_partition = batch_partitions[0]
-        self._current_partition = first_partition
-        
-        # Make the batched GraphQL request
-        response = self._make_batch_graphql_request(batch_query, variables, first_partition)
-        
-        if not response:
-            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+        """Singer SDK compatible get_records - processes single partition from context."""
+        if not context:
             return
             
-        try:
-            if not response["data"]:
-                self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
-                return
-        except (KeyError, TypeError):
-            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+        partition_data = context.get("partition")
+        if not partition_data:
             return
         
-        # Parse batch results and yield records using EAFP
-        try:
-            data = response["data"]
-            for i, partition in enumerate(batch_partitions):
-                try:
-                    search_result = data[f"search{i}"]
-                    # Store partition context for post_process
-                    self._current_partition_context = partition
-                    yield search_result
-                except KeyError:
-                    self.logger.warning(f"No result for search{i} in batch")
-        except (KeyError, TypeError):
-            self.logger.warning(f"Invalid response structure for batch request")
-
-    def _make_batch_graphql_request(self, query: str, variables: dict, partition: dict) -> dict | None:
-        """Make a batched GraphQL request using instance-specific configuration."""
+        # Extract partition information
+        search_query = partition_data.get("search_query")
+        search_name = partition_data.get("search_name")
+        source = partition_data.get("source", "github.com")
+        api_url_base = partition_data.get("api_url_base", "https://api.github.com")
+        month = partition_data.get("month")
+        
+        if not search_query or not search_name:
+            self.logger.warning(f"Incomplete partition data: {partition_data}")
+            return
+            
+        # Make single GraphQL request for this partition
+        query = f"""
+        query SearchCount($query: String!) {{
+            search(query: $query, type: {'ISSUE' if self.stream_type == 'issue' else 'PULLREQUEST'}, first: 1) {{
+                {self.count_field}
+            }}
+        }}
+        """
+        
+        variables = {"query": search_query}
+        
+        # Use existing HTTP client but for single request
         instances = self._get_github_instances()
-        return self._http_client.make_batch_request(query, variables, partition, instances)
+        instance_obj = next((i for i in instances if i.name == source), None)
+        
+        if not instance_obj:
+            self.logger.warning(f"Instance {source} not found")
+            return
+            
+        response = self._http_client.make_request(query, variables, instance_obj)
+        
+        if not response or "data" not in response:
+            self.logger.warning(f"Request failed for partition {search_name}")
+            return
+            
+        search_data = response["data"]["search"]
+        count_value = search_data.get(self.count_field, 0)
+        
+        # Build result record
+        result = {
+            "search_name": search_name,
+            "search_query": search_query,
+            "source": source,
+            self.count_field: count_value,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        if month:
+            result["month"] = month
+            
+        yield result
+
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:

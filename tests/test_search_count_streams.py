@@ -75,7 +75,7 @@ def test_partitions_generation():
     )
 
     issue_stream = IssueSearchCountStream(tap=tap)
-    issue_partitions = issue_stream.get_partitions()
+    issue_partitions = issue_stream.partitions
 
     # Should have 1 issue query × 2 instances = 2 partitions
     assert len(issue_partitions) == 2
@@ -84,7 +84,7 @@ def test_partitions_generation():
     assert issue_partitions[1]["source"] == "github.example.com"
 
     pr_stream = PRSearchCountStream(tap=tap)
-    pr_partitions = pr_stream.get_partitions()
+    pr_partitions = pr_stream.partitions
 
     # Should have 1 PR query × 2 instances = 2 partitions
     assert len(pr_partitions) == 2

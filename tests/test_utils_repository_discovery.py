@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, ANY
 
 from tap_github.utils.repository_discovery import RepositoryDiscovery, GitHubInstance
 
@@ -152,7 +152,7 @@ class TestRepositoryDiscovery:
         # Verify the instance-specific method was called
         self.mock_requester._make_graphql_request_for_instance.assert_called_once_with(
             instance, 
-            pytest.any(str),  # The GraphQL query
+            ANY,  # The GraphQL query
             {"org": "test-org", "limit": 2}
         )
 
