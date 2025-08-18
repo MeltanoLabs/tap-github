@@ -73,7 +73,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, A
 
         repos = [
             {"name_with_owner": name, "stars": s, "forks": f}
-            for name, s, f in zip(repo_names, stars, forks)
+            for name, s, f in zip(repo_names, stars, forks, strict=False)
         ]
 
         logger.debug(repos)
