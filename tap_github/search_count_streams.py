@@ -1193,7 +1193,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         # Make the batched GraphQL request
         response = self._make_batch_graphql_request(batch_query, variables, first_partition)
         
-        if not response or "data" not in response:
+        if not response or "data" not in response or response["data"] is None:
             self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
             return
         
@@ -1259,7 +1259,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     self.logger.warning(f"GraphQL batch query warning for {source}: {error_msg}")
             
             # Log batch performance metrics
-            rate_limit = json_resp.get("data", {}).get("rateLimit", {})
+            data = json_resp.get("data") or {}
+            rate_limit = data.get("rateLimit", {})
             cost = rate_limit.get("cost", len(variables))
             remaining = rate_limit.get("remaining", "unknown")
             
