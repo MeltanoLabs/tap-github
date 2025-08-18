@@ -1253,14 +1253,14 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             
             # Check for GraphQL errors
             if "errors" in json_resp:
-                errors = json_resp.get("errors", [])
+                errors = json_resp.get("errors", []) or []
                 for error in errors:
-                    error_msg = error.get("message", str(error))
+                    error_msg = error.get("message", str(error)) if error else str(error)
                     self.logger.warning(f"GraphQL batch query warning for {source}: {error_msg}")
             
             # Log batch performance metrics
             data = json_resp.get("data") or {}
-            rate_limit = data.get("rateLimit", {})
+            rate_limit = data.get("rateLimit") or {}
             cost = rate_limit.get("cost", len(variables))
             remaining = rate_limit.get("remaining", "unknown")
             
