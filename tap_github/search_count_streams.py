@@ -5,10 +5,10 @@ from __future__ import annotations
 import calendar
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, asdict
 from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Tuple
 from functools import lru_cache
+from itertools import product
 
 from singer_sdk import typing as th
 from singer_sdk.helpers.types import Context
@@ -24,18 +24,6 @@ from tap_github.utils.date_utils import GitHubDateUtils
 from tap_github.utils.validation import GitHubValidationMixin
 
 
-@dataclass(frozen=True)
-class Partition:
-    """Represents a search partition with all required information."""
-    search_name: str
-    search_query: str
-    source: str
-    month: str | None = None
-    api_url_base: str = "https://api.github.com"
-    
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format expected by Singer SDK."""
-        return asdict(self)
 
 
 # SearchQuery and GitHubInstance now imported from utilities
@@ -55,41 +43,11 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
     DEFAULT_WARNING_THRESHOLD = 2000
     DEFAULT_CACHE_TTL_MINUTES = 60
     
-    @property
-    def max_partitions(self) -> int:
-        """Maximum allowed partitions."""
-        return self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
-    
-    @property
-    def warning_threshold(self) -> int:
-        """Partition count warning threshold."""
-        return self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
-    
-    @property
-    def cache_ttl_minutes(self) -> int:
-        """Repository discovery cache TTL in minutes."""
-        return self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
-    
-    
-    @property
-    def enforce_partition_limit(self) -> bool:
-        """Whether to enforce partition limits."""
-        return self.config.get("enforce_partition_limit", True)
-    
-    @property
-    def enforce_lookback_limit(self) -> bool:
-        """Whether to enforce lookback limits."""
-        return self.config.get("enforce_lookback_limit", False)
-    
-    @property
-    def max_lookback_years(self) -> int:
-        """Maximum lookback years."""
-        return self.config.get("max_lookback_years", 1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
-        self._cache_ttl_minutes = self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
+        self._authenticator = None
         
         # Initialize utility classes
         self._repo_discovery = RepositoryDiscovery(self)
@@ -207,24 +165,20 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
     @property
     def partitions(self) -> list[dict] | None:
-        """Singer SDK partition property - returns all partition contexts."""
-        return self._build_partition_contexts()
-    
-    def _build_partition_contexts(self) -> list[dict]:
-        """Build partition contexts for Singer SDK."""
-        # Check for explicit queries first
+        """Return partition contexts for Singer SDK."""
+        # Explicit queries (highest priority)
         if "search_count_queries" in self.config:
             return self._get_explicit_partition_contexts()
-
-        # Generate from search_scope configuration
-        if "search_scope" in self.config:
-            return self._get_scope_partition_contexts()
-
-        # Fallback: Generate from search_orgs and date range
+            
+        # Monthly partitions from orgs + date range
         if "search_orgs" in self.config and "date_range" in self.config:
             return self._get_monthly_partition_contexts()
-
-        return []
+            
+        # Scope-based partitions
+        if "search_scope" in self.config:
+            return self._get_scope_partition_contexts()
+            
+        return None
 
     def _get_explicit_partition_contexts(self) -> list[dict]:
         """Get simplified partition contexts from explicit search_count_queries config."""
@@ -486,16 +440,16 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         return GitHubDateUtils.validate_and_adjust_date_range(
             start_date=start_date,
             end_date=end_date,
-            enforce_lookback_limit=self.enforce_lookback_limit,
-            max_lookback_years=self.max_lookback_years,
+            enforce_lookback_limit=self.config.get("enforce_lookback_limit", False),
+            max_lookback_years=self.config.get("max_lookback_years", 1),
             logger=self.logger
         )
 
     def _enforce_partition_limits(self, total: int, max_allowed: int | None = None, warn_at: int | None = None, label: str = "Global", enforce: bool | None = None) -> None:
         """Unified partition limit checking for both global and instance-specific limits."""
-        max_allowed = max_allowed or self.max_partitions
-        warn_at = warn_at or self.warning_threshold
-        enforce = enforce if enforce is not None else self.enforce_partition_limit
+        max_allowed = max_allowed or self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
+        warn_at = warn_at or self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
+        enforce = enforce if enforce is not None else self.config.get("enforce_partition_limit", True)
         
         if total > max_allowed and enforce:
             raise ValueError(
@@ -563,17 +517,11 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
             msg = "date_range is required when using search_scope"
             raise ValueError(msg)
 
-        month_ranges = self._generate_month_ranges()
-
-        # Instance-based configuration is required
         if "instances" not in scope_config:
             msg = "search_scope.instances is required. Please use the new instance-based configuration format."
             raise ValueError(msg)
 
-        return self._generate_instance_scoped_partitions(scope_config, month_ranges)
-
-    def _generate_instance_scoped_partitions(self, scope_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
-        """Generate partitions from new instance-scoped configuration."""
+        month_ranges = self._generate_month_ranges()
         return [
             partition
             for instance_config in scope_config["instances"]
@@ -587,9 +535,9 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         instance_partitions.extend(self._generate_repo_level_partitions(instance_config, month_ranges))
         
         # Check instance-specific limits
-        max_partitions = int(instance_config.get("max_partitions", self.max_partitions))
-        warning_threshold = int(instance_config.get("partition_warning_threshold", self.warning_threshold))
-        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.enforce_partition_limit))
+        max_partitions = int(instance_config.get("max_partitions", self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)))
+        warning_threshold = int(instance_config.get("partition_warning_threshold", self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)))
+        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.config.get("enforce_partition_limit", True)))
         instance_name = instance_config["instance"]
         
         self._check_instance_partition_limits(
@@ -607,8 +555,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         self.validate_org_names(org_level_orgs)
         return [
             self._create_partition(query, instance_config)
-            for org in org_level_orgs
-            for start_date, end_date, month_id in month_ranges
+            for org, (start_date, end_date, month_id) in product(org_level_orgs, month_ranges)
             for query in self._queries_for("org", org, start_date, end_date, month_id)
         ]
 
@@ -619,34 +566,33 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
             return []
             
         partitions = []
-        cache_ttl = instance_config.get("repo_discovery_cache_ttl", self.cache_ttl_minutes)
+        cache_ttl = instance_config.get("repo_discovery_cache_ttl", self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES))
         
         for repo_config in repo_level_configs:
             org = repo_config["org"]
             limit = repo_config.get("limit", 20)
             sort_by = repo_config.get("sort_by", "issues")
             
-            top_repos = self._get_top_repos_for_instance(instance_config, org, limit, sort_by, int(cache_ttl or self.cache_ttl_minutes))
+            top_repos = self._get_top_repos_for_instance(instance_config, org, limit, sort_by, int(cache_ttl or self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)))
             
             partitions.extend([
                 self._create_partition(query, instance_config)
-                for repo in top_repos
-                for start_date, end_date, month_id in month_ranges
+                for repo, (start_date, end_date, month_id) in product(top_repos, month_ranges)
                 for query in self._queries_for("repo", repo, start_date, end_date, month_id)
             ])
             
         return partitions
 
     def _create_partition(self, query: SearchQuery, instance_config: dict) -> dict:
-        """Create a single partition dict from query and instance config."""
-        partition = Partition(
-            search_name=query.name,
-            search_query=query.query,
-            source=instance_config["instance"],
-            month=query.month,
-            api_url_base=instance_config["api_url_base"],
-        )
-        return partition.to_dict()
+        """Create a partition dict from query and instance config."""
+        return {
+            "search_name": query.name,
+            "search_query": query.query,
+            "source": instance_config["instance"],
+            "month": query.month,
+            "api_url_base": instance_config["api_url_base"],
+            "type": query.type
+        }
 
 
 
@@ -766,7 +712,9 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
         """Simple authenticator - tokens handled by HTTP client per instance."""
-        return GitHubTokenAuthenticator(stream=self)
+        if self._authenticator is None:
+            self._authenticator = GitHubTokenAuthenticator(stream=self)
+        return self._authenticator
 
 
 
