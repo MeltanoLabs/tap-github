@@ -220,9 +220,9 @@ class TapGitHub(Tap):
                                 ),
                                 description="List of configurations for top N repositories by specified criteria",
                             ),
-                            th.Property("max_partitions", th.IntegerType, default=1000),
-                            th.Property("partition_warning_threshold", th.IntegerType, default=500),
-                            th.Property("enforce_partition_limit", th.BooleanType, default=True),
+                            th.Property("max_partitions", th.IntegerType, default=5000),
+                            th.Property("partition_warning_threshold", th.IntegerType, default=2000),
+                            th.Property("enforce_partition_limit", th.BooleanType, default=False),
                             th.Property("repo_discovery_cache_ttl", th.IntegerType, default=60),
                         )
                     ),
