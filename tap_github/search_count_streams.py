@@ -11,7 +11,6 @@ from typing import Any, ClassVar, Dict, List, Tuple
 from functools import lru_cache
 
 from singer_sdk import typing as th
-from singer_sdk.exceptions import RetriableAPIError
 from singer_sdk.helpers.types import Context
 
 from tap_github.authenticator import GitHubTokenAuthenticator
@@ -107,16 +106,13 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         """Get query kinds for this stream type."""
         return self.QUERY_KINDS_BY_STREAM[self.stream_type]
 
-    def _slug(self, s: str) -> str:
-        """Convert string to URL-safe slug format."""
-        return self.clean_identifier(s)
 
     def _make_named_query(self, kind: str, scope: str, target: str, start: str, end: str, month_id: str) -> SearchQuery:
         """Create a single SearchQuery with standardized naming."""
         q = self._query_generator.build_search_query(
             query_type=kind, scope=scope, target=target, start_date=start, end_date=end
         )
-        base = self._slug(target)
+        base = self.clean_identifier(target)
         suffix = "prs" if self.stream_type == "pr" else ("bugs" if kind == "bug" else "issues")
         return SearchQuery(
             name=f"{base}_open_{suffix}_{self.clean_month_id(month_id)}",
@@ -274,7 +270,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
                             start_date=start_date, end_date=end_date
                         )
                         contexts.append({
-                            "search_name": f"{self._slug(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
+                            "search_name": f"{self.clean_identifier(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
                             "search_query": query,
                             "source": instance_config["instance"],
                             "api_url_base": instance_config["api_url_base"], 
@@ -298,7 +294,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
                                 start_date=start_date, end_date=end_date
                             )
                             contexts.append({
-                                "search_name": f"{self._slug(repo)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
+                                "search_name": f"{self.clean_identifier(repo)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
                                 "search_query": query,
                                 "source": instance_config["instance"],
                                 "api_url_base": instance_config["api_url_base"],
@@ -323,7 +319,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
                             start_date=start_date, end_date=end_date
                         )
                         contexts.append({
-                            "search_name": f"{self._slug(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
+                            "search_name": f"{self.clean_identifier(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
                             "search_query": query,
                             "source": instance.name,
                             "api_url_base": instance.api_url_base,
@@ -409,9 +405,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
             msg = f"Invalid {field_name} '{date_str}': {e}"
             raise ValueError(msg) from e
 
-    def _validate_org_names(self, org_names: list[str]) -> None:
-        """Validate GitHub organization names."""
-        self.validate_org_names(org_names)
 
     def _generate_month_ranges(self) -> list[tuple[str, str, str]]:
         """Generate monthly date ranges from config."""
@@ -527,11 +520,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         )
 
 
-    def _create_search_queries_for_month(
-        self, org: str, start_date: str, end_date: str, month_id: str
-    ) -> list[SearchQuery]:
-        """Create search queries for a specific organization and month."""
-        return self._queries_for("org", org, start_date, end_date, month_id)
 
     def _generate_monthly_partitions(self) -> list[dict]:
         """Generate partitions programmatically from org list and date range."""
@@ -551,9 +539,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
         for start_date, end_date, month_id in month_ranges:
             for org in organizations:
-                search_queries = self._create_search_queries_for_month(
-                    org, start_date, end_date, month_id
-                )
+                search_queries = self._queries_for("org", org, start_date, end_date, month_id)
 
                 for query in search_queries:
                     for instance in instances:
@@ -601,7 +587,14 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         instance_partitions.extend(self._generate_repo_level_partitions(instance_config, month_ranges))
         
         # Check instance-specific limits
-        self._check_instance_partition_limits_from_config(instance_config, len(instance_partitions))
+        max_partitions = int(instance_config.get("max_partitions", self.max_partitions))
+        warning_threshold = int(instance_config.get("partition_warning_threshold", self.warning_threshold))
+        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.enforce_partition_limit))
+        instance_name = instance_config["instance"]
+        
+        self._check_instance_partition_limits(
+            len(instance_partitions), instance_name, max_partitions, warning_threshold, enforce_limit
+        )
         
         return instance_partitions
 
@@ -616,7 +609,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
             self._create_partition(query, instance_config)
             for org in org_level_orgs
             for start_date, end_date, month_id in month_ranges
-            for query in self._create_search_queries_for_month(org, start_date, end_date, month_id)
+            for query in self._queries_for("org", org, start_date, end_date, month_id)
         ]
 
     def _generate_repo_level_partitions(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
@@ -639,7 +632,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
                 self._create_partition(query, instance_config)
                 for repo in top_repos
                 for start_date, end_date, month_id in month_ranges
-                for query in self._generate_repo_queries(repo, start_date, end_date, month_id)
+                for query in self._queries_for("repo", repo, start_date, end_date, month_id)
             ])
             
         return partitions
@@ -655,16 +648,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         )
         return partition.to_dict()
 
-    def _check_instance_partition_limits_from_config(self, instance_config: dict, partition_count: int) -> None:
-        """Check partition limits using instance configuration."""
-        max_partitions = int(instance_config.get("max_partitions", self.max_partitions))
-        warning_threshold = int(instance_config.get("partition_warning_threshold", self.warning_threshold))
-        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.enforce_partition_limit))
-        instance_name = instance_config["instance"]
-        
-        self._check_instance_partition_limits(
-            partition_count, instance_name, max_partitions, warning_threshold, enforce_limit
-        )
 
 
     def _get_top_repos_for_instance(self, instance_config: dict, org: str, limit: int, sort_by: str, cache_ttl: int) -> list[str]:
@@ -740,15 +723,7 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
     # ===== REPOSITORY DISCOVERY METHODS ELIMINATED =====
     # All 8 duplicate methods removed - now using RepositoryDiscovery utility directly
 
-    def _make_graphql_request_for_instance(self, instance: GitHubInstance, query: str, variables: dict[str, Any]) -> dict[str, Any] | None:
-        """Make a GraphQL request to a specific GitHub instance."""
-        return self._http_client.make_request(query, variables, instance=instance)
 
-    def _generate_repo_queries(
-        self, repo: str, start_date: str, end_date: str, month_id: str
-    ) -> list[SearchQuery]:
-        """Generate search queries for a specific repository and month."""
-        return self._queries_for("repo", repo, start_date, end_date, month_id)
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Singer SDK compatible get_records - processes single partition from context."""
@@ -815,117 +790,13 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
-        """Use instance-specific authentication.
-        
-        Note: For multi-instance support, we override the config with 
-        instance-specific tokens based on current partition context.
-        """
-        # Create a copy of config for this instance
-        instance_config = dict(self.config)
-        
-        # Override with instance-specific token if we have partition context
-        if hasattr(self, '_current_partition'):
-            source = self._current_partition.get('source', 'github.com')
-            instances = self._get_github_instances()
-            
-            # Find the matching instance and use its token
-            for instance in instances:
-                if instance.name == source:
-                    instance_config['auth_token'] = instance.auth_token
-                    break
-        
-        # For multi-instance support, we need instance-specific authenticators
-        # Since the authenticator is mainly used for token management and 
-        # we handle tokens explicitly in our requests, we can use the default authenticator
-        # and override tokens as needed in _make_graphql_request
+        """Simple authenticator - tokens handled by HTTP client per instance."""
         return GitHubTokenAuthenticator(stream=self)
 
-    def prepare_request(
-        self, context: Mapping[str, Any] | None, next_page_token: Any | None
-    ) -> Any:
-        """Store current partition for authentication and set API URL."""
-        if context:
-            self._current_partition = dict(context)  # Convert to dict for consistency
-            # Override the API URL base for this request
-            if "api_url_base" in context:
-                self._url_base = context["api_url_base"]
 
-        return super().prepare_request(context, next_page_token)
 
-    @property
-    def url_base(self) -> str:
-        """Return the API URL base, allowing per-request override."""
-        if hasattr(self, "_url_base"):
-            return f"{self._url_base}/graphql"
-        return super().url_base
 
-    def post_process(self, row: dict, context: Mapping[str, Any] | None = None) -> dict:
-        """Transform GraphQL response to our schema."""
-        partition_context = getattr(self, "_current_partition_context", {})
 
-        # Extract org and repo from search query
-        search_query = partition_context.get("search_query", "")
-        org, repo = self._extract_org_repo_from_query(search_query)
-
-        count_value = row.get("issueCount", 0) if row else 0
-
-        return {
-            "search_name": partition_context.get("search_name"),
-            "search_query": search_query,
-            "source": partition_context.get("source", "github.com"),
-            "month": partition_context.get("month"),
-            "org": org,
-            "repo": repo,
-            "updated_at": datetime.utcnow().isoformat(),
-            self.count_field: count_value,
-        }
-
-    def _extract_org_repo_from_query(
-        self, search_query: str
-    ) -> tuple[str | None, str | None]:
-        """Extract organization and repository from GitHub search query.
-
-        Args:
-            search_query: GitHub search query string
-
-        Returns:
-            Tuple of (org, repo) where repo is None for org-level queries
-
-        Examples:
-            "org:Automattic type:issue" → ("Automattic", None)
-            "repo:Automattic/wp-calypso type:issue" → ("Automattic", "wp-calypso")
-        """
-        # Check for repo-level query first (repo:owner/name)
-        repo_match = re.search(r"repo:([^/\s]+)/([^\s]+)", search_query)
-        if repo_match:
-            org = repo_match.group(1)
-            repo = repo_match.group(2)
-            return org, repo
-
-        # Check for org-level query (org:name)
-        org_match = re.search(r"org:([^\s]+)", search_query)
-        if org_match:
-            org = org_match.group(1)
-            return org, None
-
-        # Fallback if no match found
-        return None, None
-
-    def validate_response(self, response) -> None:
-        """Validate HTTP response and handle GraphQL errors."""
-        super().validate_response(response)
-
-        # Use EAFP - try to access errors directly
-        try:
-            json_resp = response.json()
-            for error in json_resp["errors"]:
-                error_msg = error.get("message", str(error))
-                if "rate limit" in error_msg.lower():
-                    raise RetriableAPIError(f"GitHub API rate limit: {error_msg}")
-                self.logger.warning(f"GraphQL query error: {error_msg}")
-        except (KeyError, TypeError):
-            # No errors or malformed response structure - continue
-            pass
 
 
 class IssueSearchCountStream(BaseSearchCountStream):
