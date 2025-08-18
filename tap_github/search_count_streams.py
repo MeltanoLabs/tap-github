@@ -850,7 +850,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         }
 
         # Build the GraphQL endpoint URL
-        graphql_url = urljoin(instance.api_url_base, "/graphql")
+        graphql_url = instance.api_url_base.rstrip('/') + '/graphql'
 
         # Prepare request payload
         payload = {
@@ -1052,7 +1052,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         import requests
         from requests.exceptions import ConnectionError, HTTPError, Timeout
 
-        graphql_url = urljoin(instance.api_url_base, "/graphql")
+        graphql_url = instance.api_url_base.rstrip('/') + '/graphql'
         payload = {
             "query": query,
             "variables": variables,
@@ -1232,7 +1232,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             self.logger.error(f"No auth token found for instance {source}")
             return None
         
-        graphql_url = urljoin(api_url_base, "/graphql")
+        graphql_url = api_url_base.rstrip('/') + '/graphql'
         payload = {"query": query, "variables": variables}
         timeout = self.config.get("stream_request_timeout", 300)
         
