@@ -23,6 +23,7 @@ from tap_github.scraping import scrape_dependents, scrape_metrics
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from datetime import datetime
 
     import requests
     from singer_sdk.helpers.types import Context
@@ -1946,6 +1947,8 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         Return a generator of row-type dictionary objects.
         If discussions are not enabled, skip the API call.
         """
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream"
+
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
         if not context.get("has_discussions", False):
@@ -1959,7 +1962,7 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         )
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Set parent fields from context.
         """
@@ -2044,7 +2047,7 @@ class DiscussionsStream(GitHubGraphqlStream):
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
-        self.cutoff = None
+        self.cutoff: datetime | None = None
 
     def get_url_params(
         self,
@@ -2081,6 +2084,8 @@ class DiscussionsStream(GitHubGraphqlStream):
         Return a generator of row-type dictionary objects.
         If discussions are not enabled, skip the API call
         """
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream"
+
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
         if not context.get("has_discussions", False):
@@ -2094,7 +2099,7 @@ class DiscussionsStream(GitHubGraphqlStream):
         )
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure
         and set parent fields.
@@ -2362,7 +2367,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
-        self.cutoff = None
+        self.cutoff: datetime | None = None
 
     def get_url_params(
         self,
@@ -2401,6 +2406,8 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         Return a generator of row-type dictionary objects.
         If the parent discussion has no comments, skip the API call.
         """
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream"
+
         repo = context.get("repo", "unknown")
         org = context.get("org", "unknown")
         discussion_number = context.get("discussion_number", "unknown")
@@ -2418,7 +2425,7 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         )
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure
         and set parent fields.
@@ -2621,7 +2628,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
 
     def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         super().__init__(*args, **kwargs)
-        self.cutoff = None
+        self.cutoff: datetime | None = None
 
     def get_url_params(
         self,
@@ -2662,6 +2669,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         """Return a generator of row-type dictionary objects.
         If the parent discussion has no comments, skip the replies API call.
         """
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream"
 
         comments_count = context.get("comments_count", 0)
         repo = context.get("repo", "unknown")
@@ -2681,7 +2689,7 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
 
         return super().get_records(context)
 
-    def post_process(self, row: dict, context: dict | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
         Transform the nodes arrays to flatten the nested structure
         and set parent fields.
