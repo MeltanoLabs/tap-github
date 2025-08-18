@@ -112,15 +112,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                             "type": self.stream_type
                         })
             
-            # Repo-level partitions (simplified - just top repos for now)
+            # Repo-level partitions - generate queries for specific repos
             for repo_config in instance_config.get("repo_level", []):
                 org = repo_config["org"]
-                # For now, generate a few sample repo queries
-                # In production, this would use repository discovery
+                limit = repo_config.get("limit", 10)
+                # Get repos from the repo_config directly or from global config
+                repos = repo_config.get("repositories", []) or self._get_repos_for_org(org)
+                
                 for start_date, end_date, month_id in month_ranges:
                     for query_type in self._get_query_types():
-                        # Generate org-level query as placeholder
-                        query = self._build_search_query(query_type, org, start_date, end_date)
+                        # Generate repo-specific query using configured repos
+                        query = self._build_repo_search_query(query_type, org, start_date, end_date, repos)
                         search_name = f"{org}_repos_{query_type}s_{month_id}".replace("-", "_").lower()
                         
                         partitions.append({
@@ -205,6 +207,39 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             
         base_query += f" created:{start_date}..{end_date}"
         return base_query
+    
+    def _build_repo_search_query(self, query_type: str, org: str, start_date: str, end_date: str, repos: list[str] = None) -> str:
+        """Build a GitHub search query for specific repos."""
+        if not repos:
+            # Fallback to org-level query if no repos specified
+            return self._build_search_query(query_type, org, start_date, end_date)
+        
+        repo_query = " ".join([f"repo:{repo}" for repo in repos[:10]])  # limit to 10 repos
+        
+        if query_type == "issue":
+            base_query = f"{repo_query} type:issue is:open"
+        elif query_type == "bug":
+            base_query = f"{repo_query} type:issue is:open label:bug"
+        elif query_type == "pr":
+            base_query = f"{repo_query} type:pr is:open"
+            
+        base_query += f" created:{start_date}..{end_date}"
+        return base_query
+    
+    def _get_repos_for_org(self, org: str) -> list[str]:
+        """Get repository list from config for an org."""
+        # Check if repositories are specified in config
+        if "repositories" in self.config:
+            # Filter repositories for this org
+            return [repo for repo in self.config["repositories"] if repo.startswith(f"{org}/")]
+        
+        # Check if there's a repo_configs section
+        if "repo_configs" in self.config:
+            org_config = self.config["repo_configs"].get(org, {})
+            return org_config.get("repositories", [])
+            
+        # No specific repos configured, return empty (will fallback to org-level)
+        return []
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Process records with GraphQL batching optimization."""
