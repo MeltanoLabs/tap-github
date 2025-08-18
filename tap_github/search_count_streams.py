@@ -95,8 +95,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             else:
                 current = current.replace(month=current.month + 1)
 
+        # Get stream-specific or general instance configuration
+        stream_key = f"{self.stream_type}_streams"
+        if stream_key in scope_config:
+            # Use stream-specific config (e.g., "issue_streams" or "pr_streams")
+            instances_config = scope_config[stream_key].get("instances", [])
+        else:
+            # Fall back to general "instances" config
+            instances_config = scope_config.get("instances", [])
+
         # Generate partitions for each instance
-        for instance_config in scope_config.get("instances", []):
+        for instance_config in instances_config:
             # Org-level partitions
             for org in instance_config.get("org_level", []):
                 for start_date, end_date, month_id in month_ranges:
@@ -350,7 +359,16 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         scope_config = self.config["search_scope"]
         instances = []
         
-        for instance_config in scope_config.get("instances", []):
+        # Get stream-specific or general instance configuration
+        stream_key = f"{self.stream_type}_streams"
+        if stream_key in scope_config:
+            # Use stream-specific config (e.g., "issue_streams" or "pr_streams")
+            instances_config = scope_config[stream_key].get("instances", [])
+        else:
+            # Fall back to general "instances" config
+            instances_config = scope_config.get("instances", [])
+        
+        for instance_config in instances_config:
             auth_token = instance_config.get("auth_token")
             if auth_token:
                 instances.append(GitHubInstance(
