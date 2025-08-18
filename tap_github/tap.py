@@ -206,19 +206,8 @@ class TapGitHub(Tap):
                             ),
                             th.Property(
                                 "repo_level",
-                                th.ArrayType(
-                                    th.ObjectType(
-                                        th.Property("org", th.StringType, required=True),
-                                        th.Property("limit", th.IntegerType, default=20),
-                                        th.Property(
-                                            "sort_by",
-                                            th.StringType,
-                                            default="issues",
-                                            allowed_values=["issues", "stars", "forks", "updated"],
-                                        ),
-                                    )
-                                ),
-                                description="List of configurations for top N repositories by specified criteria",
+                                th.ArrayType(th.StringType),
+                                description="List of specific repositories (format: org/repo) for repo-level queries",
                             ),
                             th.Property("max_partitions", th.IntegerType, default=5000),
                             th.Property("partition_warning_threshold", th.IntegerType, default=2000),
