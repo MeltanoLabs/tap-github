@@ -1,13 +1,13 @@
-"""GitHub search count streams for statistical aggregation via GraphQL."""
+g"""GitHub search count streams for statistical aggregation via GraphQL."""
 
 from __future__ import annotations
 
 import calendar
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import Any, ClassVar, Optional, List, Dict, Tuple
+from typing import Any, ClassVar
 from functools import lru_cache
 
 from singer_sdk import typing as th
@@ -21,12 +21,28 @@ from tap_github.utils.repository_discovery import GitHubInstance
 from tap_github.utils.search_queries import SearchQueryGenerator
 from tap_github.utils.search_queries import SearchQuery
 from tap_github.utils.http_client import GitHubGraphQLClient
+from tap_github.utils.date_utils import GitHubDateUtils
+from tap_github.utils.validation import GitHubValidationMixin
+
+
+@dataclass(frozen=True)
+class Partition:
+    """Represents a search partition with all required information."""
+    search_name: str
+    search_query: str
+    source: str
+    month: str | None = None
+    api_url_base: str = "https://api.github.com"
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary format expected by Singer SDK."""
+        return asdict(self)
 
 
 # SearchQuery and GitHubInstance now imported from utilities
 
 
-class BaseSearchCountStream(GitHubGraphqlStream):
+class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
     """Base stream for GitHub search count queries via GraphQL."""
 
     primary_keys: ClassVar[list[str]] = ["search_name", "month", "source"]
@@ -40,6 +56,41 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     DEFAULT_WARNING_THRESHOLD = 2000
     DEFAULT_CACHE_TTL_MINUTES = 60
     DEFAULT_BATCH_SIZE = 10
+    
+    @property
+    def max_partitions(self) -> int:
+        """Maximum allowed partitions."""
+        return self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
+    
+    @property
+    def warning_threshold(self) -> int:
+        """Partition count warning threshold."""
+        return self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
+    
+    @property
+    def cache_ttl_minutes(self) -> int:
+        """Repository discovery cache TTL in minutes."""
+        return self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
+    
+    @property
+    def batch_size(self) -> int:
+        """Batch query size."""
+        return self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
+    
+    @property
+    def enforce_partition_limit(self) -> bool:
+        """Whether to enforce partition limits."""
+        return self.config.get("enforce_partition_limit", True)
+    
+    @property
+    def enforce_lookback_limit(self) -> bool:
+        """Whether to enforce lookback limits."""
+        return self.config.get("enforce_lookback_limit", False)
+    
+    @property
+    def max_lookback_years(self) -> int:
+        """Maximum lookback years."""
+        return self.config.get("max_lookback_years", 1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -64,7 +115,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _slug(self, s: str) -> str:
         """Convert string to URL-safe slug format."""
-        return s.replace("/", "_").replace("-", "_").lower()
+        return self.clean_identifier(s)
 
     def _make_named_query(self, kind: str, scope: str, target: str, start: str, end: str, month_id: str) -> SearchQuery:
         """Create a single SearchQuery with standardized naming."""
@@ -74,7 +125,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         base = self._slug(target)
         suffix = "prs" if self.stream_type == "pr" else ("bugs" if kind == "bug" else "issues")
         return SearchQuery(
-            name=f"{base}_open_{suffix}_{month_id.replace('-', '')}",
+            name=f"{base}_open_{suffix}_{self.clean_month_id(month_id)}",
             query=q,
             type=self.stream_type,
             month=month_id,
@@ -83,6 +134,55 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     def _queries_for(self, scope: str, target: str, start: str, end: str, month_id: str) -> list[SearchQuery]:
         """Generate all queries for a target using configured query kinds."""
         return [self._make_named_query(kind, scope, target, start, end, month_id) for kind in self._query_kinds()]
+
+    @classmethod
+    def _base_schema(cls, count_field: str) -> dict:
+        """Generate unified schema for search count streams."""
+        return th.PropertiesList(
+            th.Property("search_name", th.StringType, required=True),
+            th.Property("search_query", th.StringType, required=True),
+            th.Property("source", th.StringType, required=True),
+            th.Property("month", th.StringType),
+            th.Property("org", th.StringType, description="GitHub organization name"),
+            th.Property(
+                "repo",
+                th.StringType,
+                description="Repository name (null for org-level queries)",
+            ),
+            th.Property(count_field, th.IntegerType, required=True),
+            th.Property("updated_at", th.DateTimeType),
+        ).to_dict()
+
+    def _resolve_token(self, instance_name: str | None = None, explicit_token: str | None = None) -> str | None:
+        """Centralized token resolution with fallback hierarchy."""
+        import os
+        
+        if explicit_token:
+            return explicit_token
+            
+        # Instance-specific token if instance_name provided
+        if instance_name:
+            env_key = f"GITHUB_TOKEN_{instance_name.upper().replace('.', '_').replace('-', '_')}"
+            instance_token = os.environ.get(env_key)
+            if instance_token:
+                return instance_token
+        
+        # Default token hierarchy
+        default_token = (
+            self.config.get("auth_token")
+            or self.config.get("access_token")
+            or os.environ.get("GITHUB_TOKEN")
+        )
+        
+        if default_token:
+            return default_token
+        
+        # Fallback to any GITHUB_TOKEN* environment variable
+        for key, value in os.environ.items():
+            if key.startswith("GITHUB_TOKEN") and value:
+                return value
+        
+        return None
 
     @property
     def query(self) -> str:
@@ -99,22 +199,16 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         }
         """
 
-    def _build_batch_query(self, search_queries: List[str]) -> str:
+    def _build_batch_query(self, search_queries: list[str]) -> str:
         """Build a batched GraphQL query for multiple search queries."""
-        query_parts = []
-        variable_parts = []
+        variables = [f"$q{i}: String!" for i in range(len(search_queries))]
+        searches = [
+            f"search{i}: search(query: $q{i}, type: ISSUE, first: 1) {{\n            issueCount\n          }}"
+            for i in range(len(search_queries))
+        ]
         
-        for i, _ in enumerate(search_queries):
-            alias = f"search{i}"
-            var_name = f"q{i}"
-            variable_parts.append(f"${var_name}: String!")
-            query_parts.append(f"""
-          {alias}: search(query: ${var_name}, type: ISSUE, first: 1) {{
-            issueCount
-          }}""")
-        
-        variables_str = ", ".join(variable_parts)
-        searches_str = "\n".join(query_parts)
+        variables_str = ", ".join(variables)
+        searches_str = "\n          ".join(searches)
         
         return f"""
         query({variables_str}) {{
@@ -185,7 +279,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
         return partitions
 
-    def _get_github_instances(self) -> List[GitHubInstance]:
+    def _get_github_instances(self) -> list[GitHubInstance]:
         """Get GitHub instances from config with sensible defaults.
 
         Authentication priority (first non-empty value wins):
@@ -199,22 +293,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """
         import os
 
-        # Get default token from config or environment
-        default_token = (
-            self.config.get("auth_token")
-            or self.config.get("access_token")
-            or os.environ.get("GITHUB_TOKEN")
-        )
-
-        # Check for multiple tokens in environment (GITHUB_TOKEN, GITHUB_TOKEN_2, etc.)
-        if not default_token:
-            env_tokens = [
-                value
-                for key, value in os.environ.items()
-                if key.startswith("GITHUB_TOKEN") and value
-            ]
-            if env_tokens:
-                default_token = env_tokens[0]  # Use first available token
+        # Get default token using centralized resolver
+        default_token = self._resolve_token()
 
         if not default_token:
             self.logger.warning(
@@ -236,13 +316,11 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         instances = []
         for instance in instances_config:
             # Allow instance to override with environment variable
-            # e.g., GITHUB_TOKEN_ENTERPRISE for github.enterprise.com
-            instance_env_key = f"GITHUB_TOKEN_{instance['name'].upper().replace('.', '_').replace('-', '_')}"
-            instance_token = (
-                instance.get("auth_token")
-                or os.environ.get(instance_env_key)
-                or default_token
-            )
+            # Use centralized token resolver for instance-specific tokens
+            instance_token = self._resolve_token(
+                instance_name=instance['name'],
+                explicit_token=instance.get("auth_token")
+            ) or default_token
 
             if not instance_token:
                 self.logger.warning(
@@ -276,18 +354,9 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _validate_org_names(self, org_names: list[str]) -> None:
         """Validate GitHub organization names."""
-        for org in org_names:
-            if not org or not isinstance(org, str):
-                msg = f"Invalid organization name: {org!r}. Must be non-empty string."
-                raise ValueError(msg)
+        self.validate_org_names(org_names)
 
-            if not re.match(
-                r"^[a-zA-Z0-9]([a-zA-Z0-9-])*[a-zA-Z0-9]$|^[a-zA-Z0-9]$", org
-            ):
-                msg = f"Invalid organization name '{org}'. Must contain only alphanumeric characters and hyphens, cannot start or end with hyphen."
-                raise ValueError(msg)
-
-    def _generate_month_ranges(self) -> List[Tuple[str, str, str]]:
+    def _generate_month_ranges(self) -> list[tuple[str, str, str]]:
         """Generate monthly date ranges from config."""
         date_range = self.config["date_range"]
         raw_start_date = date_range["start"]
@@ -351,7 +420,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         
         return auto_end_date.strftime("%Y-%m-%d")
     
-    def _validate_and_adjust_date_range(self, start_date: str, end_date: Optional[str] = None) -> Tuple[str, str]:
+    def _validate_and_adjust_date_range(self, start_date: str, end_date: str | None = None) -> tuple[str, str]:
         """Validate and potentially adjust date range based on configuration.
         
         Args:
@@ -364,49 +433,19 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         Raises:
             ValueError: If dates are invalid or exceed limits when enforcement is enabled
         """
-        # Configuration options
-        enforce_lookback_limit = self.config.get("enforce_lookback_limit", False)
-        max_lookback_years = self.config.get("max_lookback_years", 1)
-        
-        self._validate_date_format(start_date, "start date")
-        
-        if not end_date:
-            end_date = self._get_auto_end_date(start_date)
-            self.logger.info(f"Auto-detected end date: {end_date} (last complete month)")
-        
-        self._validate_date_format(end_date, "end date")
-        
-        # Parse dates
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-        
-        if start_dt > end_dt:
-            raise ValueError(f"Start date '{start_date}' must be before or equal to end date '{end_date}'")
-        
-        # Check lookback limit
-        max_lookback = end_dt.replace(year=end_dt.year - max_lookback_years)
-        
-        if start_dt < max_lookback:
-            if enforce_lookback_limit:
-                adjusted_start = max_lookback.strftime("%Y-%m-%d")
-                self.logger.warning(
-                    f"Start date {start_date} exceeds {max_lookback_years}-year limit. "
-                    f"Enforcing limit by adjusting to {adjusted_start}"
-                )
-                return adjusted_start, end_date
-            else:
-                self.logger.warning(
-                    f"Start date {start_date} exceeds recommended {max_lookback_years}-year lookback. "
-                    f"Consider setting enforce_lookback_limit=true to automatically adjust."
-                )
-        
-        return start_date, end_date
+        return GitHubDateUtils.validate_and_adjust_date_range(
+            start_date=start_date,
+            end_date=end_date,
+            enforce_lookback_limit=self.enforce_lookback_limit,
+            max_lookback_years=self.max_lookback_years,
+            logger=self.logger
+        )
 
-    def _enforce_partition_limits(self, total: int, max_allowed: int = None, warn_at: int = None, label: str = "Global", enforce: bool = None) -> None:
+    def _enforce_partition_limits(self, total: int, max_allowed: int | None = None, warn_at: int | None = None, label: str = "Global", enforce: bool | None = None) -> None:
         """Unified partition limit checking for both global and instance-specific limits."""
-        max_allowed = max_allowed or self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
-        warn_at = warn_at or self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
-        enforce = enforce if enforce is not None else self.config.get("enforce_partition_limit", True)
+        max_allowed = max_allowed or self.max_partitions
+        warn_at = warn_at or self.warning_threshold
+        enforce = enforce if enforce is not None else self.enforce_partition_limit
         
         if total > max_allowed and enforce:
             raise ValueError(
@@ -427,14 +466,14 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _create_search_queries_for_month(
         self, org: str, start_date: str, end_date: str, month_id: str
-    ) -> List[SearchQuery]:
+    ) -> list[SearchQuery]:
         """Create search queries for a specific organization and month."""
         return self._queries_for("org", org, start_date, end_date, month_id)
 
     def _generate_monthly_partitions(self) -> list[dict]:
         """Generate partitions programmatically from org list and date range."""
         organizations = self.config["search_orgs"]
-        self._validate_org_names(organizations)
+        self.validate_org_names(organizations)
 
         partitions = []
         instances = self._get_github_instances()
@@ -484,77 +523,88 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
         return self._generate_instance_scoped_partitions(scope_config, month_ranges)
 
-    def _generate_instance_scoped_partitions(self, scope_config: dict, month_ranges: List[Tuple[str, str, str]]) -> list[dict]:
+    def _generate_instance_scoped_partitions(self, scope_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
         """Generate partitions from new instance-scoped configuration."""
-        partitions = []
+        return [
+            partition
+            for instance_config in scope_config["instances"]
+            for partition in self._generate_partitions_for_instance(instance_config, month_ranges)
+        ]
+
+    def _generate_partitions_for_instance(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
+        """Generate all partitions for a single instance."""
+        instance_partitions = []
+        instance_partitions.extend(self._generate_org_level_partitions(instance_config, month_ranges))
+        instance_partitions.extend(self._generate_repo_level_partitions(instance_config, month_ranges))
         
-        for instance_config in scope_config["instances"]:
-            instance_name = instance_config["instance"]
-            api_url_base = instance_config["api_url_base"]
-            
-            # Instance-specific performance settings
-            max_partitions = instance_config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
-            warning_threshold = instance_config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
-            enforce_limit = instance_config.get("enforce_partition_limit", True)
-            cache_ttl = instance_config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
-            
-            instance_partitions = []
-            
-            # Generate org-level partitions for this instance
-            org_level_orgs = instance_config.get("org_level", [])
-            if org_level_orgs:
-                self._validate_org_names(org_level_orgs)
-                for org in org_level_orgs:
-                    for start_date, end_date, month_id in month_ranges:
-                        search_queries = self._create_search_queries_for_month(
-                            org, start_date, end_date, month_id
-                        )
-                        for query in search_queries:
-                            partition = {
-                                "search_name": query.name,
-                                "search_query": query.query,
-                                "source": instance_name,
-                                "month": query.month,
-                                "api_url_base": api_url_base,
-                            }
-                            instance_partitions.append(partition)
+        # Check instance-specific limits
+        self._check_instance_partition_limits_from_config(instance_config, len(instance_partitions))
+        
+        return instance_partitions
 
-            # Generate repo-level partitions for this instance
-            repo_level_configs = instance_config.get("repo_level", [])
-            for repo_config in repo_level_configs:
-                org = repo_config["org"]
-                limit = repo_config.get("limit", 20)
-                sort_by = repo_config.get("sort_by", "issues")
-                
-                # Get top repositories for this specific instance
-                top_repos = self._get_top_repos_for_instance(instance_config, org, limit, sort_by, cache_ttl)
-
-                for repo in top_repos:
-                    for start_date, end_date, month_id in month_ranges:
-                        search_queries = self._generate_repo_queries(
-                            repo, start_date, end_date, month_id
-                        )
-                        for query in search_queries:
-                            partition = {
-                                "search_name": query.name,
-                                "search_query": query.query,
-                                "source": instance_name,
-                                "month": query.month,
-                                "api_url_base": api_url_base,
-                            }
-                            instance_partitions.append(partition)
-
-            # Check instance-specific partition limits
-            self._check_instance_partition_limits(
-                len(instance_partitions), instance_name, max_partitions, warning_threshold, enforce_limit
-            )
+    def _generate_org_level_partitions(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
+        """Generate org-level partitions for an instance."""
+        org_level_orgs = instance_config.get("org_level", [])
+        if not org_level_orgs:
+            return []
             
-            partitions.extend(instance_partitions)
+        self.validate_org_names(org_level_orgs)
+        return [
+            self._create_partition(query, instance_config)
+            for org in org_level_orgs
+            for start_date, end_date, month_id in month_ranges
+            for query in self._create_search_queries_for_month(org, start_date, end_date, month_id)
+        ]
 
+    def _generate_repo_level_partitions(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
+        """Generate repo-level partitions for an instance."""
+        repo_level_configs = instance_config.get("repo_level", [])
+        if not repo_level_configs:
+            return []
+            
+        partitions = []
+        cache_ttl = instance_config.get("repo_discovery_cache_ttl", self.cache_ttl_minutes)
+        
+        for repo_config in repo_level_configs:
+            org = repo_config["org"]
+            limit = repo_config.get("limit", 20)
+            sort_by = repo_config.get("sort_by", "issues")
+            
+            top_repos = self._get_top_repos_for_instance(instance_config, org, limit, sort_by, int(cache_ttl or self.cache_ttl_minutes))
+            
+            partitions.extend([
+                self._create_partition(query, instance_config)
+                for repo in top_repos
+                for start_date, end_date, month_id in month_ranges
+                for query in self._generate_repo_queries(repo, start_date, end_date, month_id)
+            ])
+            
         return partitions
 
+    def _create_partition(self, query: SearchQuery, instance_config: dict) -> dict:
+        """Create a single partition dict from query and instance config."""
+        partition = Partition(
+            search_name=query.name,
+            search_query=query.query,
+            source=instance_config["instance"],
+            month=query.month,
+            api_url_base=instance_config["api_url_base"],
+        )
+        return partition.to_dict()
 
-    def _get_top_repos_for_instance(self, instance_config: dict, org: str, limit: int, sort_by: str, cache_ttl: int) -> List[str]:
+    def _check_instance_partition_limits_from_config(self, instance_config: dict, partition_count: int) -> None:
+        """Check partition limits using instance configuration."""
+        max_partitions = int(instance_config.get("max_partitions", self.max_partitions))
+        warning_threshold = int(instance_config.get("partition_warning_threshold", self.warning_threshold))
+        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.enforce_partition_limit))
+        instance_name = instance_config["instance"]
+        
+        self._check_instance_partition_limits(
+            partition_count, instance_name, max_partitions, warning_threshold, enforce_limit
+        )
+
+
+    def _get_top_repos_for_instance(self, instance_config: dict, org: str, limit: int, sort_by: str, cache_ttl: int) -> list[str]:
         """Get top N repositories for a specific instance."""
         instance_name = instance_config["instance"]
         cache_key = f"{instance_name}:{org}:{limit}:{sort_by}"
@@ -566,14 +616,13 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             if cache_age.total_seconds() < (cache_ttl * 60):
                 self.logger.debug(f"Using cached repositories for {cache_key}")
                 return repos
-            else:
-                del self._repo_cache[cache_key]
+            del self._repo_cache[cache_key]
         
         # Create temporary GitHubInstance object for this instance
-        auth_token = (
-            instance_config.get("auth_token") 
-            or self.config.get("auth_token")
-            or self.config.get("access_token")
+        explicit_token = instance_config.get("auth_token")
+        auth_token = self._resolve_token(
+            instance_name=instance_name,
+            explicit_token=str(explicit_token) if explicit_token else None
         )
         
         if not auth_token:
@@ -587,7 +636,6 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         )
         
         # Fetch repositories using instance-specific API
-        # Use repository discovery utility directly with instance
         repos = self._repo_discovery.get_top_repos(org, limit, sort_by, instance)
         
         # Cache the results with instance-specific TTL
@@ -600,7 +648,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """Check partition limits for a specific instance."""
         self._enforce_partition_limits(total_partitions, max_partitions, warning_threshold, f"Instance '{instance_name}'", enforce_limit)
 
-    def _get_top_repos(self, org: str, limit: int, sort_by: str) -> List[str]:
+    def _get_top_repos(self, org: str, limit: int, sort_by: str) -> list[str]:
         """Get top N repositories from an organization sorted by the specified criteria.
         
         Uses caching to avoid repeated API calls for the same org/criteria combination.
@@ -614,12 +662,10 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             if cache_age.total_seconds() < (self._cache_ttl_minutes * 60):
                 self.logger.debug(f"Using cached repositories for {cache_key}")
                 return repos
-            else:
-                # Cache expired, remove it
-                del self._repo_cache[cache_key]
+            # Cache expired, remove it
+            del self._repo_cache[cache_key]
         
         # Fetch fresh data
-        # Use repository discovery utility directly
         repos = self._repo_discovery.get_top_repos(org, limit, sort_by)
         
         # Cache the results
@@ -631,13 +677,13 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     # ===== REPOSITORY DISCOVERY METHODS ELIMINATED =====
     # All 8 duplicate methods removed - now using RepositoryDiscovery utility directly
 
-    def _make_graphql_request_for_instance(self, instance: GitHubInstance, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _make_graphql_request_for_instance(self, instance: GitHubInstance, query: str, variables: dict[str, Any]) -> dict[str, Any] | None:
         """Make a GraphQL request to a specific GitHub instance."""
         return self._http_client.make_request(query, variables, instance=instance)
 
     def _generate_repo_queries(
         self, repo: str, start_date: str, end_date: str, month_id: str
-    ) -> List[SearchQuery]:
+    ) -> list[SearchQuery]:
         """Generate search queries for a specific repository and month."""
         return self._queries_for("repo", repo, start_date, end_date, month_id)
 
@@ -646,7 +692,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         partitions = self.get_partitions(context)
         
         # Group partitions by instance for batch processing
-        instance_partitions: Dict[str, List[dict]] = {}
+        instance_partitions: dict[str, list[dict]] = {}
         for partition in partitions:
             instance = partition.get("source", "github.com")
             if instance not in instance_partitions:
@@ -657,17 +703,15 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         for instance, instance_partition_list in instance_partitions.items():
             yield from self._process_partitions_in_batches(instance_partition_list)
 
-    def _process_partitions_in_batches(self, partitions: List[dict]) -> Iterable[dict[str, Any]]:
+    def _process_partitions_in_batches(self, partitions: list[dict]) -> Iterable[dict[str, Any]]:
         """Process partitions in batches for better performance."""
         batch_size = self._batch_size
         
         for i in range(0, len(partitions), batch_size):
             batch_partitions = partitions[i:i + batch_size]
-            
-            # Always use batch processing (works for both single and multiple queries)
             yield from self._process_batch_request(batch_partitions)
 
-    def _process_batch_request(self, batch_partitions: List[dict]) -> Iterable[dict[str, Any]]:
+    def _process_batch_request(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
         """Process multiple partitions in a single batched GraphQL request."""
         search_queries = [p.get("search_query", "") for p in batch_partitions]
         
@@ -682,24 +726,33 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         # Make the batched GraphQL request
         response = self._make_batch_graphql_request(batch_query, variables, first_partition)
         
-        if not response or "data" not in response or response["data"] is None:
+        if not response:
+            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+            return
+            
+        try:
+            if not response["data"]:
+                self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+                return
+        except (KeyError, TypeError):
             self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
             return
         
-        # Parse batch results and yield records
-        data = response["data"]
-        for i, partition in enumerate(batch_partitions):
-            search_result = data.get(f"search{i}")
-            if search_result:
-                # Store partition context for post_process
-                self._current_partition_context = partition
-                
-                # Yield the raw GraphQL result - let SDK handle post_process
-                yield search_result
-            else:
-                self.logger.warning(f"No result for search{i} in batch")
+        # Parse batch results and yield records using EAFP
+        try:
+            data = response["data"]
+            for i, partition in enumerate(batch_partitions):
+                try:
+                    search_result = data[f"search{i}"]
+                    # Store partition context for post_process
+                    self._current_partition_context = partition
+                    yield search_result
+                except KeyError:
+                    self.logger.warning(f"No result for search{i} in batch")
+        except (KeyError, TypeError):
+            self.logger.warning(f"Invalid response structure for batch request")
 
-    def _make_batch_graphql_request(self, query: str, variables: dict, partition: dict) -> Optional[dict]:
+    def _make_batch_graphql_request(self, query: str, variables: dict, partition: dict) -> dict | None:
         """Make a batched GraphQL request using instance-specific configuration."""
         instances = self._get_github_instances()
         return self._http_client.make_batch_request(query, variables, partition, instances)
@@ -773,7 +826,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _extract_org_repo_from_query(
         self, search_query: str
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract organization and repository from GitHub search query.
 
         Args:
@@ -806,18 +859,17 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """Validate HTTP response and handle GraphQL errors."""
         super().validate_response(response)
 
-        # Check for GraphQL errors
-        json_resp = response.json()
-        if "errors" in json_resp:
-            error_messages = [e.get("message", str(e)) for e in json_resp["errors"]]
-            error_str = "; ".join(error_messages)
-
-            # Check if it's a rate limit or other retryable error
-            if any("rate limit" in msg.lower() for msg in error_messages):
-                raise RetriableAPIError(f"GitHub API rate limit: {error_str}")
-
-            # Log and continue for search syntax errors
-            self.logger.warning(f"GraphQL query error: {error_str}")
+        # Use EAFP - try to access errors directly
+        try:
+            json_resp = response.json()
+            for error in json_resp["errors"]:
+                error_msg = error.get("message", str(error))
+                if "rate limit" in error_msg.lower():
+                    raise RetriableAPIError(f"GitHub API rate limit: {error_msg}")
+                self.logger.warning(f"GraphQL query error: {error_msg}")
+        except (KeyError, TypeError):
+            # No errors or malformed response structure - continue
+            pass
 
 
 class IssueSearchCountStream(BaseSearchCountStream):
@@ -826,21 +878,7 @@ class IssueSearchCountStream(BaseSearchCountStream):
     name = "issue_search_counts"
     stream_type = "issue"
     count_field = "issue_count"
-
-    schema = th.PropertiesList(
-        th.Property("search_name", th.StringType, required=True),
-        th.Property("search_query", th.StringType, required=True),
-        th.Property("source", th.StringType, required=True),
-        th.Property("month", th.StringType),
-        th.Property("org", th.StringType, description="GitHub organization name"),
-        th.Property(
-            "repo",
-            th.StringType,
-            description="Repository name (null for org-level queries)",
-        ),
-        th.Property("issue_count", th.IntegerType, required=True),
-        th.Property("updated_at", th.DateTimeType),
-    ).to_dict()
+    schema = BaseSearchCountStream._base_schema("issue_count")
 
 
 class PRSearchCountStream(BaseSearchCountStream):
@@ -849,18 +887,4 @@ class PRSearchCountStream(BaseSearchCountStream):
     name = "pr_search_counts"
     stream_type = "pr"
     count_field = "pr_count"
-
-    schema = th.PropertiesList(
-        th.Property("search_name", th.StringType, required=True),
-        th.Property("search_query", th.StringType, required=True),
-        th.Property("source", th.StringType, required=True),
-        th.Property("month", th.StringType),
-        th.Property("org", th.StringType, description="GitHub organization name"),
-        th.Property(
-            "repo",
-            th.StringType,
-            description="Repository name (null for org-level queries)",
-        ),
-        th.Property("pr_count", th.IntegerType, required=True),
-        th.Property("updated_at", th.DateTimeType),
-    ).to_dict()
+    schema = BaseSearchCountStream._base_schema("pr_count")
