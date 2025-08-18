@@ -402,30 +402,27 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         
         return start_date, end_date
 
-    def _check_partition_limits(self, total_partitions: int) -> None:
-        """Check partition count limits and warn or raise if exceeded.
+    def _enforce_partition_limits(self, total: int, max_allowed: int = None, warn_at: int = None, label: str = "Global", enforce: bool = None) -> None:
+        """Unified partition limit checking for both global and instance-specific limits."""
+        max_allowed = max_allowed or self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
+        warn_at = warn_at or self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
+        enforce = enforce if enforce is not None else self.config.get("enforce_partition_limit", True)
         
-        Args:
-            total_partitions: Total number of partitions to be generated
-            
-        Raises:
-            ValueError: If partition count exceeds maximum when enforcement is enabled
-        """
-        max_partitions = self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
-        warning_threshold = self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
-        enforce_partition_limit = self.config.get("enforce_partition_limit", True)
-        
-        if total_partitions > max_partitions and enforce_partition_limit:
+        if total > max_allowed and enforce:
             raise ValueError(
-                f"Partition count {total_partitions} exceeds maximum {max_partitions}. "
+                f"{label} partition count {total} exceeds maximum {max_allowed}. "
                 f"Consider reducing date range, repository count, or disable enforcement "
                 f"with enforce_partition_limit=false"
             )
-        elif total_partitions > warning_threshold:
+        if total > warn_at:
             self.logger.warning(
-                f"High partition count: {total_partitions} (threshold: {warning_threshold}). "
+                f"{label} high partition count: {total} (threshold: {warn_at}). "
                 f"This may result in rate limiting or performance issues."
             )
+
+    def _check_partition_limits(self, total_partitions: int) -> None:
+        """Check global partition count limits."""
+        self._enforce_partition_limits(total_partitions, label="Global")
 
 
     def _create_search_queries_for_month(
