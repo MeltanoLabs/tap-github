@@ -31,6 +31,7 @@ class RepositoryDiscovery:
     def __init__(self, graphql_requester):
         """Initialize with a GraphQL requester (stream instance)."""
         self.requester = graphql_requester
+        self.http_client = getattr(graphql_requester, '_http_client', None)
         self.logger = logging.getLogger(__name__)
     
     def get_top_repos(
@@ -65,16 +66,22 @@ class RepositoryDiscovery:
         variables = {"org": org, "limit": limit}
         
         try:
-            # Use the appropriate GraphQL request method based on instance
+            # Use the HTTP client directly for GraphQL requests
+            if not self.http_client:
+                self.logger.error("No HTTP client available for GraphQL requests")
+                return []
+            
             if instance:
-                response = self.requester._make_graphql_request_for_instance(
-                    instance, query, variables
-                )
+                response = self.http_client.make_request(query, variables, instance=instance)
             else:
-                # For github.com, use the batch request method (it works for single queries too)
-                response = self.requester._make_batch_graphql_request(
-                    query, variables, {"source": "github.com", "api_url_base": "https://api.github.com"}
-                )
+                # For github.com, get default instance
+                default_instances = self.requester._get_github_instances()
+                github_com = next((i for i in default_instances if i.name == "github.com"), None)
+                if github_com:
+                    response = self.http_client.make_request(query, variables, instance=github_com)
+                else:
+                    self.logger.warning("No github.com instance found")
+                    return []
             
             if not response or "data" not in response:
                 self.logger.warning(f"No data returned for org {org}")
