@@ -461,7 +461,13 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
     def _check_partition_limits(self, total_partitions: int) -> None:
         """Check global partition count limits."""
-        self._enforce_partition_limits(total_partitions, label="Global")
+        self._enforce_partition_limits(
+            total_partitions, 
+            max_allowed=self.DEFAULT_MAX_PARTITIONS,
+            warn_at=self.DEFAULT_WARNING_THRESHOLD,
+            enforce=True,
+            label="Global"
+        )
 
 
     def _create_search_queries_for_month(
