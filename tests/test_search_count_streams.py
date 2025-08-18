@@ -136,5 +136,5 @@ def test_batch_query_building():
     assert "$q1: String!" in batch_query
     assert "$q2: String!" in batch_query
     assert "type: ISSUE" in batch_query
-    assert "issue_count" in batch_query
+    assert "issueCount" in batch_query
     assert "rateLimit" in batch_query

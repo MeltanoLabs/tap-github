@@ -735,7 +735,9 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
             for i, partition in enumerate(batch_partitions):
                 try:
                     search_result = data[f"search{i}"]
-                    count_value = search_result.get(self.count_field, 0)
+                    # Use the correct GraphQL field name for parsing response
+                    graphql_count_field = "issueCount" if self.stream_type == "issue" else "prCount"
+                    count_value = search_result.get(graphql_count_field, 0)
                     
                     # Build result record
                     result = {
@@ -760,11 +762,16 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         """Build a batched GraphQL query for multiple search queries."""
         variables = [f"$q{i}: String!" for i in range(len(search_queries))]
         
-        # Use the correct search type based on stream type
-        search_type = "ISSUE" if self.stream_type == "issue" else "PULLREQUEST"
+        # Use the correct search type and GraphQL field name based on stream type
+        if self.stream_type == "issue":
+            search_type = "ISSUE"
+            graphql_count_field = "issueCount"
+        else:
+            search_type = "PULLREQUEST"
+            graphql_count_field = "prCount"
         
         searches = [
-            f"search{i}: search(query: $q{i}, type: {search_type}, first: 1) {{\n            {self.count_field}\n          }}"
+            f"search{i}: search(query: $q{i}, type: {search_type}, first: 1) {{\n            {graphql_count_field}\n          }}"
             for i in range(len(search_queries))
         ]
         
