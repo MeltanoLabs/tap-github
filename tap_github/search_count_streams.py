@@ -1,777 +1,227 @@
-"""GitHub search count streams for statistical aggregation via GraphQL."""
+"""Simplified GitHub search count streams using more Singer SDK features."""
 
 from __future__ import annotations
 
 import calendar
-import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Tuple
-from functools import lru_cache
-from itertools import product
+from typing import Any, ClassVar
 
 from singer_sdk import typing as th
 from singer_sdk.helpers.types import Context
 
 from tap_github.authenticator import GitHubTokenAuthenticator
 from tap_github.client import GitHubGraphqlStream
-from tap_github.utils.repository_discovery import RepositoryDiscovery
-from tap_github.utils.repository_discovery import GitHubInstance
-from tap_github.utils.search_queries import SearchQueryGenerator
-from tap_github.utils.search_queries import SearchQuery
 from tap_github.utils.http_client import GitHubGraphQLClient
-from tap_github.utils.date_utils import GitHubDateUtils
-from tap_github.utils.validation import GitHubValidationMixin
+from tap_github.utils.repository_discovery import GitHubInstance
 
 
-
-
-# SearchQuery and GitHubInstance now imported from utilities
-
-
-class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
-    """Base stream for GitHub search count queries via GraphQL."""
+class BaseSearchCountStream(GitHubGraphqlStream):
+    """Simplified base stream for GitHub search count queries via GraphQL."""
 
     primary_keys: ClassVar[list[str]] = ["search_name", "month", "source"]
     replication_key = None
     state_partitioning_keys: ClassVar[list[str]] = ["source", "search_name"]
     stream_type: ClassVar[str] = "issue"
     count_field: ClassVar[str] = "issue_count"
-    
-    # Performance configuration
-    DEFAULT_MAX_PARTITIONS = 5000
-    DEFAULT_WARNING_THRESHOLD = 2000
-    DEFAULT_CACHE_TTL_MINUTES = 60
-    DEFAULT_BATCH_SIZE = 20
-    
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
-        self._authenticator = None
-        self._batch_size = self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
-        
-        # Initialize utility classes
-        self._repo_discovery = RepositoryDiscovery(self)
-        self._query_generator = SearchQueryGenerator()
+        self._batch_size = self.config.get("batch_query_size", 20)
         self._http_client = GitHubGraphQLClient(self.config, self.logger)
-
-    # Query configurations by stream type
-    QUERY_KINDS_BY_STREAM: ClassVar[dict[str, list[str]]] = {
-        "issue": ["issue", "bug"],
-        "pr": ["pr"],
-    }
-
-    def _query_kinds(self) -> list[str]:
-        """Get query kinds for this stream type."""
-        return self.QUERY_KINDS_BY_STREAM[self.stream_type]
-
-
-    def _make_named_query(self, kind: str, scope: str, target: str, start: str, end: str, month_id: str) -> SearchQuery:
-        """Create a single SearchQuery with standardized naming."""
-        q = self._query_generator.build_search_query(
-            query_type=kind, scope=scope, target=target, start_date=start, end_date=end
-        )
-        base = self.clean_identifier(target)
-        suffix = "prs" if self.stream_type == "pr" else ("bugs" if kind == "bug" else "issues")
-        return SearchQuery(
-            name=f"{base}_open_{suffix}_{self.clean_month_id(month_id)}",
-            query=q,
-            type=self.stream_type,
-            month=month_id,
-        )
-
-    def _queries_for(self, scope: str, target: str, start: str, end: str, month_id: str) -> list[SearchQuery]:
-        """Generate all queries for a target using configured query kinds."""
-        return [self._make_named_query(kind, scope, target, start, end, month_id) for kind in self._query_kinds()]
-
-    @classmethod
-    def _base_schema(cls, count_field: str) -> dict:
-        """Generate unified schema for search count streams."""
-        return th.PropertiesList(
-            th.Property("search_name", th.StringType, required=True),
-            th.Property("search_query", th.StringType, required=True),
-            th.Property("source", th.StringType, required=True),
-            th.Property("month", th.StringType),
-            th.Property("org", th.StringType, description="GitHub organization name"),
-            th.Property(
-                "repo",
-                th.StringType,
-                description="Repository name (null for org-level queries)",
-            ),
-            th.Property(count_field, th.IntegerType, required=True),
-            th.Property("updated_at", th.DateTimeType),
-        ).to_dict()
-
-    def _resolve_token(self, instance_name: str | None = None, explicit_token: str | None = None) -> str | None:
-        """Centralized token resolution with fallback hierarchy."""
-        import os
-        
-        if explicit_token:
-            return explicit_token
-            
-        # Instance-specific token if instance_name provided
-        if instance_name:
-            env_key = f"GITHUB_TOKEN_{instance_name.upper().replace('.', '_').replace('-', '_')}"
-            instance_token = os.environ.get(env_key)
-            if instance_token:
-                return instance_token
-        
-        # Default token hierarchy
-        default_token = (
-            self.config.get("auth_token")
-            or self.config.get("access_token")
-            or os.environ.get("GITHUB_TOKEN")
-        )
-        
-        if default_token:
-            return default_token
-        
-        # Fallback to any GITHUB_TOKEN* environment variable
-        for key, value in os.environ.items():
-            if key.startswith("GITHUB_TOKEN") and value:
-                return value
-        
-        return None
-
-    @property
-    def query(self) -> str:
-        """Return the GraphQL query for search counts."""
-        return """
-        query($searchQuery: String!) {
-          search(query: $searchQuery, type: ISSUE, first: 1) {
-            issueCount
-          }
-          rateLimit {
-            cost
-            remaining
-          }
-        }
-        """
-
-
-    def prepare_request_payload(
-        self, context: Mapping[str, Any] | None, next_page_token: Any | None
-    ) -> dict[str, Any]:
-        """Return GraphQL request payload with query and variables."""
-        variables = {}
-        if context:
-            variables["searchQuery"] = context.get("search_query")
-
-        return {
-            "query": self.query,
-            "variables": variables,
-        }
-
-    query_jsonpath: str = "$.data.search"
+        self._authenticator = None
 
     @property
     def partitions(self) -> list[dict] | None:
-        """Return partition contexts for Singer SDK."""
-        # Explicit queries (highest priority)
+        """Generate partitions using Singer SDK approach."""
         if "search_count_queries" in self.config:
-            return self._get_explicit_partition_contexts()
-            
-        # Monthly partitions from orgs + date range
+            return self._build_explicit_partitions()
+        
         if "search_orgs" in self.config and "date_range" in self.config:
-            return self._get_monthly_partition_contexts()
-            
-        # Scope-based partitions
-        if "search_scope" in self.config:
-            return self._get_scope_partition_contexts()
-            
+            return self._build_monthly_partitions()
+        
         return None
 
-    def _get_explicit_partition_contexts(self) -> list[dict]:
-        """Get simplified partition contexts from explicit search_count_queries config."""
-        contexts = []
+    def _build_explicit_partitions(self) -> list[dict]:
+        """Build partitions from explicit query config."""
+        partitions = []
         instances = self._get_github_instances()
-
+        
         for query_config in self.config["search_count_queries"]:
             if query_config.get("type", "issue") == self.stream_type:
                 for instance in instances:
-                    contexts.append({
+                    partitions.append({
                         "search_name": query_config["name"],
-                        "search_query": query_config["query"], 
+                        "search_query": query_config["query"],
                         "source": instance.name,
                         "api_url_base": instance.api_url_base,
                         "month": query_config.get("month"),
                         "type": query_config.get("type", "issue")
                     })
-        return contexts
+        return partitions
 
-    def _get_scope_partition_contexts(self) -> list[dict]:
-        """Get simplified partition contexts from search_scope configuration."""
-        contexts = []
-        scope_config = self.config["search_scope"]
-        
-        if not scope_config.get("instances"):
-            self.logger.warning("search_scope.instances is required")
-            return []
-            
-        date_range = self.config.get("date_range", {})
-        if not date_range:
-            self.logger.warning("date_range is required when using search_scope")
-            return []
-
-        month_ranges = self._generate_month_ranges()
-        
-        for instance_config in scope_config["instances"]:
-            for start_date, end_date, month_id in month_ranges:
-                # Org-level contexts
-                for org in instance_config.get("org_level", []):
-                    for query_kind in self._query_kinds():
-                        query = self._query_generator.build_search_query(
-                            query_type=query_kind, scope="org", target=org, 
-                            start_date=start_date, end_date=end_date
-                        )
-                        contexts.append({
-                            "search_name": f"{self.clean_identifier(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
-                            "search_query": query,
-                            "source": instance_config["instance"],
-                            "api_url_base": instance_config["api_url_base"], 
-                            "month": month_id,
-                            "type": self.stream_type
-                        })
-                
-                # Repo-level contexts  
-                for repo_config in instance_config.get("repo_level", []):
-                    org = repo_config["org"]
-                    repos = self._get_top_repos_for_instance(
-                        instance_config, org, 
-                        repo_config.get("limit", 20),
-                        repo_config.get("sort_by", "issues"),
-                        instance_config.get("repo_discovery_cache_ttl", 60)
-                    )
-                    for repo in repos:
-                        for query_kind in self._query_kinds():
-                            query = self._query_generator.build_search_query(
-                                query_type=query_kind, scope="repo", target=repo,
-                                start_date=start_date, end_date=end_date
-                            )
-                            contexts.append({
-                                "search_name": f"{self.clean_identifier(repo)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
-                                "search_query": query,
-                                "source": instance_config["instance"],
-                                "api_url_base": instance_config["api_url_base"],
-                                "month": month_id, 
-                                "type": self.stream_type
-                            })
-        return contexts
-
-    def _get_monthly_partition_contexts(self) -> list[dict]:
-        """Get simplified partition contexts from legacy search_orgs configuration."""
-        contexts = []
-        organizations = self.config["search_orgs"]
-        month_ranges = self._generate_month_ranges()
+    def _build_monthly_partitions(self) -> list[dict]:
+        """Build monthly partitions from org list and date range."""
+        partitions = []
         instances = self._get_github_instances()
-
-        for org in organizations:
-            for start_date, end_date, month_id in month_ranges:
-                for instance in instances:
-                    for query_kind in self._query_kinds():
-                        query = self._query_generator.build_search_query(
-                            query_type=query_kind, scope="org", target=org,
-                            start_date=start_date, end_date=end_date
-                        )
-                        contexts.append({
-                            "search_name": f"{self.clean_identifier(org)}_open_{'bugs' if query_kind == 'bug' else query_kind}s_{self.clean_month_id(month_id)}",
-                            "search_query": query,
-                            "source": instance.name,
-                            "api_url_base": instance.api_url_base,
-                            "month": month_id,
-                            "type": self.stream_type
-                        })
-        return contexts
-
-    # Legacy get_partitions method removed - replaced with Singer SDK partitions property
-
-    # Legacy _get_explicit_partitions removed
-
-    def _get_github_instances(self) -> list[GitHubInstance]:
-        """Get GitHub instances from config with sensible defaults.
-
-        Authentication priority (first non-empty value wins):
-        1. Instance-specific auth_token in github_instances config
-        2. Global auth_token in config
-        3. Global access_token in config (legacy)
-        4. GITHUB_TOKEN environment variable
-        5. GITHUB_TOKEN* environment variables (for multiple tokens)
-
-        Best practice: Use environment variables to avoid storing tokens in config files.
-        """
-        import os
-
-        # Get default token using centralized resolver
-        default_token = self._resolve_token()
-
-        if not default_token:
-            self.logger.warning(
-                "No authentication token found. Please set auth_token in config "
-                "or GITHUB_TOKEN environment variable."
-            )
-
-        instances_config = self.config.get(
-            "github_instances",
-            [
-                {
-                    "name": "github.com",
-                    "api_url_base": "https://api.github.com",
-                    "auth_token": default_token,
-                }
-            ],
-        )
-
-        instances = []
-        for instance in instances_config:
-            # Allow instance to override with environment variable
-            # Use centralized token resolver for instance-specific tokens
-            instance_token = self._resolve_token(
-                instance_name=instance['name'],
-                explicit_token=instance.get("auth_token")
-            ) or default_token
-
-            if not instance_token:
-                self.logger.warning(
-                    f"No auth token for instance {instance['name']}, skipping"
-                )
-                continue
-
-            instances.append(
-                GitHubInstance(
-                    name=instance["name"],
-                    api_url_base=instance["api_url_base"],
-                    auth_token=instance_token,
-                )
-            )
-
-        return instances
-
-    def _validate_date_format(self, date_str: str, field_name: str) -> None:
-        """Validate date format is YYYY-MM-DD."""
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
-            msg = (
-                f"Invalid {field_name} format '{date_str}'. Expected YYYY-MM-DD format."
-            )
-            raise ValueError(msg)
-
-        try:
-            datetime.strptime(date_str, "%Y-%m-%d")
-        except ValueError as e:
-            msg = f"Invalid {field_name} '{date_str}': {e}"
-            raise ValueError(msg) from e
-
-
-    def _generate_month_ranges(self) -> list[tuple[str, str, str]]:
-        """Generate monthly date ranges from config."""
         date_range = self.config["date_range"]
-        raw_start_date = date_range["start"]
-        raw_end_date = date_range.get("end")
-
-        # Validate and potentially adjust the date range
-        start_date, end_date = self._validate_and_adjust_date_range(raw_start_date, raw_end_date)
-
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end = datetime.strptime(end_date, "%Y-%m-%d")
-
-        ranges = []
-        current = start.replace(day=1)
-
-        while current <= end:
-            if current.year == end.year and current.month == end.month:
-                month_end_date = end_date
-            else:
-                last_day = calendar.monthrange(current.year, current.month)[1]
-                month_end_date = f"{current.year}-{current.month:02d}-{last_day:02d}"
-
-            month_start_date = f"{current.year}-{current.month:02d}-01"
+        
+        # Simple date range generation
+        start_date = datetime.strptime(date_range["start"], "%Y-%m-%d")
+        end_date = datetime.strptime(
+            date_range.get("end", self._get_last_complete_month()), "%Y-%m-%d"
+        )
+        
+        current = start_date.replace(day=1)
+        while current <= end_date:
             month_id = f"{current.year}-{current.month:02d}"
-
-            ranges.append((month_start_date, month_end_date, month_id))
-
-            # Move to next month
-            current = (
-                current.replace(year=current.year + 1, month=1)
-                if current.month == 12
-                else current.replace(month=current.month + 1)
-            )
-
-        return ranges
-
-    def _get_auto_end_date(self, start_date: str) -> str:
-        """Get auto-detected end date based on start date and current date.
-        
-        Rules:
-        1. End date is last day of the previous complete month
-        2. Configurable lookback limit (default: 1 year)
-        3. Can enforce or warn based on configuration
-        
-        Args:
-            start_date: Start date in YYYY-MM-DD format
+            last_day = calendar.monthrange(current.year, current.month)[1]
+            month_start = f"{current.year}-{current.month:02d}-01"
+            month_end = f"{current.year}-{current.month:02d}-{last_day:02d}"
             
-        Returns:
-            End date string in YYYY-MM-DD format
-        """
-        today = datetime.now()
-        
-        # Last complete month is the previous month
-        if today.month == 1:
-            last_complete_month = today.replace(year=today.year - 1, month=12, day=1)
-        else:
-            last_complete_month = today.replace(month=today.month - 1, day=1)
-        
-        # Get last day of that month
-        last_day = calendar.monthrange(last_complete_month.year, last_complete_month.month)[1]
-        auto_end_date = last_complete_month.replace(day=last_day)
-        
-        return auto_end_date.strftime("%Y-%m-%d")
-    
-    def _validate_and_adjust_date_range(self, start_date: str, end_date: str | None = None) -> tuple[str, str]:
-        """Validate and potentially adjust date range based on configuration.
-        
-        Args:
-            start_date: Start date in YYYY-MM-DD format
-            end_date: End date in YYYY-MM-DD format (optional)
-            
-        Returns:
-            Tuple of (validated_start_date, validated_end_date)
-            
-        Raises:
-            ValueError: If dates are invalid or exceed limits when enforcement is enabled
-        """
-        return GitHubDateUtils.validate_and_adjust_date_range(
-            start_date=start_date,
-            end_date=end_date,
-            enforce_lookback_limit=self.config.get("enforce_lookback_limit", False),
-            max_lookback_years=self.config.get("max_lookback_years", 1),
-            logger=self.logger
-        )
-
-    def _enforce_partition_limits(self, total: int, max_allowed: int | None = None, warn_at: int | None = None, label: str = "Global", enforce: bool | None = None) -> None:
-        """Unified partition limit checking for both global and instance-specific limits."""
-        max_allowed = max_allowed or self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)
-        warn_at = warn_at or self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
-        enforce = enforce if enforce is not None else self.config.get("enforce_partition_limit", True)
-        
-        if max_allowed is not None and total > max_allowed and enforce:
-            raise ValueError(
-                f"{label} partition count {total} exceeds maximum {max_allowed}. "
-                f"Consider reducing date range, repository count, or disable enforcement "
-                f"with enforce_partition_limit=false"
-            )
-        if warn_at is not None and total > warn_at:
-            self.logger.warning(
-                f"{label} high partition count: {total} (threshold: {warn_at}). "
-                f"This may result in rate limiting or performance issues."
-            )
-
-    def _check_partition_limits(self, total_partitions: int) -> None:
-        """Check global partition count limits."""
-        self._enforce_partition_limits(
-            total_partitions, 
-            max_allowed=self.DEFAULT_MAX_PARTITIONS,
-            warn_at=self.DEFAULT_WARNING_THRESHOLD,
-            enforce=True,
-            label="Global"
-        )
-
-
-
-    def _generate_monthly_partitions(self) -> list[dict]:
-        """Generate partitions programmatically from org list and date range."""
-        organizations = self.config["search_orgs"]
-        self.validate_org_names(organizations)
-
-        partitions = []
-        instances = self._get_github_instances()
-        month_ranges = self._generate_month_ranges()
-
-        total_partitions = len(organizations) * len(month_ranges) * len(instances)
-        if self.stream_type == "issue":
-            total_partitions *= 2  # Both issue and bug queries
-
-        # Check partition limits
-        self._check_partition_limits(total_partitions)
-
-        for start_date, end_date, month_id in month_ranges:
-            for org in organizations:
-                search_queries = self._queries_for("org", org, start_date, end_date, month_id)
-
-                for query in search_queries:
-                    for instance in instances:
-                        partition = {
-                            "search_name": query.name,
-                            "search_query": query.query,
+            for org in self.config["search_orgs"]:
+                for instance in instances:
+                    # Generate search queries for this org/month
+                    for query_type in self._get_query_types():
+                        query = self._build_search_query(query_type, org, month_start, month_end)
+                        search_name = f"{org}_{query_type}s_{month_id}".replace("-", "_").lower()
+                        
+                        partitions.append({
+                            "search_name": search_name,
+                            "search_query": query,
                             "source": instance.name,
-                            "month": query.month,
                             "api_url_base": instance.api_url_base,
-                        }
-                        partitions.append(partition)
-
+                            "month": month_id,
+                            "type": self.stream_type
+                        })
+            
+            # Next month
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+                
         return partitions
 
-    def _generate_scope_partitions(self) -> list[dict]:
-        """Generate partitions from search_scope configuration."""
-        scope_config = self.config["search_scope"]
-        date_range = self.config.get("date_range")
-
-        if not date_range:
-            msg = "date_range is required when using search_scope"
-            raise ValueError(msg)
-
-        if "instances" not in scope_config:
-            msg = "search_scope.instances is required. Please use the new instance-based configuration format."
-            raise ValueError(msg)
-
-        month_ranges = self._generate_month_ranges()
-        return [
-            partition
-            for instance_config in scope_config["instances"]
-            for partition in self._generate_partitions_for_instance(instance_config, month_ranges)
-        ]
-
-    def _generate_partitions_for_instance(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
-        """Generate all partitions for a single instance."""
-        instance_partitions = []
-        instance_partitions.extend(self._generate_org_level_partitions(instance_config, month_ranges))
-        instance_partitions.extend(self._generate_repo_level_partitions(instance_config, month_ranges))
+    def _get_last_complete_month(self) -> str:
+        """Get last complete month as end date."""
+        today = datetime.now()
+        if today.month == 1:
+            last_month = today.replace(year=today.year - 1, month=12, day=1)
+        else:
+            last_month = today.replace(month=today.month - 1, day=1)
         
-        # Check instance-specific limits
-        max_partitions = int(instance_config.get("max_partitions", self.config.get("max_partitions", self.DEFAULT_MAX_PARTITIONS)))
-        warning_threshold = int(instance_config.get("partition_warning_threshold", self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)))
-        enforce_limit = bool(instance_config.get("enforce_partition_limit", self.config.get("enforce_partition_limit", True)))
-        instance_name = instance_config["instance"]
-        
-        self._check_instance_partition_limits(
-            len(instance_partitions), instance_name, max_partitions, warning_threshold, enforce_limit
-        )
-        
-        return instance_partitions
+        last_day = calendar.monthrange(last_month.year, last_month.month)[1]
+        return last_month.replace(day=last_day).strftime("%Y-%m-%d")
 
-    def _generate_org_level_partitions(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
-        """Generate org-level partitions for an instance."""
-        org_level_orgs = instance_config.get("org_level", [])
-        if not org_level_orgs:
-            return []
+    def _get_query_types(self) -> list[str]:
+        """Get query types for this stream."""
+        return ["issue", "bug"] if self.stream_type == "issue" else ["pr"]
+
+    def _build_search_query(self, query_type: str, org: str, start_date: str, end_date: str) -> str:
+        """Build a GitHub search query."""
+        base_query = f"org:{org}"
+        
+        if query_type == "issue":
+            base_query += " type:issue is:open"
+        elif query_type == "bug":
+            base_query += " type:issue is:open label:bug"
+        elif query_type == "pr":
+            base_query += " type:pr is:open"
             
-        self.validate_org_names(org_level_orgs)
-        return [
-            self._create_partition(query, instance_config)
-            for org, (start_date, end_date, month_id) in product(org_level_orgs, month_ranges)
-            for query in self._queries_for("org", org, start_date, end_date, month_id)
-        ]
-
-    def _generate_repo_level_partitions(self, instance_config: dict, month_ranges: list[tuple[str, str, str]]) -> list[dict]:
-        """Generate repo-level partitions for an instance."""
-        repo_level_configs = instance_config.get("repo_level", [])
-        if not repo_level_configs:
-            return []
-            
-        partitions = []
-        cache_ttl = instance_config.get("repo_discovery_cache_ttl", self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES))
-        
-        for repo_config in repo_level_configs:
-            org = repo_config["org"]
-            limit = repo_config.get("limit", 20)
-            sort_by = repo_config.get("sort_by", "issues")
-            
-            top_repos = self._get_top_repos_for_instance(instance_config, org, limit, sort_by, int(cache_ttl or self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)))
-            
-            partitions.extend([
-                self._create_partition(query, instance_config)
-                for repo, (start_date, end_date, month_id) in product(top_repos, month_ranges)
-                for query in self._queries_for("repo", repo, start_date, end_date, month_id)
-            ])
-            
-        return partitions
-
-    def _create_partition(self, query: SearchQuery, instance_config: dict) -> dict:
-        """Create a partition dict from query and instance config."""
-        return {
-            "search_name": query.name,
-            "search_query": query.query,
-            "source": instance_config["instance"],
-            "month": query.month,
-            "api_url_base": instance_config["api_url_base"],
-            "type": query.type
-        }
-
-
-
-    def _get_top_repos_for_instance(self, instance_config: dict, org: str, limit: int, sort_by: str, cache_ttl: int) -> list[str]:
-        """Get top N repositories for a specific instance."""
-        instance_name = instance_config["instance"]
-        cache_key = f"{instance_name}:{org}:{limit}:{sort_by}"
-        
-        # Check instance-specific cache
-        if cache_key in self._repo_cache:
-            repos, cached_at = self._repo_cache[cache_key]
-            cache_age = datetime.now() - cached_at
-            if cache_age.total_seconds() < (cache_ttl * 60):
-                self.logger.debug(f"Using cached repositories for {cache_key}")
-                return repos
-            del self._repo_cache[cache_key]
-        
-        # Create temporary GitHubInstance object for this instance
-        explicit_token = instance_config.get("auth_token")
-        auth_token = self._resolve_token(
-            instance_name=instance_name,
-            explicit_token=str(explicit_token) if explicit_token else None
-        )
-        
-        if not auth_token:
-            self.logger.warning(f"No auth token available for instance {instance_name}")
-            return []
-        
-        instance = GitHubInstance(
-            name=instance_name,
-            api_url_base=instance_config["api_url_base"],
-            auth_token=auth_token
-        )
-        
-        # Fetch repositories using instance-specific API
-        repos = self._repo_discovery.get_top_repos(org, limit, sort_by, instance)
-        
-        # Cache the results with instance-specific TTL
-        self._repo_cache[cache_key] = (repos, datetime.now())
-        self.logger.debug(f"Cached {len(repos)} repositories for {cache_key}")
-        
-        return repos
-
-    def _check_instance_partition_limits(self, total_partitions: int, instance_name: str, max_partitions: int, warning_threshold: int, enforce_limit: bool) -> None:
-        """Check partition limits for a specific instance."""
-        self._enforce_partition_limits(total_partitions, max_partitions, warning_threshold, f"Instance '{instance_name}'", enforce_limit)
-
-
-    # ===== REPOSITORY DISCOVERY METHODS ELIMINATED =====
-    # All 8 duplicate methods removed - now using RepositoryDiscovery utility directly
-
-
+        base_query += f" created:{start_date}..{end_date}"
+        return base_query
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
-        """Singer SDK compatible get_records with restored batching optimization."""
-        # For Singer SDK compatibility, we need to handle the case where
-        # get_records is called for all partitions vs. single partition
-        
-        # If context has partition data, this is a single partition call
+        """Process records with GraphQL batching optimization."""
+        # Handle single partition (Singer SDK style)
         if context and context.get("partition"):
-            yield from self._process_single_partition(context)
+            yield from self._process_single_partition(context["partition"])
             return
-            
-        # Otherwise, process all partitions with batching
+
+        # Handle all partitions with batching
         partitions = self.partitions or []
         if not partitions:
             return
-            
-        # Group partitions by instance for batch processing
-        instance_partitions: dict[str, list[dict]] = {}
-        for partition in partitions:
-            instance = partition.get("source", "github.com")
-            if instance not in instance_partitions:
-                instance_partitions[instance] = []
-            instance_partitions[instance].append(partition)
-        
-        # Process each instance's partitions in batches
-        for instance, instance_partition_list in instance_partitions.items():
-            yield from self._process_partitions_in_batches(instance_partition_list)
-    
-    def _process_single_partition(self, context: Context) -> Iterable[dict[str, Any]]:
-        """Process a single partition (fallback for Singer SDK)."""
-        partition_data = context.get("partition")
-        if not partition_data:
-            return
-        
-        # Extract partition information
-        search_query = partition_data.get("search_query")
-        search_name = partition_data.get("search_name")
-        source = partition_data.get("source", "github.com")
-        api_url_base = partition_data.get("api_url_base", "https://api.github.com")
-        month = partition_data.get("month")
-        
-        if not search_query or not search_name:
-            self.logger.warning(f"Incomplete partition data: {partition_data}")
-            return
-            
-        # Process as single-item batch to reuse batching logic
-        yield from self._process_batch_request([partition_data])
-        
-    def _process_partitions_in_batches(self, partitions: list[dict]) -> Iterable[dict[str, Any]]:
-        """Process partitions in batches for better performance."""
-        batch_size = self._batch_size
-        
-        for i in range(0, len(partitions), batch_size):
-            batch_partitions = partitions[i:i + batch_size]
-            yield from self._process_batch_request(batch_partitions)
 
-    def _process_batch_request(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
-        """Process multiple partitions in a single batched GraphQL request."""
-        search_queries = [p.get("search_query", "") for p in batch_partitions]
-        
-        # Build batch query and variables
-        batch_query = self._build_batch_query(search_queries)
-        variables = {f"q{i}": query for i, query in enumerate(search_queries)}
-        
-        # Set up API URL for this batch (all partitions in batch have same instance)
+        # Group by instance for efficient batching
+        instance_groups: dict[str, list[dict]] = {}
+        for partition in partitions:
+            instance = partition["source"]
+            if instance not in instance_groups:
+                instance_groups[instance] = []
+            instance_groups[instance].append(partition)
+
+        # Process each instance's partitions in batches
+        for instance_partitions in instance_groups.values():
+            yield from self._process_in_batches(instance_partitions)
+
+    def _process_single_partition(self, partition: dict) -> Iterable[dict[str, Any]]:
+        """Process a single partition."""
+        yield from self._process_batch([partition])
+
+    def _process_in_batches(self, partitions: list[dict]) -> Iterable[dict[str, Any]]:
+        """Process partitions in batches for performance."""
+        for i in range(0, len(partitions), self._batch_size):
+            batch = partitions[i:i + self._batch_size]
+            yield from self._process_batch(batch)
+
+    def _process_batch(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
+        """Process a batch of partitions with a single GraphQL request."""
+        if not batch_partitions:
+            return
+
+        # Build batched GraphQL query
+        queries = [p["search_query"] for p in batch_partitions]
+        batch_query = self._build_batch_query(queries)
+        variables = {f"q{i}": query for i, query in enumerate(queries)}
+
+        # Make request
         first_partition = batch_partitions[0]
-        
-        # Make the batched GraphQL request
-        response = self._make_batch_graphql_request(batch_query, variables, first_partition)
-        
-        if not response:
+        instances = self._get_github_instances()
+        response = self._http_client.make_batch_request(batch_query, variables, first_partition, instances)
+
+        if not response or not response.get("data"):
             self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
             return
-            
-        try:
-            if not response["data"]:
-                self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
-                return
-        except (KeyError, TypeError):
-            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
-            return
+
+        # Parse results
+        data = response["data"]
+        graphql_field = "issueCount"  # GitHub API always uses issueCount for all search types
         
-        # Parse batch results and yield records
-        try:
-            data = response["data"]
-            for i, partition in enumerate(batch_partitions):
-                try:
-                    search_result = data[f"search{i}"]
-                    # Use the correct GraphQL field name for parsing response
-                    graphql_count_field = "issueCount" if self.stream_type == "issue" else "prCount"
-                    count_value = search_result.get(graphql_count_field, 0)
+        for i, partition in enumerate(batch_partitions):
+            try:
+                search_result = data[f"search{i}"]
+                count_value = search_result.get(graphql_field, 0)
+                
+                result = {
+                    "search_name": partition["search_name"],
+                    "search_query": partition["search_query"],
+                    "source": partition["source"],
+                    self.count_field: count_value,
+                    "updated_at": datetime.now().isoformat()
+                }
+                
+                if partition.get("month"):
+                    result["month"] = partition["month"]
                     
-                    # Build result record
-                    result = {
-                        "search_name": partition.get("search_name"),
-                        "search_query": partition.get("search_query"),
-                        "source": partition.get("source", "github.com"),
-                        self.count_field: count_value,
-                        "updated_at": datetime.now().isoformat()
-                    }
-                    
-                    month = partition.get("month")
-                    if month:
-                        result["month"] = month
-                        
-                    yield result
-                except KeyError:
-                    self.logger.warning(f"No result for search{i} in batch")
-        except (KeyError, TypeError):
-            self.logger.warning(f"Invalid response structure for batch request")
+                yield result
+            except KeyError:
+                self.logger.warning(f"No result for search{i} in batch")
 
     def _build_batch_query(self, search_queries: list[str]) -> str:
-        """Build a batched GraphQL query for multiple search queries."""
+        """Build batched GraphQL query."""
         variables = [f"$q{i}: String!" for i in range(len(search_queries))]
         
-        # Use the correct search type and GraphQL field name based on stream type
         if self.stream_type == "issue":
             search_type = "ISSUE"
-            graphql_count_field = "issueCount"
+            graphql_field = "issueCount"
         else:
-            search_type = "PULLREQUEST"
-            graphql_count_field = "prCount"
+            search_type = "ISSUE"  # GitHub API uses ISSUE for both issues and PRs
+            graphql_field = "issueCount"  # GitHub API always uses issueCount field
         
         searches = [
-            f"search{i}: search(query: $q{i}, type: {search_type}, first: 1) {{\n            {graphql_count_field}\n          }}"
+            f"search{i}: search(query: $q{i}, type: {search_type}, first: 1) {{\n            {graphql_field}\n          }}"
             for i in range(len(search_queries))
         ]
         
@@ -788,38 +238,123 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         }}
         """
 
-    def _make_batch_graphql_request(self, query: str, variables: dict, partition: dict) -> dict | None:
-        """Make a batched GraphQL request using instance-specific configuration."""
-        instances = self._get_github_instances()
-        return self._http_client.make_batch_request(query, variables, partition, instances)
+    def _get_github_instances(self) -> list[GitHubInstance]:
+        """Get GitHub instances with simple token resolution."""
+        import os
+        
+        # Simple token resolution
+        default_token = (
+            self.config.get("auth_token") 
+            or self.config.get("access_token")
+            or os.environ.get("GITHUB_TOKEN")
+        )
+        
+        if not default_token:
+            self.logger.warning("No GitHub token found")
+            return []
 
+        instances_config = self.config.get(
+            "github_instances",
+            [{
+                "name": "github.com",
+                "api_url_base": "https://api.github.com",
+                "auth_token": default_token,
+            }]
+        )
+
+        instances = []
+        for instance_config in instances_config:
+            token = instance_config.get("auth_token", default_token)
+            if token:
+                instances.append(GitHubInstance(
+                    name=instance_config["name"],
+                    api_url_base=instance_config["api_url_base"],
+                    auth_token=token
+                ))
+        
+        return instances
+
+    @classmethod
+    def get_schema(cls) -> dict:
+        """Get stream schema."""
+        return th.PropertiesList(
+            th.Property("search_name", th.StringType, required=True),
+            th.Property("search_query", th.StringType, required=True),
+            th.Property("source", th.StringType, required=True),
+            th.Property("month", th.StringType),
+            th.Property(cls.count_field, th.IntegerType, required=True),
+            th.Property("updated_at", th.DateTimeType),
+        ).to_dict()
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
-        """Simple authenticator - tokens handled by HTTP client per instance."""
+        """Simple authenticator."""
         if self._authenticator is None:
             self._authenticator = GitHubTokenAuthenticator(stream=self)
         return self._authenticator
 
+    @property
+    def query(self) -> str:
+        """Single query GraphQL (for SDK compatibility)."""
+        return """
+        query($searchQuery: String!) {
+          search(query: $searchQuery, type: ISSUE, first: 1) {
+            issueCount
+          }
+          rateLimit {
+            cost
+            remaining
+          }
+        }
+        """
 
-
-
-
+    def prepare_request_payload(self, context: Mapping[str, Any] | None, next_page_token: Any | None) -> dict:
+        """Prepare GraphQL request payload."""
+        variables = {}
+        if context:
+            variables["searchQuery"] = context.get("search_query")
+        
+        return {
+            "query": self.query,
+            "variables": variables,
+        }
 
 
 class IssueSearchCountStream(BaseSearchCountStream):
-    """Stream for GitHub issue search count queries via GraphQL."""
+    """Simplified stream for GitHub issue search counts."""
 
     name = "issue_search_counts"
     stream_type = "issue"
     count_field = "issue_count"
-    schema = BaseSearchCountStream._base_schema("issue_count")
+    
+    @property
+    def schema(self) -> dict:
+        """Get schema for issue search counts."""
+        return th.PropertiesList(
+            th.Property("search_name", th.StringType, required=True),
+            th.Property("search_query", th.StringType, required=True),
+            th.Property("source", th.StringType, required=True),
+            th.Property("month", th.StringType),
+            th.Property("issue_count", th.IntegerType, required=True),
+            th.Property("updated_at", th.DateTimeType),
+        ).to_dict()
 
 
 class PRSearchCountStream(BaseSearchCountStream):
-    """Stream for GitHub PR search count queries via GraphQL."""
+    """Simplified stream for GitHub PR search counts."""
 
     name = "pr_search_counts"
     stream_type = "pr"
     count_field = "pr_count"
-    schema = BaseSearchCountStream._base_schema("pr_count")
+    
+    @property
+    def schema(self) -> dict:
+        """Get schema for PR search counts."""
+        return th.PropertiesList(
+            th.Property("search_name", th.StringType, required=True),
+            th.Property("search_query", th.StringType, required=True),
+            th.Property("source", th.StringType, required=True),
+            th.Property("month", th.StringType),
+            th.Property("pr_count", th.IntegerType, required=True),
+            th.Property("updated_at", th.DateTimeType),
+        ).to_dict()
