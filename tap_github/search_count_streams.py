@@ -113,17 +113,13 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                         })
             
             # Repo-level partitions - generate queries for specific repos
-            for repo_config in instance_config.get("repo_level", []):
-                org = repo_config["org"]
-                limit = repo_config.get("limit", 10)
-                # Get repos from the repo_config directly or from global config
-                repos = repo_config.get("repositories", []) or self._get_repos_for_org(org)
-                
+            repos = instance_config.get("repo_level", [])
+            if repos:
                 for start_date, end_date, month_id in month_ranges:
                     for query_type in self._get_query_types():
-                        # Generate repo-specific query using configured repos
-                        query = self._build_repo_search_query(query_type, org, start_date, end_date, repos)
-                        search_name = f"{org}_repos_{query_type}s_{month_id}".replace("-", "_").lower()
+                        # Generate repo-specific query using listed repos
+                        query = self._build_repo_search_query(query_type, None, start_date, end_date, repos)
+                        search_name = f"repos_{query_type}s_{month_id}".replace("-", "_").lower()
                         
                         partitions.append({
                             "search_name": search_name,
