@@ -1205,9 +1205,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 # Store partition context for post_process
                 self._current_partition_context = partition
                 
-                # Create record from batch result
-                record = self.post_process(search_result, partition)
-                yield record
+                # Yield the raw GraphQL result - let SDK handle post_process
+                yield search_result
             else:
                 self.logger.warning(f"No result for search{i} in batch")
 
@@ -1329,6 +1328,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         search_query = partition_context.get("search_query", "")
         org, repo = self._extract_org_repo_from_query(search_query)
 
+        count_value = row.get("issueCount", 0) if row else 0
+
         return {
             "search_name": partition_context.get("search_name"),
             "search_query": search_query,
@@ -1337,7 +1338,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             "org": org,
             "repo": repo,
             "updated_at": datetime.utcnow().isoformat(),
-            self.count_field: row.get("issueCount", 0) if row else 0,
+            self.count_field: count_value,
         }
 
     def _extract_org_repo_from_query(
