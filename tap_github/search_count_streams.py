@@ -16,25 +16,13 @@ from singer_sdk.helpers.types import Context
 
 from tap_github.authenticator import GitHubTokenAuthenticator
 from tap_github.client import GitHubGraphqlStream
+from tap_github.utils.repository_discovery import RepositoryDiscovery
+from tap_github.utils.repository_discovery import GitHubInstance
+from tap_github.utils.search_queries import SearchQueryGenerator
+from tap_github.utils.search_queries import SearchQuery
 
 
-@dataclass
-class SearchQuery:
-    """Represents a search query configuration."""
-
-    name: str
-    query: str
-    type: str = "issue"
-    month: str | None = None
-
-
-@dataclass
-class GitHubInstance:
-    """Represents a GitHub instance configuration."""
-
-    name: str
-    api_url_base: str
-    auth_token: str
+# SearchQuery and GitHubInstance now imported from utilities
 
 
 class BaseSearchCountStream(GitHubGraphqlStream):
@@ -57,26 +45,12 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
         self._cache_ttl_minutes = self.config.get("repo_discovery_cache_ttl", self.DEFAULT_CACHE_TTL_MINUTES)
         self._batch_size = self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
+        
+        # Initialize utility classes
+        self._repo_discovery = RepositoryDiscovery(self)
+        self._query_generator = SearchQueryGenerator()
 
-    # Search query templates for org-level queries
-    ISSUE_QUERY_TEMPLATE = "org:{org} type:issue state:open created:{start}..{end}"
-    BUG_QUERY_TEMPLATE = (
-        "org:{org} type:issue state:open "
-        'label:bug,defect,"[type] bug","type: bug" '
-        "created:{start}..{end}"
-    )
-    PR_QUERY_TEMPLATE = "org:{org} type:pr is:merged merged:{start}..{end}"
-
-    # Search query templates for repo-level queries
-    REPO_ISSUE_QUERY_TEMPLATE = (
-        "repo:{repo} type:issue state:open created:{start}..{end}"
-    )
-    REPO_BUG_QUERY_TEMPLATE = (
-        "repo:{repo} type:issue state:open "
-        'label:bug,defect,"[type] bug","type: bug" '
-        "created:{start}..{end}"
-    )
-    REPO_PR_QUERY_TEMPLATE = "repo:{repo} type:pr is:merged merged:{start}..{end}"
+    # Query templates now handled by SearchQueryGenerator utility
 
     @property
     def query(self) -> str:
@@ -424,41 +398,56 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     def _create_search_queries_for_month(
         self, org: str, start_date: str, end_date: str, month_id: str
     ) -> List[SearchQuery]:
-        """Create search queries for a specific organization and month."""
+        """Create search queries for a specific organization and month using SearchQueryGenerator."""
         org_clean = org.lower().replace("-", "_")
         queries = []
 
         if self.stream_type == "pr":
+            query_string = self._query_generator.build_search_query(
+                query_type="pr",
+                scope="org",
+                target=org,
+                start_date=start_date,
+                end_date=end_date
+            )
             queries.append(
                 SearchQuery(
                     name=f"{org_clean}_merged_prs_{month_id.replace('-', '')}",
-                    query=self.PR_QUERY_TEMPLATE.format(
-                        org=org, start=start_date, end=end_date
-                    ),
+                    query=query_string,
                     type="pr",
                     month=month_id,
                 )
             )
         else:  # issue stream
             # All issues
+            issue_query = self._query_generator.build_search_query(
+                query_type="issue",
+                scope="org",
+                target=org,
+                start_date=start_date,
+                end_date=end_date
+            )
             queries.append(
                 SearchQuery(
                     name=f"{org_clean}_open_issues_{month_id.replace('-', '')}",
-                    query=self.ISSUE_QUERY_TEMPLATE.format(
-                        org=org, start=start_date, end=end_date
-                    ),
+                    query=issue_query,
                     type="issue",
                     month=month_id,
                 )
             )
 
             # Bug issues
+            bug_query = self._query_generator.build_search_query(
+                query_type="bug",
+                scope="org",
+                target=org,
+                start_date=start_date,
+                end_date=end_date
+            )
             queries.append(
                 SearchQuery(
                     name=f"{org_clean}_open_bugs_{month_id.replace('-', '')}",
-                    query=self.BUG_QUERY_TEMPLATE.format(
-                        org=org, start=start_date, end=end_date
-                    ),
+                    query=bug_query,
                     type="issue",
                     month=month_id,
                 )
@@ -691,360 +680,40 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         
         return repos
 
+    # ===== CONSOLIDATED REPOSITORY DISCOVERY METHODS =====
+    # Replaces 8 duplicate methods with 2 consolidated ones using RepositoryDiscovery utility
+    
     def _get_top_repos_by_issues(self, org: str, limit: int) -> List[str]:
-        """Get top N repositories sorted by open issue count (descending).
-
-        Note: GitHub GraphQL API doesn't support direct sorting by issue count,
-        so we fetch more repos sorted by stars and then sort locally by issues.
-        This may miss repositories with high issue counts but low star counts.
-        """
-        # Fetch 100 repos to increase chances of getting the actual top by issues
-        fetch_limit = min(limit * 5, 100)
-
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: STARGAZERS, direction: DESC}) {
-              nodes {
-                nameWithOwner
-                issues(states: OPEN) {
-                  totalCount
-                }
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": fetch_limit}
-
-        # Make GraphQL request using SDK methods
-        response = self._make_graphql_request(query, variables)
-
-        if not response or "data" not in response:
-            self.logger.warning(f"No data returned for org {org}")
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            self.logger.warning(f"Organization {org} not found")
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-
-        # Sort by issue count descending
-        repos_with_counts = [
-            {"name": repo["nameWithOwner"], "issue_count": repo["issues"]["totalCount"]}
-            for repo in repos
-        ]
-
-        sorted_repos = sorted(
-            repos_with_counts, key=lambda x: x["issue_count"], reverse=True
-        )
-        return [repo["name"] for repo in sorted_repos[:limit]]
+        """Get top N repositories sorted by open issue count (descending)."""
+        return self._repo_discovery.get_top_repos(org, limit, "issues")
 
     def _get_top_repos_by_stars(self, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by star count (descending)."""
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: STARGAZERS, direction: DESC}) {
-              nodes {
-                nameWithOwner
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": limit}
-        response = self._make_graphql_request(query, variables)
-
-        if not response or "data" not in response:
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        return [repo["nameWithOwner"] for repo in repos]
+        return self._repo_discovery.get_top_repos(org, limit, "stars")
 
     def _get_top_repos_by_forks(self, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by fork count (descending)."""
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: FORKS, direction: DESC}) {
-              nodes {
-                nameWithOwner
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": limit}
-        response = self._make_graphql_request(query, variables)
-
-        if not response or "data" not in response:
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        return [repo["nameWithOwner"] for repo in repos]
+        return self._repo_discovery.get_top_repos(org, limit, "forks")
 
     def _get_top_repos_by_updated(self, org: str, limit: int) -> List[str]:
-        """Get top N repositories sorted by last update (descending)."""
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-              nodes {
-                nameWithOwner
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": limit}
-        response = self._make_graphql_request(query, variables)
-
-        if not response or "data" not in response:
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        return [repo["nameWithOwner"] for repo in repos]
-
-    def _make_graphql_request(self, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Make a GraphQL request and return the response.
-
-        Uses the stream's built-in HTTP methods for consistency with authentication,
-        retry logic, and timeout configuration.
-        """
-        from urllib.parse import urljoin
-
-        import requests
-        from requests.exceptions import ConnectionError, HTTPError, Timeout
-
-        # Use the first instance's configuration for repo discovery
-        instances = self._get_github_instances()
-        if not instances:
-            self.logger.error("No GitHub instances configured")
-            return None
-
-        instance = instances[0]  # Use first instance for discovery
-
-        # Store current partition temporarily to use instance config
-        original_partition = getattr(self, "_current_partition", None)
-        self._current_partition = {
-            "api_url_base": instance.api_url_base,
-        }
-
-        # Build the GraphQL endpoint URL
-        graphql_url = instance.api_url_base.rstrip('/') + '/graphql'
-
-        # Prepare request payload
-        payload = {
-            "query": query,
-            "variables": variables,
-        }
-
-        # Get timeout from config or use default
-        timeout = self.config.get("stream_request_timeout", 300)
-
-        try:
-            # Use direct requests for repository discovery GraphQL calls
-            # This is outside the main stream flow and doesn't need Singer SDK request handling
-            response = requests.post(
-                graphql_url,
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {instance.auth_token}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/vnd.github.v3+json",
-                },
-                timeout=timeout,
-            )
-
-            json_resp = response.json()
-
-            # Check for GraphQL errors
-            if "errors" in json_resp:
-                errors = json_resp.get("errors", [])
-                for error in errors:
-                    error_msg = error.get("message", str(error))
-                    # Log GraphQL errors but continue if it's just a query issue
-                    self.logger.warning(f"GraphQL query warning: {error_msg}")
-
-            return json_resp
-
-        except HTTPError as e:
-            if e.response.status_code == 401:
-                self.logger.error(f"Authentication failed: {e}. Check your auth token.")
-            elif e.response.status_code == 403:
-                self.logger.error(
-                    f"Permission denied: {e}. Token may lack required scopes."
-                )
-            elif e.response.status_code == 404:
-                self.logger.error(
-                    f"GraphQL endpoint not found: {e}. Check api_url_base."
-                )
-            else:
-                self.logger.error(f"HTTP error occurred: {e}")
-            return None
-
-        except Timeout:
-            self.logger.error(
-                f"Request timed out after {timeout} seconds. Consider increasing stream_request_timeout."
-            )
-            return None
-
-        except ConnectionError as e:
-            self.logger.error(f"Connection error: {e}. Check network and API URL.")
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Unexpected error in GraphQL request: {e}")
-            return None
-
-        finally:
-            # Restore original partition context
-            if original_partition is not None:
-                self._current_partition = original_partition
-            else:
-                delattr(self, "_current_partition")
+        """Get top N repositories sorted by last updated time (descending)."""
+        return self._repo_discovery.get_top_repos(org, limit, "updated")
 
     def _get_top_repos_by_issues_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by open issue count for a specific instance."""
-        fetch_limit = min(limit * 5, 100)
-
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: STARGAZERS, direction: DESC}) {
-              nodes {
-                nameWithOwner
-                issues(states: OPEN) {
-                  totalCount
-                }
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": fetch_limit}
-        response = self._make_graphql_request_for_instance(instance, query, variables)
-
-        if not response or "data" not in response:
-            self.logger.warning(f"No data returned for org {org} on instance {instance.name}")
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            self.logger.warning(f"Organization {org} not found on instance {instance.name}")
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        repos_with_counts = [
-            {"name": repo["nameWithOwner"], "issue_count": repo["issues"]["totalCount"]}
-            for repo in repos
-        ]
-
-        sorted_repos = sorted(
-            repos_with_counts, key=lambda x: x["issue_count"], reverse=True
-        )
-        return [repo["name"] for repo in sorted_repos[:limit]]
+        return self._repo_discovery.get_top_repos(org, limit, "issues", instance)
 
     def _get_top_repos_by_stars_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by star count for a specific instance."""
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: STARGAZERS, direction: DESC}) {
-              nodes {
-                nameWithOwner
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": limit}
-        response = self._make_graphql_request_for_instance(instance, query, variables)
-
-        if not response or "data" not in response:
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        return [repo["nameWithOwner"] for repo in repos]
+        return self._repo_discovery.get_top_repos(org, limit, "stars", instance)
 
     def _get_top_repos_by_forks_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
         """Get top N repositories sorted by fork count for a specific instance."""
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: FORKS, direction: DESC}) {
-              nodes {
-                nameWithOwner
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": limit}
-        response = self._make_graphql_request_for_instance(instance, query, variables)
-
-        if not response or "data" not in response:
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        return [repo["nameWithOwner"] for repo in repos]
+        return self._repo_discovery.get_top_repos(org, limit, "forks", instance)
 
     def _get_top_repos_by_updated_for_instance(self, instance: GitHubInstance, org: str, limit: int) -> List[str]:
-        """Get top N repositories sorted by last update for a specific instance."""
-        query = """
-        query($org: String!, $limit: Int!) {
-          organization(login: $org) {
-            repositories(first: $limit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-              nodes {
-                nameWithOwner
-              }
-            }
-          }
-        }
-        """
-
-        variables = {"org": org, "limit": limit}
-        response = self._make_graphql_request_for_instance(instance, query, variables)
-
-        if not response or "data" not in response:
-            return []
-
-        org_data = response["data"].get("organization")
-        if not org_data:
-            return []
-
-        repos = org_data.get("repositories", {}).get("nodes", [])
-        return [repo["nameWithOwner"] for repo in repos]
+        """Get top N repositories sorted by last updated time for a specific instance."""
+        return self._repo_discovery.get_top_repos(org, limit, "updated", instance)
 
     def _make_graphql_request_for_instance(self, instance: GitHubInstance, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Make a GraphQL request to a specific GitHub instance."""
@@ -1110,41 +779,56 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     def _generate_repo_queries(
         self, repo: str, start_date: str, end_date: str, month_id: str
     ) -> List[SearchQuery]:
-        """Generate search queries for a specific repository and month."""
+        """Generate search queries for a specific repository and month using SearchQueryGenerator."""
         queries = []
         repo_clean = repo.replace("/", "_").replace("-", "_").lower()
 
         if self.stream_type == "pr":
+            query_string = self._query_generator.build_search_query(
+                query_type="pr",
+                scope="repo",
+                target=repo,
+                start_date=start_date,
+                end_date=end_date
+            )
             queries.append(
                 SearchQuery(
                     name=f"{repo_clean}_merged_prs_{month_id.replace('-', '')}",
-                    query=self.REPO_PR_QUERY_TEMPLATE.format(
-                        repo=repo, start=start_date, end=end_date
-                    ),
+                    query=query_string,
                     type="pr",
                     month=month_id,
                 )
             )
         else:  # issue stream
             # All issues
+            issue_query = self._query_generator.build_search_query(
+                query_type="issue",
+                scope="repo",
+                target=repo,
+                start_date=start_date,
+                end_date=end_date
+            )
             queries.append(
                 SearchQuery(
                     name=f"{repo_clean}_open_issues_{month_id.replace('-', '')}",
-                    query=self.REPO_ISSUE_QUERY_TEMPLATE.format(
-                        repo=repo, start=start_date, end=end_date
-                    ),
+                    query=issue_query,
                     type="issue",
                     month=month_id,
                 )
             )
 
             # Bug issues
+            bug_query = self._query_generator.build_search_query(
+                query_type="bug",
+                scope="repo",
+                target=repo,
+                start_date=start_date,
+                end_date=end_date
+            )
             queries.append(
                 SearchQuery(
                     name=f"{repo_clean}_open_bugs_{month_id.replace('-', '')}",
-                    query=self.REPO_BUG_QUERY_TEMPLATE.format(
-                        repo=repo, start=start_date, end=end_date
-                    ),
+                    query=bug_query,
                     type="issue",
                     month=month_id,
                 )
