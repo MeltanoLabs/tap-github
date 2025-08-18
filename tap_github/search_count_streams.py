@@ -42,12 +42,14 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
     DEFAULT_MAX_PARTITIONS = 5000
     DEFAULT_WARNING_THRESHOLD = 2000
     DEFAULT_CACHE_TTL_MINUTES = 60
+    DEFAULT_BATCH_SIZE = 20
     
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._repo_cache: Dict[str, Tuple[List[str], datetime]] = {}
         self._authenticator = None
+        self._batch_size = self.config.get("batch_query_size", self.DEFAULT_BATCH_SIZE)
         
         # Initialize utility classes
         self._repo_discovery = RepositoryDiscovery(self)
@@ -451,13 +453,13 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         warn_at = warn_at or self.config.get("partition_warning_threshold", self.DEFAULT_WARNING_THRESHOLD)
         enforce = enforce if enforce is not None else self.config.get("enforce_partition_limit", True)
         
-        if total > max_allowed and enforce:
+        if max_allowed is not None and total > max_allowed and enforce:
             raise ValueError(
                 f"{label} partition count {total} exceeds maximum {max_allowed}. "
                 f"Consider reducing date range, repository count, or disable enforcement "
                 f"with enforce_partition_limit=false"
             )
-        if total > warn_at:
+        if warn_at is not None and total > warn_at:
             self.logger.warning(
                 f"{label} high partition count: {total} (threshold: {warn_at}). "
                 f"This may result in rate limiting or performance issues."
@@ -647,10 +649,34 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
 
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
-        """Singer SDK compatible get_records - processes single partition from context."""
-        if not context:
+        """Singer SDK compatible get_records with restored batching optimization."""
+        # For Singer SDK compatibility, we need to handle the case where
+        # get_records is called for all partitions vs. single partition
+        
+        # If context has partition data, this is a single partition call
+        if context and context.get("partition"):
+            yield from self._process_single_partition(context)
             return
             
+        # Otherwise, process all partitions with batching
+        partitions = self.partitions or []
+        if not partitions:
+            return
+            
+        # Group partitions by instance for batch processing
+        instance_partitions: dict[str, list[dict]] = {}
+        for partition in partitions:
+            instance = partition.get("source", "github.com")
+            if instance not in instance_partitions:
+                instance_partitions[instance] = []
+            instance_partitions[instance].append(partition)
+        
+        # Process each instance's partitions in batches
+        for instance, instance_partition_list in instance_partitions.items():
+            yield from self._process_partitions_in_batches(instance_partition_list)
+    
+    def _process_single_partition(self, context: Context) -> Iterable[dict[str, Any]]:
+        """Process a single partition (fallback for Singer SDK)."""
         partition_data = context.get("partition")
         if not partition_data:
             return
@@ -666,47 +692,99 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
             self.logger.warning(f"Incomplete partition data: {partition_data}")
             return
             
-        # Make single GraphQL request for this partition
-        query = f"""
-        query SearchCount($query: String!) {{
-            search(query: $query, type: {'ISSUE' if self.stream_type == 'issue' else 'PULLREQUEST'}, first: 1) {{
-                {self.count_field}
-            }}
+        # Process as single-item batch to reuse batching logic
+        yield from self._process_batch_request([partition_data])
+        
+    def _process_partitions_in_batches(self, partitions: list[dict]) -> Iterable[dict[str, Any]]:
+        """Process partitions in batches for better performance."""
+        batch_size = self._batch_size
+        
+        for i in range(0, len(partitions), batch_size):
+            batch_partitions = partitions[i:i + batch_size]
+            yield from self._process_batch_request(batch_partitions)
+
+    def _process_batch_request(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
+        """Process multiple partitions in a single batched GraphQL request."""
+        search_queries = [p.get("search_query", "") for p in batch_partitions]
+        
+        # Build batch query and variables
+        batch_query = self._build_batch_query(search_queries)
+        variables = {f"q{i}": query for i, query in enumerate(search_queries)}
+        
+        # Set up API URL for this batch (all partitions in batch have same instance)
+        first_partition = batch_partitions[0]
+        
+        # Make the batched GraphQL request
+        response = self._make_batch_graphql_request(batch_query, variables, first_partition)
+        
+        if not response:
+            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+            return
+            
+        try:
+            if not response["data"]:
+                self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+                return
+        except (KeyError, TypeError):
+            self.logger.warning(f"Batch request failed for {len(batch_partitions)} queries")
+            return
+        
+        # Parse batch results and yield records
+        try:
+            data = response["data"]
+            for i, partition in enumerate(batch_partitions):
+                try:
+                    search_result = data[f"search{i}"]
+                    count_value = search_result.get(self.count_field, 0)
+                    
+                    # Build result record
+                    result = {
+                        "search_name": partition.get("search_name"),
+                        "search_query": partition.get("search_query"),
+                        "source": partition.get("source", "github.com"),
+                        self.count_field: count_value,
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    month = partition.get("month")
+                    if month:
+                        result["month"] = month
+                        
+                    yield result
+                except KeyError:
+                    self.logger.warning(f"No result for search{i} in batch")
+        except (KeyError, TypeError):
+            self.logger.warning(f"Invalid response structure for batch request")
+
+    def _build_batch_query(self, search_queries: list[str]) -> str:
+        """Build a batched GraphQL query for multiple search queries."""
+        variables = [f"$q{i}: String!" for i in range(len(search_queries))]
+        
+        # Use the correct search type based on stream type
+        search_type = "ISSUE" if self.stream_type == "issue" else "PULLREQUEST"
+        
+        searches = [
+            f"search{i}: search(query: $q{i}, type: {search_type}, first: 1) {{\n            {self.count_field}\n          }}"
+            for i in range(len(search_queries))
+        ]
+        
+        variables_str = ", ".join(variables)
+        searches_str = "\n          ".join(searches)
+        
+        return f"""
+        query({variables_str}) {{
+          {searches_str}
+          rateLimit {{
+            cost
+            remaining
+          }}
         }}
         """
-        
-        variables = {"query": search_query}
-        
-        # Use existing HTTP client but for single request
+
+    def _make_batch_graphql_request(self, query: str, variables: dict, partition: dict) -> dict | None:
+        """Make a batched GraphQL request using instance-specific configuration."""
         instances = self._get_github_instances()
-        instance_obj = next((i for i in instances if i.name == source), None)
-        
-        if not instance_obj:
-            self.logger.warning(f"Instance {source} not found")
-            return
-            
-        response = self._http_client.make_request(query, variables, instance_obj)
-        
-        if not response or "data" not in response:
-            self.logger.warning(f"Request failed for partition {search_name}")
-            return
-            
-        search_data = response["data"]["search"]
-        count_value = search_data.get(self.count_field, 0)
-        
-        # Build result record
-        result = {
-            "search_name": search_name,
-            "search_query": search_query,
-            "source": source,
-            self.count_field: count_value,
-            "updated_at": datetime.now().isoformat()
-        }
-        
-        if month:
-            result["month"] = month
-            
-        yield result
+        return self._http_client.make_batch_request(query, variables, partition, instances)
 
 
     @property

@@ -107,3 +107,34 @@ def test_graphql_query():
     assert "search(query: $searchQuery, type: ISSUE, first: 1)" in query
     assert "issueCount" in query
     assert "rateLimit" in query
+
+
+def test_batch_query_building():
+    """Test that batch queries are built correctly."""
+    tap = TapGitHub(
+        config={
+            "auth_token": "test-token",
+            "batch_query_size": 3,
+            "search_count_queries": [
+                {"name": "test1", "query": "org:test1 type:issue", "type": "issue"},
+                {"name": "test2", "query": "org:test2 type:issue", "type": "issue"},
+                {"name": "test3", "query": "org:test3 type:issue", "type": "issue"},
+            ],
+        }
+    )
+    stream = IssueSearchCountStream(tap=tap)
+    
+    # Test batch query building
+    search_queries = ["org:test1 type:issue", "org:test2 type:issue", "org:test3 type:issue"]
+    batch_query = stream._build_batch_query(search_queries)
+    
+    # Should contain multiple search operations
+    assert "search0:" in batch_query
+    assert "search1:" in batch_query
+    assert "search2:" in batch_query
+    assert "$q0: String!" in batch_query
+    assert "$q1: String!" in batch_query
+    assert "$q2: String!" in batch_query
+    assert "type: ISSUE" in batch_query
+    assert "issue_count" in batch_query
+    assert "rateLimit" in batch_query
