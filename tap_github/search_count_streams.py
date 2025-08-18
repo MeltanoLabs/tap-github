@@ -249,6 +249,11 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Process records with GraphQL batching optimization."""
+        # Skip processing if stream is not selected
+        if not self.selected:
+            self.logger.info(f"Stream {self.name} is not selected, skipping processing")
+            return
+
         # Handle single partition (Singer SDK style)
         if context and context.get("partition"):
             yield from self._process_single_partition(context["partition"])
@@ -429,6 +434,7 @@ class IssueSearchCountStream(BaseSearchCountStream):
     """Simplified stream for GitHub issue search counts."""
 
     name = "issue_search_counts"
+    selected_by_default = False
     stream_type = "issue"
     count_field = "issue_count"
     
@@ -449,6 +455,7 @@ class PRSearchCountStream(BaseSearchCountStream):
     """Simplified stream for GitHub PR search counts."""
 
     name = "pr_search_counts"
+    selected_by_default = False
     stream_type = "pr"
     count_field = "pr_count"
     
