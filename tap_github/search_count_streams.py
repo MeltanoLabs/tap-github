@@ -694,31 +694,6 @@ class BaseSearchCountStream(GitHubGraphqlStream, GitHubValidationMixin):
         """Check partition limits for a specific instance."""
         self._enforce_partition_limits(total_partitions, max_partitions, warning_threshold, f"Instance '{instance_name}'", enforce_limit)
 
-    def _get_top_repos(self, org: str, limit: int, sort_by: str) -> list[str]:
-        """Get top N repositories from an organization sorted by the specified criteria.
-        
-        Uses caching to avoid repeated API calls for the same org/criteria combination.
-        """
-        cache_key = f"{org}:{limit}:{sort_by}"
-        
-        # Check cache first
-        if cache_key in self._repo_cache:
-            repos, cached_at = self._repo_cache[cache_key]
-            cache_age = datetime.now() - cached_at
-            if cache_age.total_seconds() < (self._cache_ttl_minutes * 60):
-                self.logger.debug(f"Using cached repositories for {cache_key}")
-                return repos
-            # Cache expired, remove it
-            del self._repo_cache[cache_key]
-        
-        # Fetch fresh data
-        repos = self._repo_discovery.get_top_repos(org, limit, sort_by)
-        
-        # Cache the results
-        self._repo_cache[cache_key] = (repos, datetime.now())
-        self.logger.debug(f"Cached {len(repos)} repositories for {cache_key}")
-        
-        return repos
 
     # ===== REPOSITORY DISCOVERY METHODS ELIMINATED =====
     # All 8 duplicate methods removed - now using RepositoryDiscovery utility directly

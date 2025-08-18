@@ -38,8 +38,8 @@ class RepositoryDiscovery:
         self,
         org: str,
         limit: int,
-        sort_by: str = "issues",
-        instance: Optional[GitHubInstance] = None
+        sort_by: str,
+        instance: GitHubInstance
     ) -> List[str]:
         """Get top N repositories for an organization.
         
@@ -47,7 +47,7 @@ class RepositoryDiscovery:
             org: Organization name
             limit: Number of repositories to return
             sort_by: Sort criteria - "issues", "stars", "forks", or "updated"
-            instance: Optional GitHub instance for GitHub Enterprise
+            instance: GitHub instance to query
             
         Returns:
             List of repository names in "org/repo" format
@@ -66,22 +66,11 @@ class RepositoryDiscovery:
         variables = {"org": org, "limit": limit}
         
         try:
-            # Use the HTTP client directly for GraphQL requests
             if not self.http_client:
-                self.logger.error("No HTTP client available for GraphQL requests")
+                self.logger.error("No HTTP client available")
                 return []
-            
-            if instance:
-                response = self.http_client.make_request(query, variables, instance=instance)
-            else:
-                # For github.com, get default instance
-                default_instances = self.requester._get_github_instances()
-                github_com = next((i for i in default_instances if i.name == "github.com"), None)
-                if github_com:
-                    response = self.http_client.make_request(query, variables, instance=github_com)
-                else:
-                    self.logger.warning("No github.com instance found")
-                    return []
+                
+            response = self.http_client.make_request(query, variables, instance=instance)
             
             if not response or "data" not in response:
                 self.logger.warning(f"No data returned for org {org}")
