@@ -542,7 +542,13 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         for partition in batch_partitions:
             try:
                 org = self._extract_org_from_query(partition["search_query"])
-                query_type = "issue" if "type:issue" in partition["search_query"] else "pr"
+                # Detect query type properly - differentiate between all issues and bug issues
+                if "type:pr" in partition["search_query"]:
+                    query_type = "pr"
+                elif "label:bug" in partition["search_query"]:
+                    query_type = "bug"  
+                else:
+                    query_type = "issue"
                 month = partition.get("month")
                 
                 # Parse month to get date range
