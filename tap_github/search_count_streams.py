@@ -451,6 +451,25 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             return dict(weekly_counts)
         
         return repo_counts
+    
+    def _should_use_repo_breakdown(self) -> bool:
+        """Check if repository breakdown is enabled for this stream type."""
+        # Simple org list format with date_range triggers repo breakdown 
+        if "search_orgs" in self.config and "date_range" in self.config:
+            return True
+            
+        # Check search_scope config for repo_breakdown option
+        if "search_scope" in self.config and "date_range" in self.config:
+            scope_config = self.config["search_scope"]
+            stream_key = f"{self.stream_type}_streams"
+            
+            if stream_key in scope_config:
+                instances = scope_config[stream_key].get("instances", [])
+                for instance in instances:
+                    if instance.get("repo_breakdown", False):
+                        return True
+        
+        return False
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Process records with GraphQL batching optimization."""
@@ -510,12 +529,12 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         if not batch_partitions:
             return
 
-        # Check if we're in simple monthly partition mode (org-only config)
-        if "search_orgs" in self.config and "date_range" in self.config:
+        # Check if repository breakdown is enabled for this stream type
+        if self._should_use_repo_breakdown():
             yield from self._process_batch_with_repo_breakdown(batch_partitions)
             return
         
-        # Fallback to original batch processing for other config modes
+        # Use original processing for org-level aggregates
         yield from self._process_batch_original(batch_partitions)
     
     def _process_batch_with_repo_breakdown(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
