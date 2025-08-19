@@ -223,7 +223,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         base_query = f"org:{org}"
         
         if kind == "bug":
-            base_query += ' type:issue is:open (label:"bug" OR label:"[type] bug" OR label:"type: bug")'
+            base_query += ' is:issue is:open label:bug,"[type] bug","type: bug"'
         elif kind == "pr":
             base_query += " type:pr is:merged"
         else:  # issue
@@ -237,7 +237,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         base_query = f"repo:{repo}"
         
         if kind == "bug":
-            base_query += ' type:issue is:open (label:"bug" OR label:"[type] bug" OR label:"type: bug")'
+            base_query += ' is:issue is:open label:bug,"[type] bug","type: bug"'
         elif kind == "pr":
             base_query += " type:pr is:merged"
         else:  # issue
