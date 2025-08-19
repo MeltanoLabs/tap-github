@@ -758,7 +758,7 @@ class IssueSearchCountStream(BaseSearchCountStream):
     name = "issue_search_counts"
     stream_type = "issue"
     count_field = "issue_count"
-    # selected_by_default = False  # Removed - let Meltano handle stream selection
+    selected_by_default = False
     
     @property
     def schema(self) -> dict:
@@ -781,7 +781,7 @@ class PRSearchCountStream(BaseSearchCountStream):
     name = "pr_search_counts"
     stream_type = "pr"
     count_field = "pr_count"
-    # selected_by_default = False  # Removed - let Meltano handle stream selection
+    selected_by_default = False
     
     @property
     def schema(self) -> dict:
