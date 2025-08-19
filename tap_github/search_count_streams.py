@@ -606,7 +606,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     # Detect query type
                     if "type:pr" in partition["search_query"]:
                         query_type = "pr"
-                    elif "label:bug" in partition["search_query"]:
+                    elif "label:" in partition["search_query"] and "bug" in partition["search_query"]:
                         query_type = "bug"  
                     else:
                         query_type = "issue"
