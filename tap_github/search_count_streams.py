@@ -385,3 +385,11 @@ class PRSearchCountStream(SearchCountStreamBase):
     name = "pr_search_counts"
     stream_type = "pr"
     count_field = "pr_count"
+
+
+class BugSearchCountStream(SearchCountStreamBase):
+    """Stream for GitHub bug search counts."""
+    
+    name = "bug_search_counts"
+    stream_type = "bug"
+    count_field = "bug_count"

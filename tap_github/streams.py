@@ -58,7 +58,7 @@ from tap_github.repository_streams import (
     WorkflowRunsStream,
     WorkflowsStream,
 )
-from tap_github.search_count_streams import IssueSearchCountStream, PRSearchCountStream
+from tap_github.search_count_streams import IssueSearchCountStream, PRSearchCountStream, BugSearchCountStream
 from tap_github.user_streams import StarredStream, UserContributedToStream, UserStream
 
 if TYPE_CHECKING:
@@ -151,6 +151,7 @@ class Streams(Enum):
         [
             IssueSearchCountStream,
             PRSearchCountStream,
+            BugSearchCountStream,
         ],
     )
 
