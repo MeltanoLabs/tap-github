@@ -8,7 +8,7 @@ from unittest.mock import patch
 from singer_sdk.testing import get_standard_tap_tests
 
 from tap_github.tap import TapGitHub
-from tap_github.utils.filter_stdout import nostdout
+from tap_github.tests.utils.filter_stdout import nostdout
 
 from .fixtures import (  # noqa: F401
     alternative_sync_chidren,
