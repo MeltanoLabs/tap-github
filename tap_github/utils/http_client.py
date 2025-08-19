@@ -111,21 +111,11 @@ class GitHubGraphQLClient:
     def _handle_graphql_errors(self, errors: List[Dict[str, Any]], instance_name: str) -> None:
         """Handle GraphQL errors from response."""
         for error in errors:
-            error_msg = error.get("message", str(error)) if error else str(error)
-            self.logger.warning(f"GraphQL query warning for {instance_name}: {error_msg}")
+            self.logger.warning(f"GraphQL error for {instance_name}: {error.get('message', error)}")
     
     def _handle_http_error(self, error: HTTPError, instance_name: str) -> None:
         """Handle HTTP errors with appropriate logging."""
-        status_code = error.response.status_code if error.response else None
-        
-        if status_code == 401:
-            self.logger.error(f"Authentication failed for {instance_name}: {error}")
-        elif status_code == 403:
-            self.logger.error(f"Permission denied for {instance_name}: {error}")
-        elif status_code == 404:
-            self.logger.error(f"GraphQL endpoint not found for {instance_name}: {error}")
-        else:
-            self.logger.error(f"HTTP error for {instance_name}: {error}")
+        self.logger.error(f"HTTP error for {instance_name}: {error}")
     
     def _log_batch_metrics(
         self,
@@ -134,12 +124,7 @@ class GitHubGraphQLClient:
         source: str
     ) -> None:
         """Log batch request performance metrics."""
-        data = response.get("data") or {}
-        rate_limit = data.get("rateLimit") or {}
+        rate_limit = response.get("data", {}).get("rateLimit", {})
         cost = rate_limit.get("cost", len(variables))
         remaining = rate_limit.get("remaining", "unknown")
-        
-        self.logger.info(
-            f"Batch request completed: {len(variables)} queries, "
-            f"cost: {cost} points, remaining: {remaining}"
-        )
+        self.logger.info(f"Batch request: {len(variables)} queries, cost: {cost}, remaining: {remaining}")
