@@ -5,8 +5,10 @@ from __future__ import annotations
 import calendar
 import time
 from collections.abc import Iterable, Mapping
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timedelta
 from typing import Any, ClassVar
+import requests
 
 from singer_sdk import typing as th
 from singer_sdk.helpers.types import Context
@@ -31,6 +33,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         self._batch_size = self.config.get("batch_query_size", 10)
         self._http_client = GitHubGraphQLClient(self.config, self.logger)
         self._authenticator = None
+        self._repo_cache = {}  # Cache repositories by org
 
     @property
     def partitions(self) -> list[dict] | None:
@@ -246,6 +249,208 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             
         # No specific repos configured, return empty (will fallback to org-level)
         return []
+    
+    def _discover_org_repositories(self, org: str, api_url_base: str, auth_token: str) -> list[str]:
+        """Discover all repositories for an organization."""
+        if org in self._repo_cache:
+            self.logger.info(f"Using cached repositories for {org}")
+            return self._repo_cache[org]
+        
+        self.logger.info(f"Discovering repositories for organization: {org}")
+        
+        url = f"{api_url_base}/graphql"
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Content-Type": "application/json"
+        }
+        
+        query = """
+        query GetOrgRepositories($org: String!, $after: String) {
+          organization(login: $org) {
+            repositories(first: 100, after: $after, orderBy: {field: NAME, direction: ASC}) {
+              pageInfo { hasNextPage endCursor }
+              nodes {
+                name
+                isPrivate
+                isArchived
+                isDisabled
+              }
+            }
+          }
+        }
+        """
+        
+        repositories = []
+        cursor = None
+        page = 0
+        
+        while True:
+            page += 1
+            try:
+                variables = {"org": org, "after": cursor}
+                response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+                
+                if response.status_code != 200:
+                    self.logger.error(f"HTTP {response.status_code} fetching repos for {org}")
+                    break
+                
+                data = response.json()
+                if "errors" in data:
+                    self.logger.error(f"GraphQL errors for {org}: {data['errors']}")
+                    break
+                
+                org_data = data.get("data", {}).get("organization")
+                if not org_data:
+                    self.logger.warning(f"No organization data found for {org}")
+                    break
+                
+                repos_data = org_data.get("repositories", {})
+                for repo in repos_data.get("nodes", []):
+                    if repo and not repo.get("isDisabled", False):  # Skip disabled repos
+                        repositories.append(repo["name"])
+                
+                page_info = repos_data.get("pageInfo", {})
+                if not page_info.get("hasNextPage"):
+                    break
+                    
+                cursor = page_info.get("endCursor")
+                
+                # Safety limit
+                if page >= 50:
+                    self.logger.warning(f"Reached page limit for {org}, stopping")
+                    break
+                    
+            except Exception as e:
+                self.logger.error(f"Error discovering repos for {org}: {e}")
+                break
+        
+        self.logger.info(f"Discovered {len(repositories)} repositories for {org}")
+        
+        # Cache the results
+        self._repo_cache[org] = repositories
+        return repositories
+    
+    def _search_with_repo_breakdown(self, org: str, search_query: str, api_url_base: str, auth_token: str) -> dict[str, int]:
+        """Search with repository-level breakdown using ChatGPT's approach."""
+        url = f"{api_url_base}/graphql"
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Content-Type": "application/json"
+        }
+        
+        query = """
+        query SearchIssuesWithRepoBreakdown($query: String!, $after: String) {
+          search(query: $query, type: ISSUE, first: 100, after: $after) {
+            issueCount
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              ... on Issue {
+                repository {
+                  name
+                }
+              }
+            }
+          }
+        }
+        """
+        
+        repo_counts = defaultdict(int)
+        cursor = None
+        page = 0
+        
+        while True:
+            page += 1
+            try:
+                variables = {"query": search_query, "after": cursor}
+                response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+                
+                if response.status_code != 200:
+                    self.logger.error(f"HTTP {response.status_code} for search: {search_query}")
+                    break
+                
+                data = response.json()
+                if "errors" in data:
+                    self.logger.error(f"GraphQL errors: {data['errors']}")
+                    break
+                
+                search_data = data.get("data", {}).get("search", {})
+                if not search_data:
+                    break
+                
+                total_count = search_data.get("issueCount", 0)
+                if page == 1:
+                    self.logger.info(f"Total results for '{search_query}': {total_count}")
+                    
+                    # If > 1000, warn about potential pagination limits
+                    if total_count > 1000:
+                        self.logger.warning(f"Results > 1000, may need date slicing for: {search_query}")
+                
+                # Process results
+                for node in search_data.get("nodes", []):
+                    if node and node.get("repository"):
+                        repo_name = node["repository"]["name"]
+                        repo_counts[repo_name] += 1
+                
+                # Check for next page
+                page_info = search_data.get("pageInfo", {})
+                if not page_info.get("hasNextPage"):
+                    break
+                    
+                cursor = page_info.get("endCursor")
+                
+                # GitHub search is limited to 1000 results
+                if page >= 10:  # Safety break
+                    break
+                    
+            except Exception as e:
+                self.logger.error(f"Error in search breakdown: {e}")
+                break
+        
+        return dict(repo_counts)
+    
+    def _slice_month_if_needed(self, org: str, query_type: str, month_start: str, month_end: str, api_url_base: str, auth_token: str) -> dict[str, int]:
+        """Search for a month, slicing into weeks if results > 1000."""
+        
+        # Build full search query
+        search_query = self._build_search_query(query_type, org, month_start, month_end)
+        
+        # Try full month first
+        repo_counts = self._search_with_repo_breakdown(org, search_query, api_url_base, auth_token)
+        
+        # Check if we hit the 1000 limit and need to slice
+        total_results = sum(repo_counts.values())
+        
+        if total_results >= 900:  # Close to 1000 limit
+            self.logger.info(f"High volume ({total_results}), slicing into weeks for {org} {query_type}")
+            
+            weekly_counts = defaultdict(int)
+            
+            # Generate weekly date ranges
+            start_datetime = datetime.strptime(month_start, "%Y-%m-%d")
+            end_datetime = datetime.strptime(month_end, "%Y-%m-%d")
+            
+            current_date = start_datetime
+            while current_date <= end_datetime:
+                week_end = min(current_date + timedelta(days=6), end_datetime)
+                
+                week_start_str = current_date.strftime("%Y-%m-%d")
+                week_end_str = week_end.strftime("%Y-%m-%d")
+                
+                week_query = self._build_search_query(query_type, org, week_start_str, week_end_str)
+                week_counts = self._search_with_repo_breakdown(org, week_query, api_url_base, auth_token)
+                
+                # Merge weekly counts
+                for repo, count in week_counts.items():
+                    weekly_counts[repo] += count
+                
+                current_date = week_end + timedelta(days=1)
+            
+            return dict(weekly_counts)
+        
+        return repo_counts
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Process records with GraphQL batching optimization."""
@@ -283,11 +488,112 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             batch = partitions[i:i + self._batch_size]
             yield from self._process_batch(batch)
 
+    def _extract_org_from_query(self, search_query: str) -> str:
+        """Extract organization name from search query."""
+        import re
+        
+        # Look for org: pattern (e.g., "org:Automattic" -> "Automattic")
+        org_match = re.search(r'org:(\w+)', search_query)
+        if org_match:
+            return org_match.group(1)
+        
+        # Look for repo: pattern (e.g., "repo:WordPress/Gutenberg" -> "WordPress")
+        repo_match = re.search(r'repo:([^/\s]+)/', search_query)
+        if repo_match:
+            return repo_match.group(1)
+        
+        # Fallback: extract from search_query or return "unknown"
+        return "unknown"
+
     def _process_batch(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
-        """Process a batch of partitions with a single GraphQL request."""
+        """Process a batch of partitions with repository-level breakdown."""
         if not batch_partitions:
             return
 
+        # Check if we're in simple monthly partition mode (org-only config)
+        if "search_orgs" in self.config and "date_range" in self.config:
+            yield from self._process_batch_with_repo_breakdown(batch_partitions)
+            return
+        
+        # Fallback to original batch processing for other config modes
+        yield from self._process_batch_original(batch_partitions)
+    
+    def _process_batch_with_repo_breakdown(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
+        """Process batch with repository-level breakdown for org-only config."""
+        for partition in batch_partitions:
+            try:
+                org = self._extract_org_from_query(partition["search_query"])
+                query_type = "issue" if "type:issue" in partition["search_query"] else "pr"
+                month = partition.get("month")
+                
+                # Parse month to get date range
+                if month:
+                    year, month_num = month.split("-")
+                    month_start = f"{year}-{month_num}-01"
+                    last_day = calendar.monthrange(int(year), int(month_num))[1]
+                    month_end = f"{year}-{month_num}-{last_day:02d}"
+                else:
+                    self.logger.warning(f"No month found in partition: {partition}")
+                    continue
+                
+                # Get API details from partition
+                api_url_base = partition.get("api_url_base", "https://api.github.com")
+                
+                # Get auth token - try multiple sources
+                auth_token = None
+                if "search_scope" in self.config:
+                    # Get from search_scope config
+                    scope_config = self.config["search_scope"]
+                    stream_key = f"{self.stream_type}_streams"
+                    instances_config = scope_config.get(stream_key, {}).get("instances", [])
+                    if not instances_config:
+                        instances_config = scope_config.get("instances", [])
+                    
+                    for instance_config in instances_config:
+                        if instance_config.get("instance") == partition["source"]:
+                            auth_token = instance_config.get("auth_token")
+                            break
+                
+                if not auth_token:
+                    # Fallback to config access_token
+                    auth_token = self.config.get("access_token")
+                
+                if not auth_token:
+                    self.logger.error(f"No auth token found for {org}")
+                    continue
+                
+                # Discover repositories for this org (cached)
+                all_repos = self._discover_org_repositories(org, api_url_base, auth_token)
+                
+                # Get repo breakdown from search
+                repo_counts = self._slice_month_if_needed(org, query_type, month_start, month_end, api_url_base, auth_token)
+                
+                # Generate records for all repos (including 0 counts)
+                for repo_name in all_repos:
+                    count_value = repo_counts.get(repo_name, 0)
+                    
+                    result = {
+                        "search_name": f"{org}_{repo_name}_{query_type}s_{month}".replace("-", "_").lower(),
+                        "search_query": partition["search_query"],
+                        "source": partition["source"],
+                        "org": org,
+                        "repo": repo_name,
+                        "month": month,
+                        self.count_field: count_value,
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    yield result
+                
+                # Small delay between orgs
+                time.sleep(0.1)
+                
+            except Exception as e:
+                self.logger.error(f"Error processing partition {partition.get('search_name', 'unknown')}: {e}")
+                continue
+    
+    def _process_batch_original(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
+        """Original batch processing method for backward compatibility."""
         # Build batched GraphQL query
         queries = [p["search_query"] for p in batch_partitions]
         batch_query = self._build_batch_query(queries)
@@ -314,10 +620,15 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 search_result = data[f"search{i}"]
                 count_value = search_result.get(graphql_field, 0)
                 
+                # Extract org from search_query (e.g., "org:Automattic type:pr ..." -> "Automattic")
+                org = self._extract_org_from_query(partition["search_query"])
+                
                 result = {
                     "search_name": partition["search_name"],
                     "search_query": partition["search_query"],
                     "source": partition["source"],
+                    "org": org,
+                    "repo": "aggregate",  # Indicate this is org-level aggregate
                     self.count_field: count_value,
                     "updated_at": datetime.now().isoformat()
                 }
@@ -357,7 +668,19 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         """
 
     def _get_github_instances(self) -> list[GitHubInstance]:
-        """Get GitHub instances from search_scope configuration."""
+        """Get GitHub instances from configuration."""
+        # Handle simple org configuration (search_orgs + access_token)
+        if "search_orgs" in self.config and "access_token" in self.config:
+            return [GitHubInstance(
+                name="github.com",
+                api_url_base="https://api.github.com",
+                auth_token=self.config["access_token"]
+            )]
+        
+        # Handle search_scope configuration
+        if "search_scope" not in self.config:
+            return []
+            
         scope_config = self.config["search_scope"]
         instances = []
         
@@ -388,6 +711,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
             th.Property("search_name", th.StringType, required=True),
             th.Property("search_query", th.StringType, required=True),
             th.Property("source", th.StringType, required=True),
+            th.Property("org", th.StringType, required=True),
+            th.Property("repo", th.StringType, required=True),
             th.Property("month", th.StringType),
             th.Property(cls.count_field, th.IntegerType, required=True),
             th.Property("updated_at", th.DateTimeType),
@@ -442,6 +767,8 @@ class IssueSearchCountStream(BaseSearchCountStream):
             th.Property("search_name", th.StringType, required=True),
             th.Property("search_query", th.StringType, required=True),
             th.Property("source", th.StringType, required=True),
+            th.Property("org", th.StringType, required=True),
+            th.Property("repo", th.StringType, required=True),
             th.Property("month", th.StringType),
             th.Property("issue_count", th.IntegerType, required=True),
             th.Property("updated_at", th.DateTimeType),
@@ -463,6 +790,8 @@ class PRSearchCountStream(BaseSearchCountStream):
             th.Property("search_name", th.StringType, required=True),
             th.Property("search_query", th.StringType, required=True),
             th.Property("source", th.StringType, required=True),
+            th.Property("org", th.StringType, required=True),
+            th.Property("repo", th.StringType, required=True),
             th.Property("month", th.StringType),
             th.Property("pr_count", th.IntegerType, required=True),
             th.Property("updated_at", th.DateTimeType),
