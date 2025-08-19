@@ -124,7 +124,11 @@ class GitHubGraphQLClient:
         source: str
     ) -> None:
         """Log batch request performance metrics."""
-        rate_limit = response.get("data", {}).get("rateLimit", {})
+        if not response or "data" not in response:
+            self.logger.info(f"Batch request: {len(variables)} queries (no rate limit data)")
+            return
+            
+        rate_limit = response.get("data", {}).get("rateLimit") or {}
         cost = rate_limit.get("cost", len(variables))
         remaining = rate_limit.get("remaining", "unknown")
         self.logger.info(f"Batch request: {len(variables)} queries, cost: {cost}, remaining: {remaining}")
