@@ -48,6 +48,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             th.Property("updated_at", th.DateTimeType),
         ).to_dict()
 
+
     @property
     def query(self) -> str:
         """GraphQL query for search with repo breakdown support."""

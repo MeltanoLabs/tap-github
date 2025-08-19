@@ -47,6 +47,40 @@ class GitHubRestStream(RESTStream):
 
     _authenticator: GitHubTokenAuthenticator | None = None
 
+    def build_prepared_request(self, *args, **kwargs):
+        """Override to use instance-specific auth token."""
+        request = super().build_prepared_request(*args, **kwargs)
+        
+        # Extract URL from args or kwargs
+        url = None
+        if len(args) >= 2:
+            url = args[1]  # Second positional argument
+        elif 'url' in kwargs:
+            url = kwargs['url']
+        
+        # Get the right token for this URL
+        if url:
+            token = self._get_token_for_url(url)
+            if token:
+                request.headers["Authorization"] = f"token {token}"
+                
+        return request
+
+    def _get_token_for_url(self, url):
+        """Get the correct auth token for a given URL."""
+        search_scope = self.config.get("search_scope", {})
+        for stream_type, stream_config in search_scope.items():
+            if isinstance(stream_config, dict) and "instances" in stream_config:
+                instances = stream_config.get("instances", [])
+                for instance in instances:
+                    api_base = instance.get("api_url_base", "")
+                    if api_base and api_base in url:
+                        token = instance.get("auth_token")
+                        if token:
+                            return token
+        
+        return None
+
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
         if self._authenticator is None:
