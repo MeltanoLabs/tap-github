@@ -453,13 +453,13 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         return repo_counts
     
     def _should_use_repo_breakdown(self) -> bool:
-        """Check if repository breakdown is enabled for this stream type."""
-        # Simple org list format with date_range triggers repo breakdown 
-        if "search_orgs" in self.config and "date_range" in self.config:
+        """Check if repository breakdown is explicitly enabled for this stream type."""
+        # Check for explicit repo_breakdown flag in config
+        if self.config.get("repo_breakdown", False):
             return True
             
         # Check search_scope config for repo_breakdown option
-        if "search_scope" in self.config and "date_range" in self.config:
+        if "search_scope" in self.config:
             scope_config = self.config["search_scope"]
             stream_key = f"{self.stream_type}_streams"
             
@@ -574,8 +574,8 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                             break
                 
                 if not auth_token:
-                    # Fallback to config access_token
-                    auth_token = self.config.get("access_token")
+                    # Fallback to config auth token (supports both auth_token and access_token)
+                    auth_token = self.config.get("auth_token") or self.config.get("access_token")
                 
                 if not auth_token:
                     self.logger.error(f"No auth token found for {org}")
@@ -639,14 +639,11 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 search_result = data[f"search{i}"]
                 count_value = search_result.get(graphql_field, 0)
                 
-                # Extract org from search_query (e.g., "org:Automattic type:pr ..." -> "Automattic")
-                org = self._extract_org_from_query(partition["search_query"])
-                
                 result = {
                     "search_name": partition["search_name"],
                     "search_query": partition["search_query"],
                     "source": partition["source"],
-                    "org": org,
+                    "org": self._extract_org_from_query(partition["search_query"]),
                     "repo": "aggregate",  # Indicate this is org-level aggregate
                     self.count_field: count_value,
                     "updated_at": datetime.now().isoformat()
@@ -688,13 +685,42 @@ class BaseSearchCountStream(GitHubGraphqlStream):
 
     def _get_github_instances(self) -> list[GitHubInstance]:
         """Get GitHub instances from configuration."""
-        # Handle simple org configuration (search_orgs + access_token)
-        if "search_orgs" in self.config and "access_token" in self.config:
-            return [GitHubInstance(
-                name="github.com",
-                api_url_base="https://api.github.com",
-                auth_token=self.config["access_token"]
-            )]
+        # Handle simple org configuration (search_orgs + auth token)
+        if "search_orgs" in self.config:
+            auth_token = self.config.get("auth_token") or self.config.get("access_token")
+            if auth_token:
+                return [GitHubInstance(
+                    name="github.com",
+                    api_url_base="https://api.github.com",
+                    auth_token=auth_token
+                )]
+        
+        # Handle search_count_queries configuration (explicit queries)
+        if "search_count_queries" in self.config:
+            # Support multiple auth tokens/instances
+            instances = []
+            
+            # Try top-level auth token (single instance - supports both auth_token and access_token)
+            auth_token = self.config.get("auth_token") or self.config.get("access_token")
+            if auth_token:
+                instances.append(GitHubInstance(
+                    name="github.com",
+                    api_url_base="https://api.github.com",
+                    auth_token=auth_token
+                ))
+            
+            # Try instances list (multiple instances)
+            if "instances" in self.config:
+                for instance_config in self.config["instances"]:
+                    instance_auth_token = instance_config.get("auth_token") or instance_config.get("access_token")
+                    if instance_auth_token:
+                        instances.append(GitHubInstance(
+                            name=instance_config.get("instance", instance_config.get("name", "github.com")),
+                            api_url_base=instance_config.get("api_url_base", "https://api.github.com"),
+                            auth_token=instance_auth_token
+                        ))
+            
+            return instances
         
         # Handle search_scope configuration
         if "search_scope" not in self.config:
