@@ -1,4 +1,4 @@
-"""Tests for search count streams."""
+git """Tests for search count streams."""
 
 from __future__ import annotations
 
