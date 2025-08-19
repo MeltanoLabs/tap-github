@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from .utils.filter_stdout import FilterStdOutput
+from ..utils.filter_stdout import FilterStdOutput
 
 if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
