@@ -212,7 +212,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         elif query_type == "bug":
             base_query += ' type:issue is:open (label:"bug" OR label:"[type] bug" OR label:"type: bug")'
         elif query_type == "pr":
-            base_query += " type:pr is:open"
+            base_query += " type:pr is:merged"
             
         base_query += f" created:{start_date}..{end_date}"
         return base_query
@@ -230,7 +230,7 @@ class BaseSearchCountStream(GitHubGraphqlStream):
         elif query_type == "bug":
             base_query = f'{repo_query} type:issue is:open (label:"bug" OR label:"[type] bug" OR label:"type: bug")'
         elif query_type == "pr":
-            base_query = f"{repo_query} type:pr is:open"
+            base_query = f"{repo_query} type:pr is:merged"
             
         base_query += f" created:{start_date}..{end_date}"
         return base_query
