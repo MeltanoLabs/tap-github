@@ -474,15 +474,16 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
         """Process records with GraphQL batching optimization."""
         self.logger.info(f"Stream {self.name} is selected, beginning processing")
-
-        # Handle single partition (Singer SDK style)
-        if context and context.get("partition"):
-            yield from self._process_single_partition(context["partition"])
+        
+        # Handle single partition (Singer SDK style) - context IS the partition
+        if context and context.get("search_name"):
+            yield from self._process_single_partition(context)
             return
 
         # Handle all partitions with batching
         partitions = self.partitions or []
         if not partitions:
+            self.logger.info("No partitions found, returning")
             return
 
         # Group by instance for efficient batching
@@ -539,17 +540,32 @@ class BaseSearchCountStream(GitHubGraphqlStream):
     
     def _process_batch_with_repo_breakdown(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
         """Process batch with repository-level breakdown for org-only config."""
+        # Group partitions by org/month to avoid duplicate processing
+        org_month_groups = {}
+        
         for partition in batch_partitions:
+            org = self._extract_org_from_query(partition["search_query"])
+            month = partition.get("month")
+            key = f"{org}_{month}"
+            
+            if key not in org_month_groups:
+                org_month_groups[key] = {
+                    "org": org,
+                    "month": month,
+                    "partitions": [],
+                    "source": partition["source"],
+                    "api_url_base": partition.get("api_url_base", "https://api.github.com")
+                }
+            
+            org_month_groups[key]["partitions"].append(partition)
+        
+        # Process each org/month combination once
+        for group_key, group_data in org_month_groups.items():
             try:
-                org = self._extract_org_from_query(partition["search_query"])
-                # Detect query type properly - differentiate between all issues and bug issues
-                if "type:pr" in partition["search_query"]:
-                    query_type = "pr"
-                elif "label:bug" in partition["search_query"]:
-                    query_type = "bug"  
-                else:
-                    query_type = "issue"
-                month = partition.get("month")
+                org = group_data["org"]
+                month = group_data["month"]
+                source = group_data["source"]
+                api_url_base = group_data["api_url_base"]
                 
                 # Parse month to get date range
                 if month:
@@ -558,16 +574,12 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                     last_day = calendar.monthrange(int(year), int(month_num))[1]
                     month_end = f"{year}-{month_num}-{last_day:02d}"
                 else:
-                    self.logger.warning(f"No month found in partition: {partition}")
+                    self.logger.warning(f"No month found in group: {group_key}")
                     continue
                 
-                # Get API details from partition
-                api_url_base = partition.get("api_url_base", "https://api.github.com")
-                
-                # Get auth token - try multiple sources
+                # Get auth token
                 auth_token = None
                 if "search_scope" in self.config:
-                    # Get from search_scope config
                     scope_config = self.config["search_scope"]
                     stream_key = f"{self.stream_type}_streams"
                     instances_config = scope_config.get(stream_key, {}).get("instances", [])
@@ -575,12 +587,11 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                         instances_config = scope_config.get("instances", [])
                     
                     for instance_config in instances_config:
-                        if instance_config.get("instance") == partition["source"]:
+                        if instance_config.get("instance") == source:
                             auth_token = instance_config.get("auth_token")
                             break
                 
                 if not auth_token:
-                    # Fallback to config auth token (supports both auth_token and access_token)
                     auth_token = self.config.get("auth_token") or self.config.get("access_token")
                 
                 if not auth_token:
@@ -590,31 +601,41 @@ class BaseSearchCountStream(GitHubGraphqlStream):
                 # Discover repositories for this org (cached)
                 all_repos = self._discover_org_repositories(org, api_url_base, auth_token)
                 
-                # Get repo breakdown from search
-                repo_counts = self._slice_month_if_needed(org, query_type, month_start, month_end, api_url_base, auth_token)
-                
-                # Generate records for all repos (including 0 counts)
-                for repo_name in all_repos:
-                    count_value = repo_counts.get(repo_name, 0)
+                # Process both query types for this org/month
+                for partition in group_data["partitions"]:
+                    # Detect query type
+                    if "type:pr" in partition["search_query"]:
+                        query_type = "pr"
+                    elif "label:bug" in partition["search_query"]:
+                        query_type = "bug"  
+                    else:
+                        query_type = "issue"
                     
-                    result = {
-                        "search_name": f"{org}_{repo_name}_{query_type}s_{month}".replace("-", "_").lower(),
-                        "search_query": partition["search_query"],
-                        "source": partition["source"],
-                        "org": org,
-                        "repo": repo_name,
-                        "month": month,
-                        self.count_field: count_value,
-                        "updated_at": datetime.now().isoformat()
-                    }
+                    # Get repo breakdown from search
+                    repo_counts = self._slice_month_if_needed(org, query_type, month_start, month_end, api_url_base, auth_token)
                     
-                    yield result
+                    # Generate records for all repos (including 0 counts)
+                    for repo_name in all_repos:
+                        count_value = repo_counts.get(repo_name, 0)
+                        
+                        result = {
+                            "search_name": f"{org}_{repo_name}_{query_type}s_{month}".replace("-", "_").lower(),
+                            "search_query": partition["search_query"],
+                            "source": source,
+                            "org": org,
+                            "repo": repo_name,
+                            "month": month,
+                            self.count_field: count_value,
+                            "updated_at": datetime.now().isoformat()
+                        }
+                        
+                        yield result
                 
-                # Small delay between orgs
+                # Small delay between org/month groups
                 time.sleep(0.1)
                 
             except Exception as e:
-                self.logger.error(f"Error processing partition {partition.get('search_name', 'unknown')}: {e}")
+                self.logger.error(f"Error processing group {group_key}: {e}")
                 continue
     
     def _process_batch_original(self, batch_partitions: list[dict]) -> Iterable[dict[str, Any]]:
