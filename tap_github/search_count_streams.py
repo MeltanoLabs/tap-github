@@ -393,3 +393,4 @@ class BugSearchCountStream(SearchCountStreamBase):
     name = "bug_search_counts"
     stream_type = "bug"
     count_field = "bug_count"
+
