@@ -28,6 +28,9 @@ class SearchCountStreamBase(GitHubGraphqlStream):
 
     def __init__(self, tap, name=None, schema=None, path=None):
         """Initialize stream with schema."""
+        # Store tap reference for state access
+        self.tap = tap
+        
         super().__init__(
             tap=tap,
             name=name or self.name,
@@ -141,7 +144,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         return partitions
 
     def _get_months_to_process(self) -> list[str]:
-        """Get months to process based on backfill configuration and incremental state."""
+        """Get months to process based on backfill configuration."""
         cfg = self.config
         
         # Check for backfill configuration
@@ -151,20 +154,10 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             
             self.logger.info(f"Backfill config - start: {start}, end: {end}")
             
-            # Get all months in range
+            # Get all months in range - incremental filtering handled at partition level
             all_months = self._get_month_range(start, end)
             
-            # For incremental replication, check if we have a starting bookmark
-            if self.replication_method == "INCREMENTAL":
-                # Get the minimum starting month from state across all partitions
-                starting_month = self._get_starting_month_from_state()
-                if starting_month:
-                    # Only process months after the bookmark
-                    filtered_months = [m for m in all_months if m > starting_month]
-                    self.logger.info(f"Incremental: Starting after {starting_month}, processing {len(filtered_months)} months: {filtered_months}")
-                    return filtered_months
-            
-            self.logger.info(f"Full backfill: Processing {len(all_months)} months: {all_months}")
+            self.logger.info(f"Processing {len(all_months)} months in backfill: {all_months}")
             return all_months
         
         # No backfill config, return empty list
@@ -198,12 +191,44 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             last_month = today.replace(day=1) - timedelta(days=1)
         return f"{last_month.year}-{last_month.month:02d}"
     
+    def _should_skip_partition(self, partition: dict) -> bool:
+        """Check if partition should be skipped due to incremental state."""
+        try:
+            # Look up the bookmark from the tap's state for this partition context
+            stream_state = self.tap.state.get("bookmarks", {}).get(self.name, {})
+            partitions_state = stream_state.get("partitions", [])
+            
+            # Find matching partition in state
+            partition_context = {
+                "source": partition["source"],
+                "org": partition["org"]
+            }
+            
+            for partition_state in partitions_state:
+                state_context = partition_state.get("context", {})
+                if (state_context.get("source") == partition_context["source"] and 
+                    state_context.get("org") == partition_context["org"]):
+                    
+                    bookmark = partition_state.get("replication_key_value")
+                    replication_key_name = partition_state.get("replication_key_name")
+                    
+                    if bookmark and replication_key_name == "month":
+                        self.logger.info(f"Found bookmark for {partition['org']}: {bookmark}")
+                        # If we have a bookmark and current month <= bookmark, skip
+                        if partition["month"] <= bookmark:
+                            return True
+                        else:
+                            self.logger.info(f"Processing {partition['org']}/{partition['month']} (after bookmark {bookmark})")
+                        break
+            
+            return False
+        except Exception as e:
+            self.logger.info(f"No bookmark found for {partition['org']}/{partition['month']}: {e}")
+            return False
+    
     def _get_starting_month_from_state(self) -> str | None:
         """Get the minimum starting month from incremental state across all partitions."""
         try:
-            # Get all partition contexts for this stream
-            from singer_sdk.helpers.types import Context
-            
             # Get the starting replication key value (this will be the max bookmark)
             starting_value = self.get_starting_replication_key_value(None)
             if starting_value:
@@ -255,6 +280,13 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             query = partition["search_query"]
             api_url_base = partition["api_url_base"]
             repo_breakdown = partition.get("repo_breakdown", False)
+            
+            # Check if this partition should be skipped due to incremental state
+            if self._should_skip_partition(partition):
+                self.logger.info(f"Skipping partition {org}/{month} - already processed")
+                continue
+            
+            self.logger.info(f"Processing partition: {org}/{month}")
             
             # Get search results
             if repo_breakdown:
@@ -379,6 +411,9 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
         self.name = f"{stream_config['name']}_search_counts"
         self.stream_type = stream_config.get("stream_type", "custom")
         self.count_field = self.count_field_name
+        
+        # Store tap reference for state access
+        self.tap = tap
         
         super().__init__(
             tap=tap,
