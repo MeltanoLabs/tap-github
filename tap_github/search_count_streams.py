@@ -22,8 +22,9 @@ class SearchCountStreamBase(GitHubGraphqlStream):
     count_field: ClassVar[str] = "issue_count"
 
     primary_keys: ClassVar[list[str]] = ["search_name", "month", "source", "org", "repo"]
-    replication_method = "FULL_TABLE"
-    state_partitioning_keys: ClassVar[list[str]] = ["source", "org", "month"]
+    replication_method = "INCREMENTAL"
+    replication_key = "month"
+    state_partitioning_keys: ClassVar[list[str]] = ["source", "org"]  # Removed month for proper incremental
 
     def __init__(self, tap, name=None, schema=None, path=None):
         """Initialize stream with schema."""
