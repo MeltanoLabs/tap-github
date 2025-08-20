@@ -149,9 +149,8 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             end = cfg.get("backfill_end_month") or self._get_last_complete_month()
             batch_size = int(cfg.get("backfill_batch_months", 6))
             
-            # Get completed months from stream state
-            stream_state = self.get_context_state({}) or {}
-            completed_months = stream_state.get("completed_months", [])
+            # Get completed months by checking partition state
+            completed_months = self._get_completed_months_from_partitions()
             
             self.logger.info(f"Backfill config - start: {start}, end: {end}, batch_size: {batch_size}")
             self.logger.info(f"State - completed_months: {completed_months}")
@@ -162,14 +161,9 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             
             self.logger.info(f"Remaining months: {remaining_months}")
             
-            if remaining_months and stream_state.get("backfill_done"):
-                self.logger.info("Found remaining months but backfill was marked done - resetting to continue")
-                del stream_state["backfill_done"]
-            
             if not remaining_months:
                 # Backfill complete, switch to sliding window
                 self.logger.info("Backfill complete, switching to sliding window mode")
-                stream_state["backfill_done"] = True
                 return self._get_sliding_window_months()
             
             # Return batch of remaining months
@@ -179,6 +173,34 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         
         # Default to sliding window
         return self._get_sliding_window_months()
+
+    def _get_completed_months_from_partitions(self) -> list[str]:
+        """Get completed months by analyzing partition state."""
+        # Check which months have completed partitions in the Singer SDK state
+        stream_state = self.stream_state
+        partitions = stream_state.get("partitions", [])
+        
+        completed_months = set()
+        
+        # A month is considered completed if all its partitions have starting_replication_value
+        month_partition_counts = {}
+        month_completed_counts = {}
+        
+        for partition in partitions:
+            context = partition.get("context", {})
+            month = context.get("month")
+            if month:
+                month_partition_counts[month] = month_partition_counts.get(month, 0) + 1
+                if "starting_replication_value" in partition:
+                    month_completed_counts[month] = month_completed_counts.get(month, 0) + 1
+        
+        # Check which months have all partitions completed
+        for month, total_partitions in month_partition_counts.items():
+            completed_partitions = month_completed_counts.get(month, 0)
+            if completed_partitions == total_partitions:
+                completed_months.add(month)
+        
+        return sorted(list(completed_months))
 
     def _get_sliding_window_months(self) -> list[str]:
         """Get recent months for sliding window processing."""
@@ -296,20 +318,6 @@ class SearchCountStreamBase(GitHubGraphqlStream):
                     self.count_field: total_count,
                     "updated_at": now,
                 }
-            
-            # Mark this month as completed after processing the partition
-            self._mark_month_completed(month)
-
-    def _mark_month_completed(self, month: str) -> None:
-        """Mark a month as completed in the stream state."""
-        stream_state = self.get_context_state({})
-        completed_months = stream_state.get("completed_months", [])
-        
-        if month not in completed_months:
-            completed_months.append(month)
-            completed_months.sort()
-            stream_state["completed_months"] = completed_months
-            self.logger.info(f"Marked month {month} as completed. Total completed: {completed_months}")
 
     def _search_with_repo_breakdown(self, query: str, api_url_base: str) -> dict[str, int]:
         """Search and return counts broken down by repository."""
