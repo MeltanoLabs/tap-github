@@ -25,7 +25,7 @@ class TestQueryGeneration:
                         {
                             "api_url_base": "https://api.github.com",
                             "instance": "github.com",
-                            "org_level": ["WordPress"],
+                            "org": ["WordPress"],
                             "repo_breakdown": False
                         }
                     ]
@@ -147,7 +147,7 @@ class TestConfigParsing:
     """Test configuration parsing logic."""
 
     @patch('tap_github.search_count_streams.SearchCountStreamBase.get_context_state')
-    def test_search_scope_org_level_parsing(self, mock_get_context_state):
+    def test_search_scope_org_parsing(self, mock_get_context_state):
         """Test parsing org-level configuration."""
         mock_get_context_state.return_value = {}
         
@@ -159,7 +159,7 @@ class TestConfigParsing:
                         {
                             "api_url_base": "https://api.github.com",
                             "instance": "github.com", 
-                            "org_level": ["WordPress", "Automattic"],
+                            "org": ["WordPress", "Automattic"],
                             "repo_breakdown": False
                         }
                     ]
@@ -191,13 +191,13 @@ class TestConfigParsing:
                         {
                             "api_url_base": "https://api.github.com",
                             "instance": "github.com",
-                            "org_level": ["WordPress"],
+                            "org": ["WordPress"],
                             "repo_breakdown": False
                         },
                         {
                             "api_url_base": "https://github.example.com/api",
                             "instance": "github.example.com",
-                            "org_level": ["ExampleOrg"],
+                            "org": ["ExampleOrg"],
                             "repo_breakdown": False
                         }
                     ]

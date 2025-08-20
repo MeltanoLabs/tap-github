@@ -200,7 +200,7 @@ class TapGitHub(Tap):
                             th.Property("api_url_base", th.StringType, required=True),
                             th.Property("auth_token", th.StringType),
                             th.Property(
-                                "org_level",
+                                "org",
                                 th.ArrayType(th.StringType),
                                 description="Organizations for org-level aggregated queries",
                             ),

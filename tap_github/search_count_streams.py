@@ -109,7 +109,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
                 repo_breakdown = instance_config.get("repo_breakdown", False)
                 
                 # Process org-level searches
-                for org in instance_config.get("org_level", []):
+                for org in instance_config.get("org", []):
                     query = self._build_search_query(org, start_date, end_date, self.stream_type)
                     partitions.append({
                         "search_name": f"{org}_{self.stream_type}_{month}",
