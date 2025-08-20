@@ -301,7 +301,8 @@ class TapGitHub(Tap):
     def discover_streams(self) -> list[Stream]:
         streams = []
         
-        if self.config and "search_streams" in self.config:
+        # Use configurable streams for both search_streams and search_scope
+        if self.config and ("search_streams" in self.config or "search_scope" in self.config):
             from tap_github.search_count_streams import create_configurable_streams
             return create_configurable_streams(self)
         
