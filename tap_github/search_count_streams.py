@@ -140,89 +140,27 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         return partitions
 
     def _get_months_to_process(self) -> list[str]:
-        """Get months to process based on backfill or sliding window config."""
+        """Get months to process based on backfill configuration."""
         cfg = self.config
         
         # Check for backfill configuration
         if cfg.get("backfill_start_month"):
             start = cfg["backfill_start_month"]
             end = cfg.get("backfill_end_month") or self._get_last_complete_month()
-            batch_size = int(cfg.get("backfill_batch_months", 6))
             
-            # Get completed months by checking partition state
-            completed_months = self._get_completed_months_from_partitions()
+            self.logger.info(f"Backfill config - start: {start}, end: {end}")
             
-            self.logger.info(f"Backfill config - start: {start}, end: {end}, batch_size: {batch_size}")
-            self.logger.info(f"State - completed_months: {completed_months}")
-            
-            # Get all months in range, filter out completed ones
+            # Get all months in range
             all_months = self._get_month_range(start, end)
-            remaining_months = [m for m in all_months if m not in completed_months]
             
-            self.logger.info(f"Remaining months: {remaining_months}")
-            
-            if not remaining_months:
-                # Backfill complete, switch to sliding window
-                self.logger.info("Backfill complete, switching to sliding window mode")
-                return self._get_sliding_window_months()
-            
-            # Return batch of remaining months
-            batch = remaining_months[:batch_size]
-            self.logger.info(f"Processing {len(batch)} months in backfill: {batch}")
-            return batch
+            self.logger.info(f"Processing {len(all_months)} months in backfill: {all_months}")
+            return all_months
         
-        # Default to sliding window
-        return self._get_sliding_window_months()
+        # No backfill config, return empty list
+        self.logger.info("No backfill configuration found, skipping processing")
+        return []
 
-    def _get_completed_months_from_partitions(self) -> list[str]:
-        """Get completed months by analyzing partition state."""
-        # Check which months have completed partitions in the Singer SDK state
-        stream_state = self.stream_state
-        partitions = stream_state.get("partitions", [])
-        
-        completed_months = set()
-        
-        # A month is considered completed if all its partitions have starting_replication_value
-        month_partition_counts = {}
-        month_completed_counts = {}
-        
-        for partition in partitions:
-            context = partition.get("context", {})
-            month = context.get("month")
-            if month:
-                month_partition_counts[month] = month_partition_counts.get(month, 0) + 1
-                if "starting_replication_value" in partition:
-                    month_completed_counts[month] = month_completed_counts.get(month, 0) + 1
-        
-        # Check which months have all partitions completed
-        for month, total_partitions in month_partition_counts.items():
-            completed_partitions = month_completed_counts.get(month, 0)
-            if completed_partitions == total_partitions:
-                completed_months.add(month)
-        
-        return sorted(list(completed_months))
 
-    def _get_sliding_window_months(self) -> list[str]:
-        """Get recent months for sliding window processing."""
-        lookback = int(self.config.get("lookback_months", 2))
-        months = []
-        today = date.today().replace(day=1)
-        
-        for i in range(lookback + 1):
-            if i == 0:
-                month_date = today
-            else:
-                # Go back i months
-                month_date = today
-                for _ in range(i):
-                    if month_date.month == 1:
-                        month_date = month_date.replace(year=month_date.year - 1, month=12)
-                    else:
-                        month_date = month_date.replace(month=month_date.month - 1)
-            
-            months.append(f"{month_date.year}-{month_date.month:02d}")
-        
-        return months
 
     def _get_month_range(self, start_month: str, end_month: str) -> list[str]:
         """Generate list of months between start and end (inclusive)."""
@@ -510,24 +448,26 @@ def validate_stream_config(stream_config: dict) -> list[str]:
 
 def create_configurable_streams(tap) -> list:
     streams = []
+    
+    # Handle search_streams configuration (new format)
     stream_definitions = tap.config.get("search_streams", [])
     
-    if not stream_definitions:
-        tap.logger.warning("No search_streams defined in config")
-        return []
+    if stream_definitions:
+        for stream_config in stream_definitions:
+            errors = validate_stream_config(stream_config)
+            if errors:
+                tap.logger.warning(f"Invalid stream config '{stream_config.get('name', 'unknown')}': {'; '.join(errors)}")
+                continue
+            
+            try:
+                stream = ConfigurableSearchCountStream(stream_config, tap)
+                streams.append(stream)
+                tap.logger.info(f"Created search stream: {stream.name}")
+            except Exception as e:
+                tap.logger.warning(f"Failed to create stream '{stream_config.get('name', 'unknown')}': {e}")
     
-    for stream_config in stream_definitions:
-        errors = validate_stream_config(stream_config)
-        if errors:
-            tap.logger.warning(f"Invalid stream config '{stream_config.get('name', 'unknown')}': {'; '.join(errors)}")
-            continue
-        
-        try:
-            stream = ConfigurableSearchCountStream(stream_config, tap)
-            streams.append(stream)
-            tap.logger.info(f"Created search stream: {stream.name}")
-        except Exception as e:
-            tap.logger.warning(f"Failed to create stream '{stream_config.get('name', 'unknown')}': {e}")
+    if not streams:
+        tap.logger.warning("No search streams created from configuration")
     
     return streams
 
