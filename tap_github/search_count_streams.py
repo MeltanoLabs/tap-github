@@ -141,7 +141,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         return partitions
 
     def _get_months_to_process(self) -> list[str]:
-        """Get months to process based on backfill configuration."""
+        """Get months to process based on backfill configuration and incremental state."""
         cfg = self.config
         
         # Check for backfill configuration
@@ -154,7 +154,17 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             # Get all months in range
             all_months = self._get_month_range(start, end)
             
-            self.logger.info(f"Processing {len(all_months)} months in backfill: {all_months}")
+            # For incremental replication, check if we have a starting bookmark
+            if self.replication_method == "INCREMENTAL":
+                # Get the minimum starting month from state across all partitions
+                starting_month = self._get_starting_month_from_state()
+                if starting_month:
+                    # Only process months after the bookmark
+                    filtered_months = [m for m in all_months if m > starting_month]
+                    self.logger.info(f"Incremental: Starting after {starting_month}, processing {len(filtered_months)} months: {filtered_months}")
+                    return filtered_months
+            
+            self.logger.info(f"Full backfill: Processing {len(all_months)} months: {all_months}")
             return all_months
         
         # No backfill config, return empty list
@@ -187,6 +197,23 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         else:
             last_month = today.replace(day=1) - timedelta(days=1)
         return f"{last_month.year}-{last_month.month:02d}"
+    
+    def _get_starting_month_from_state(self) -> str | None:
+        """Get the minimum starting month from incremental state across all partitions."""
+        try:
+            # Get all partition contexts for this stream
+            from singer_sdk.helpers.types import Context
+            
+            # Get the starting replication key value (this will be the max bookmark)
+            starting_value = self.get_starting_replication_key_value(None)
+            if starting_value:
+                self.logger.info(f"Found global starting replication value: {starting_value}")
+                return starting_value
+            
+            return None
+        except Exception as e:
+            self.logger.warning(f"Could not determine starting month from state: {e}")
+            return None
 
     def _build_search_query(self, org: str, start_date: str, end_date: str, kind: str) -> str:
         """Build GitHub search query for an organization."""
