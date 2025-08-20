@@ -69,15 +69,14 @@ class GitHubRestStream(RESTStream):
     def _get_token_for_url(self, url):
         """Get the correct auth token for a given URL."""
         search_scope = self.config.get("search_scope", {})
-        for stream_type, stream_config in search_scope.items():
-            if isinstance(stream_config, dict) and "instances" in stream_config:
-                instances = stream_config.get("instances", [])
-                for instance in instances:
-                    api_base = instance.get("api_url_base", "")
-                    if api_base and api_base in url:
-                        token = instance.get("auth_token")
-                        if token:
-                            return token
+        instances = search_scope.get("instances", [])
+        
+        for instance in instances:
+            api_base = instance.get("api_url_base", "")
+            if api_base and api_base in url:
+                token = instance.get("auth_token")
+                if token:
+                    return token
         
         return None
 
