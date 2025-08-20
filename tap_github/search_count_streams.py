@@ -153,15 +153,23 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             stream_state = self.get_context_state({}) or {}
             completed_months = stream_state.get("completed_months", [])
             
+            self.logger.info(f"Backfill config - start: {start}, end: {end}, batch_size: {batch_size}")
+            self.logger.info(f"State - completed_months: {completed_months}")
+            
             # Get all months in range, filter out completed ones
             all_months = self._get_month_range(start, end)
             remaining_months = [m for m in all_months if m not in completed_months]
+            
+            self.logger.info(f"Remaining months: {remaining_months}")
+            
+            if remaining_months and stream_state.get("backfill_done"):
+                self.logger.info("Found remaining months but backfill was marked done - resetting to continue")
+                del stream_state["backfill_done"]
             
             if not remaining_months:
                 # Backfill complete, switch to sliding window
                 self.logger.info("Backfill complete, switching to sliding window mode")
                 stream_state["backfill_done"] = True
-                self.set_context_state({}, stream_state)
                 return self._get_sliding_window_months()
             
             # Return batch of remaining months
@@ -288,6 +296,20 @@ class SearchCountStreamBase(GitHubGraphqlStream):
                     self.count_field: total_count,
                     "updated_at": now,
                 }
+            
+            # Mark this month as completed after processing the partition
+            self._mark_month_completed(month)
+
+    def _mark_month_completed(self, month: str) -> None:
+        """Mark a month as completed in the stream state."""
+        stream_state = self.get_context_state({})
+        completed_months = stream_state.get("completed_months", [])
+        
+        if month not in completed_months:
+            completed_months.append(month)
+            completed_months.sort()
+            stream_state["completed_months"] = completed_months
+            self.logger.info(f"Marked month {month} as completed. Total completed: {completed_months}")
 
     def _search_with_repo_breakdown(self, query: str, api_url_base: str) -> dict[str, int]:
         """Search and return counts broken down by repository."""
