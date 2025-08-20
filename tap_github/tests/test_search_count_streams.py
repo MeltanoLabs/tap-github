@@ -269,3 +269,85 @@ class TestStreamClassProperties:
         assert IssueSearchCountStream.count_field == "issue_count"
         assert PRSearchCountStream.count_field == "pr_count"
         assert BugSearchCountStream.count_field == "bug_count"
+
+
+class TestConfigurableStreams:
+    """Test configurable search count streams."""
+
+    def test_configurable_stream_creation(self):
+        """Test creating a configurable stream from config."""
+        from tap_github.search_count_streams import ConfigurableSearchCountStream
+        
+        mock_tap = Mock()
+        mock_tap.config = {}
+        
+        stream_config = {
+            "name": "security_issues",
+            "query_template": "org:{org} type:issue label:security created:{start}..{end}",
+            "count_field": "security_issue_count",
+            "description": "Security issues",
+            "stream_type": "security"
+        }
+        
+        stream = ConfigurableSearchCountStream(stream_config, mock_tap)
+        
+        assert stream.name == "security_issues_search_counts"
+        assert stream.count_field == "security_issue_count"
+        assert stream.stream_type == "security"
+        
+        # Test query generation
+        query = stream._build_search_query("WordPress", "2025-01-01", "2025-01-31", "security")
+        assert query == "org:WordPress type:issue label:security created:2025-01-01..2025-01-31"
+
+    def test_stream_validation(self):
+        """Test stream configuration validation."""
+        from tap_github.search_count_streams import validate_stream_config
+        
+        # Valid config
+        valid_config = {
+            "name": "test_stream",
+            "query_template": "org:{org} type:issue created:{start}..{end}",
+            "count_field": "test_count"
+        }
+        errors = validate_stream_config(valid_config)
+        assert errors == []
+        
+        # Missing required fields
+        invalid_config = {"name": "test"}
+        errors = validate_stream_config(invalid_config)
+        assert len(errors) >= 2  # Missing query_template and count_field
+        
+        # Missing placeholders
+        missing_placeholder_config = {
+            "name": "test",
+            "query_template": "org:{org} type:issue",  # Missing {start} and {end}
+            "count_field": "count"
+        }
+        errors = validate_stream_config(missing_placeholder_config)
+        assert any("placeholder" in error for error in errors)
+
+    def test_factory_function(self):
+        """Test the create_configurable_streams factory."""
+        from tap_github.search_count_streams import create_configurable_streams
+        
+        mock_tap = Mock()
+        mock_tap.config = {
+            "custom_search_streams": [
+                {
+                    "name": "security",
+                    "query_template": "org:{org} type:issue label:security created:{start}..{end}",
+                    "count_field": "security_count"
+                },
+                {
+                    "name": "invalid_stream"  # Missing required fields
+                }
+            ]
+        }
+        mock_tap.logger = Mock()
+        
+        streams = create_configurable_streams(mock_tap)
+        
+        # Should create 1 valid stream and log warning for invalid one
+        assert len(streams) == 1
+        assert streams[0].name == "security_search_counts"
+        mock_tap.logger.warning.assert_called()

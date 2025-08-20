@@ -272,6 +272,26 @@ class TapGitHub(Tap):
             default=4,
             description="Maximum number of concurrent API requests per token",
         ),
+        th.Property(
+            "custom_search_streams",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("name", th.StringType, required=True),
+                    th.Property("query_template", th.StringType, required=True),
+                    th.Property("count_field", th.StringType, required=True),
+                    th.Property("description", th.StringType),
+                    th.Property("stream_type", th.StringType, default="custom"),
+                )
+            ),
+            description=(
+                "Array of custom search count streams:\n"
+                '"name" - unique stream name (will be suffixed with _search_counts)\n'
+                '"query_template" - GitHub search query with placeholders {org}, {start}, {end}\n'
+                '"count_field" - name of the count field in output (e.g., security_issue_count)\n'
+                '"description" - optional description for the stream\n'
+                '"stream_type" - optional type identifier (defaults to "custom")'
+            ),
+        ),
     ).to_dict()
 
     def discover_streams(self) -> list[Stream]:
@@ -294,6 +314,12 @@ class TapGitHub(Tap):
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
+
+        # Add configurable search count streams if search_scope is present
+        if self.config and "search_scope" in self.config:
+            from tap_github.search_count_streams import create_configurable_streams
+            configurable_streams = create_configurable_streams(self)
+            streams += configurable_streams
 
         if not streams:
             raise ValueError("No valid streams found.")
