@@ -190,6 +190,24 @@ class TapGitHub(Tap):
             ),
         ),
         th.Property(
+            "search_streams",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("name", th.StringType, required=True),
+                    th.Property("query_template", th.StringType, required=True),
+                    th.Property("count_field", th.StringType, required=True),
+                    th.Property("description", th.StringType),
+                )
+            ),
+            description=(
+                "Array of search stream definitions:\n"
+                '"name" - unique stream name (will be suffixed with _search_counts)\n'
+                '"query_template" - GitHub search query with placeholders {org}, {start}, {end}\n'
+                '"count_field" - name of the count field in output (e.g., issue_count)\n'
+                '"description" - optional description for the stream'
+            ),
+        ),
+        th.Property(
             "search_scope",
             th.ObjectType(
                 th.Property(
@@ -200,6 +218,11 @@ class TapGitHub(Tap):
                             th.Property("api_url_base", th.StringType, required=True),
                             th.Property("auth_token", th.StringType),
                             th.Property(
+                                "streams",
+                                th.ArrayType(th.StringType),
+                                description="List of stream names this instance supports",
+                            ),
+                            th.Property(
                                 "org",
                                 th.ArrayType(th.StringType),
                                 description="Organizations for org-level aggregated queries",
@@ -209,18 +232,19 @@ class TapGitHub(Tap):
                                 th.ArrayType(th.StringType),
                                 description="List of specific repositories (format: org/repo) for repo-level queries",
                             ),
+                            th.Property("repo_breakdown", th.BooleanType, default=False),
                             th.Property("max_partitions", th.IntegerType, default=5000),
                             th.Property("partition_warning_threshold", th.IntegerType, default=2000),
                             th.Property("enforce_partition_limit", th.BooleanType, default=False),
                             th.Property("repo_discovery_cache_ttl", th.IntegerType, default=60),
                         )
                     ),
-                    description="List of GitHub instances with their specific org/repo configurations",
+                    description="List of GitHub instances with their specific org/repo configurations and supported streams",
                 ),
             ),
             description=(
                 "Search scope configuration for multi-instance GitHub environments:\n"
-                '"instances" - array of GitHub instances with instance->org->repo mapping'
+                '"instances" - array of GitHub instances with instance->org->repo mapping and stream support'
             ),
         ),
         # Performance and validation configuration for search count streams
@@ -272,54 +296,29 @@ class TapGitHub(Tap):
             default=4,
             description="Maximum number of concurrent API requests per token",
         ),
-        th.Property(
-            "custom_search_streams",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("name", th.StringType, required=True),
-                    th.Property("query_template", th.StringType, required=True),
-                    th.Property("count_field", th.StringType, required=True),
-                    th.Property("description", th.StringType),
-                    th.Property("stream_type", th.StringType, default="custom"),
-                )
-            ),
-            description=(
-                "Array of custom search count streams:\n"
-                '"name" - unique stream name (will be suffixed with _search_counts)\n'
-                '"query_template" - GitHub search query with placeholders {org}, {start}, {end}\n'
-                '"count_field" - name of the count field in output (e.g., security_issue_count)\n'
-                '"description" - optional description for the stream\n'
-                '"stream_type" - optional type identifier (defaults to "custom")'
-            ),
-        ),
     ).to_dict()
 
     def discover_streams(self) -> list[Stream]:
-        """Return a list of discovered streams for each query."""
-
-        # If the config is empty, assume we are running --help or --capabilities.
-        if (
-            self.config
-            and len(Streams.all_valid_queries().intersection(self.config)) != 1
-        ):
+        streams = []
+        
+        if self.config and "search_streams" in self.config:
+            from tap_github.search_count_streams import create_configurable_streams
+            return create_configurable_streams(self)
+        
+        if not self.config:
+            return streams
+            
+        if len(Streams.all_valid_queries().intersection(self.config)) != 1:
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
                 f"{Streams.all_valid_queries()}, provided config: {self.config}"
             )
-        streams = []
+            
         for stream_type in Streams:
-            if (not self.config) or len(
-                stream_type.valid_queries.intersection(self.config)
-            ) > 0:
+            if len(stream_type.valid_queries.intersection(self.config)) > 0:
                 streams += [
                     StreamClass(tap=self) for StreamClass in stream_type.streams
                 ]
-
-        # Add configurable search count streams if search_scope is present
-        if self.config and "search_scope" in self.config:
-            from tap_github.search_count_streams import create_configurable_streams
-            configurable_streams = create_configurable_streams(self)
-            streams += configurable_streams
 
         if not streams:
             raise ValueError("No valid streams found.")

@@ -372,46 +372,18 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         return dict(repo_counts)
 
 
-class IssueSearchCountStream(SearchCountStreamBase):
-    """Stream for GitHub issue search counts."""
-    
-    name = "issue_search_counts"
-    stream_type = "issue"
-    count_field = "issue_count"
-
-
-class PRSearchCountStream(SearchCountStreamBase):
-    """Stream for GitHub PR search counts."""
-    
-    name = "pr_search_counts"
-    stream_type = "pr"
-    count_field = "pr_count"
-
-
-class BugSearchCountStream(SearchCountStreamBase):
-    """Stream for GitHub bug search counts."""
-    
-    name = "bug_search_counts"
-    stream_type = "bug"
-    count_field = "bug_count"
-
-
 class ConfigurableSearchCountStream(SearchCountStreamBase):
-    """Configurable search count stream created from config."""
     
     def __init__(self, stream_config: dict, tap):
-        """Initialize configurable stream from config."""
         self.stream_config = stream_config
         self.query_template = stream_config["query_template"]
         self.count_field_name = stream_config["count_field"]
-        self.stream_description = stream_config.get("description", f"Custom search stream: {stream_config['name']}")
+        self.stream_description = stream_config.get("description", f"Search stream: {stream_config['name']}")
         
-        # Set class attributes from config
         self.name = f"{stream_config['name']}_search_counts"
         self.stream_type = stream_config.get("stream_type", "custom")
         self.count_field = self.count_field_name
         
-        # Initialize with dynamic schema
         super().__init__(
             tap=tap,
             name=self.name,
@@ -419,7 +391,6 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
         )
     
     def get_configurable_schema(self) -> dict:
-        """Return schema with custom count field."""
         return th.PropertiesList(
             th.Property("search_name", th.StringType, required=True),
             th.Property("search_query", th.StringType, required=True),
@@ -432,7 +403,6 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
         ).to_dict()
     
     def _build_search_query(self, org: str, start_date: str, end_date: str, stream_type: str) -> str:
-        """Build search query from template."""
         return self.query_template.format(
             org=org,
             start=start_date,
@@ -441,23 +411,16 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
 
     @property
     def partitions(self) -> list[Context]:
-        """Generate partitions using existing search_scope instances."""
         search_scope = self.config.get("search_scope", {})
+        instances = search_scope.get("instances", [])
         
-        # Use any available stream instances from search_scope
-        # Try pr_streams first, then issue_streams as fallback
-        stream_instances = []
-        for stream_type in ["pr_streams", "issue_streams"]:
-            if stream_type in search_scope:
-                stream_instances = search_scope[stream_type].get("instances", [])
-                break
-        
-        if not stream_instances:
+        if not instances:
             self.logger.warning(f"No instances found in search_scope for {self.name}")
             return []
 
         partitions = []
         months = self._get_months_to_process()
+        stream_name = self.stream_config['name']
         
         for month in months:
             year, month_num = map(int, month.split("-"))
@@ -465,50 +428,49 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
             last_day = calendar.monthrange(year, month_num)[1]
             end_date = f"{year:04d}-{month_num:02d}-{last_day:02d}"
 
-            for instance_config in stream_instances:
+            for instance_config in instances:
+                supported_streams = instance_config.get("streams", [])
+                if supported_streams and stream_name not in supported_streams:
+                    continue
+                    
                 instance_name = instance_config.get("instance", "github.com")
                 api_url_base = instance_config.get("api_url_base", "https://api.github.com")
+                repo_breakdown = instance_config.get("repo_breakdown", False)
                 
-                # Process org-level searches using the configured orgs
                 for org in instance_config.get("org", []):
                     query = self._build_search_query(org, start_date, end_date, self.stream_type)
                     partitions.append({
-                        "search_name": f"{org}_{self.stream_config['name']}_{month}",
+                        "search_name": f"{org}_{stream_name}_{month}",
                         "search_query": query,
                         "source": instance_name,
                         "api_url_base": api_url_base,
                         "org": org,
                         "month": month,
                         "kind": self.stream_type,
-                        "repo_breakdown": False  # Custom streams don't support repo breakdown yet
+                        "repo_breakdown": repo_breakdown
                     })
 
         return partitions
 
 
 def validate_stream_config(stream_config: dict) -> list[str]:
-    """Validate a custom stream configuration and return any errors."""
     errors = []
     
-    # Required fields
     required_fields = ["name", "query_template", "count_field"]
     for field in required_fields:
         if not stream_config.get(field):
             errors.append(f"Missing required field: {field}")
     
-    # Validate name format
     name = stream_config.get("name", "")
     if name and not name.replace("_", "").replace("-", "").isalnum():
         errors.append(f"Stream name '{name}' must contain only alphanumeric characters, underscores, and hyphens")
     
-    # Validate query template has required placeholders
     query_template = stream_config.get("query_template", "")
     required_placeholders = ["{org}", "{start}", "{end}"]
     for placeholder in required_placeholders:
         if placeholder not in query_template:
             errors.append(f"Query template must contain {placeholder} placeholder")
     
-    # Validate count field format
     count_field = stream_config.get("count_field", "")
     if count_field and not count_field.replace("_", "").isalnum():
         errors.append(f"Count field '{count_field}' must contain only alphanumeric characters and underscores")
@@ -517,23 +479,25 @@ def validate_stream_config(stream_config: dict) -> list[str]:
 
 
 def create_configurable_streams(tap) -> list:
-    """Create configurable search count streams from tap config."""
-    custom_streams = tap.config.get("custom_search_streams", [])
     streams = []
+    stream_definitions = tap.config.get("search_streams", [])
     
-    for stream_config in custom_streams:
-        # Validate configuration
+    if not stream_definitions:
+        tap.logger.warning("No search_streams defined in config")
+        return []
+    
+    for stream_config in stream_definitions:
         errors = validate_stream_config(stream_config)
         if errors:
-            tap.logger.warning(f"Invalid custom stream config '{stream_config.get('name', 'unknown')}': {'; '.join(errors)}")
+            tap.logger.warning(f"Invalid stream config '{stream_config.get('name', 'unknown')}': {'; '.join(errors)}")
             continue
         
         try:
             stream = ConfigurableSearchCountStream(stream_config, tap)
             streams.append(stream)
-            tap.logger.info(f"Created custom search stream: {stream.name}")
+            tap.logger.info(f"Created search stream: {stream.name}")
         except Exception as e:
-            tap.logger.warning(f"Failed to create custom stream '{stream_config.get('name', 'unknown')}': {e}")
+            tap.logger.warning(f"Failed to create stream '{stream_config.get('name', 'unknown')}': {e}")
     
     return streams
 
