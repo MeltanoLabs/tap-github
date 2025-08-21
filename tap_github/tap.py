@@ -133,50 +133,7 @@ class TapGitHub(Tap):
             ),
             description="Options which change the behaviour of a specific stream.",
         ),
-        th.Property(
-            "search_count_queries",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("name", th.StringType, required=True),
-                    th.Property("query", th.StringType, required=True),
-                    th.Property(
-                        "type",
-                        th.StringType,
-                        allowed_values=["issue", "pr"],
-                        default="issue",
-                    ),
-                    th.Property("month", th.StringType),
-                )
-            ),
-            description=(
-                "Array of search count query objects for statistics collection:\n"
-                '"name" - human readable identifier\n'
-                '"query" - GitHub search syntax (e.g., "org:Automattic type:issue state:open")\n'
-                '"type" - either "issue" or "pr"\n'
-                '"month" - optional month filter in YYYY-MM format'
-            ),
-        ),
-        th.Property(
-            "github_instances",
-            th.ArrayType(
-                th.ObjectType(
-                    th.Property("name", th.StringType, required=True),
-                    th.Property("api_url_base", th.StringType, required=True),
-                    th.Property("auth_token", th.StringType, required=True),
-                )
-            ),
-            description=(
-                "Array of GitHub instance configurations for multi-instance support:\n"
-                '"name" - instance identifier (e.g., "github.com", "github.example.com")\n'
-                '"api_url_base" - base API URL (e.g., "https://api.github.com")\n'
-                '"auth_token" - authentication token for this instance'
-            ),
-        ),
-        th.Property(
-            "search_orgs",
-            th.ArrayType(th.StringType),
-            description="List of GitHub organization names for programmatic search count generation",
-        ),
+
         th.Property(
             "date_range",
             th.ObjectType(
@@ -236,7 +193,6 @@ class TapGitHub(Tap):
                             th.Property("max_partitions", th.IntegerType, default=5000),
                             th.Property("partition_warning_threshold", th.IntegerType, default=2000),
                             th.Property("enforce_partition_limit", th.BooleanType, default=False),
-                            th.Property("repo_discovery_cache_ttl", th.IntegerType, default=60),
                         )
                     ),
                     description="List of GitHub instances with their specific org/repo configurations and supported streams",
@@ -248,18 +204,6 @@ class TapGitHub(Tap):
             ),
         ),
         # Performance and validation configuration for search count streams
-        th.Property(
-            "enforce_lookback_limit",
-            th.BooleanType,
-            default=False,
-            description="Enforce maximum lookback period for date ranges (default: warn only)",
-        ),
-        th.Property(
-            "max_lookback_years",
-            th.IntegerType,
-            default=1,
-            description="Maximum lookback period in years for date range validation",
-        ),
         th.Property(
             "max_partitions",
             th.IntegerType,
@@ -278,12 +222,7 @@ class TapGitHub(Tap):
             default=False,
             description="Enforce maximum partition limit (disabled by default for performance)",
         ),
-        th.Property(
-            "repo_discovery_cache_ttl",
-            th.IntegerType,
-            default=60,
-            description="Cache TTL in minutes for repository discovery results",
-        ),
+
         th.Property(
             "batch_query_size",
             th.IntegerType,
