@@ -260,22 +260,13 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         personal_tokens: set[str] = set()
         if "auth_token" in self._config:
             personal_tokens.add(self._config["auth_token"])
-        if "additional_auth_tokens" in self._config:
-            personal_tokens = personal_tokens.union(
-                self._config["additional_auth_tokens"]
-            )
         else:
-            # Accept multiple tokens using environment variables GITHUB_TOKEN*
-            env_tokens = {
-                value
-                for key, value in env_dict.items()
-                if key.startswith("GITHUB_TOKEN")
-            }
-            if len(env_tokens) > 0:
+            # Accept token using environment variable GITHUB_TOKEN
+            if "GITHUB_TOKEN" in env_dict:
+                personal_tokens.add(env_dict["GITHUB_TOKEN"])
                 self.logger.info(
-                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."  # noqa: E501
+                    "Found 'GITHUB_TOKEN' environment variable for authentication."
                 )
-                personal_tokens = personal_tokens.union(env_tokens)
 
         personal_token_managers: list[TokenManager] = []
         for token in personal_tokens:
@@ -337,7 +328,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self._config: dict[str, Any] = dict(stream.config)
         self.token_managers = self.prepare_tokens()
         self.active_token: TokenManager | None = (
-            choice(self.token_managers) if self.token_managers else None
+            self.token_managers[0] if self.token_managers else None
         )
 
     def get_next_auth_token(self) -> None:
