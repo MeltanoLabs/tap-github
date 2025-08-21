@@ -47,7 +47,11 @@ class TapGitHub(Tap):
             th.StringType,
             description="GitHub token to authenticate with.",
         ),
-
+        th.Property(
+            "additional_auth_tokens",
+            th.ArrayType(th.StringType),
+            description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",  # noqa: E501
+        ),
         th.Property(
             "auth_app_keys",
             th.ArrayType(th.StringType),
@@ -131,18 +135,6 @@ class TapGitHub(Tap):
         ),
 
         th.Property(
-            "date_range",
-            th.ObjectType(
-                th.Property("start", th.StringType, required=True),
-                th.Property("end", th.StringType, required=False),
-            ),
-            description=(
-                "Date range for programmatic query generation:\n"
-                '"start" - start date in YYYY-MM-DD format\n'
-                '"end" - end date in YYYY-MM-DD format (optional, defaults to last complete month)'
-            ),
-        ),
-        th.Property(
             "search_streams",
             th.ArrayType(
                 th.ObjectType(
@@ -219,12 +211,7 @@ class TapGitHub(Tap):
             description="Enforce maximum partition limit (disabled by default for performance)",
         ),
 
-        th.Property(
-            "batch_query_size",
-            th.IntegerType,
-            default=10,
-            description="Number of search queries to batch in a single GraphQL request for performance",
-        ),
+
         th.Property(
             "max_concurrent_requests",
             th.IntegerType,
