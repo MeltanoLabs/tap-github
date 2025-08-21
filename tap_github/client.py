@@ -15,7 +15,7 @@ from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.streams import GraphQLStream, RESTStream
 
-from tap_github.authenticator import GitHubTokenAuthenticator
+from tap_github.authenticator import GitHubTokenAuthenticator, MultiInstanceGitHubAuthenticator
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -45,45 +45,16 @@ class GitHubRestStream(RESTStream):
     # Set to True to use cursor-based pagination instead of page-based pagination
     use_cursor_pagination = False
 
-    _authenticator: GitHubTokenAuthenticator | None = None
-
-    def build_prepared_request(self, *args, **kwargs):
-        """Override to use instance-specific auth token."""
-        request = super().build_prepared_request(*args, **kwargs)
-        
-        # Extract URL from args or kwargs
-        url = None
-        if len(args) >= 2:
-            url = args[1]  # Second positional argument
-        elif 'url' in kwargs:
-            url = kwargs['url']
-        
-        # Get the right token for this URL
-        if url:
-            token = self._get_token_for_url(url)
-            if token:
-                request.headers["Authorization"] = f"token {token}"
-                
-        return request
-
-    def _get_token_for_url(self, url):
-        """Get the correct auth token for a given URL."""
-        search_scope = self.config.get("search_scope", {})
-        instances = search_scope.get("instances", [])
-        
-        for instance in instances:
-            api_base = instance.get("api_url_base", "")
-            if api_base and api_base in url:
-                token = instance.get("auth_token")
-                if token:
-                    return token
-        
-        return None
+    _authenticator: GitHubTokenAuthenticator | MultiInstanceGitHubAuthenticator | None = None
 
     @property
-    def authenticator(self) -> GitHubTokenAuthenticator:
+    def authenticator(self) -> GitHubTokenAuthenticator | MultiInstanceGitHubAuthenticator:
         if self._authenticator is None:
-            self._authenticator = GitHubTokenAuthenticator(stream=self)
+            # Use multi-instance authenticator if search_scope is configured
+            if self.config.get("search_scope", {}).get("instances"):
+                self._authenticator = MultiInstanceGitHubAuthenticator(stream=self)
+            else:
+                self._authenticator = GitHubTokenAuthenticator(stream=self)
         return self._authenticator
 
     @property

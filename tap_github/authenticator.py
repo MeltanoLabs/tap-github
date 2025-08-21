@@ -381,3 +381,42 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 "For higher rate limits, please specify `auth_token` in config."
             )
         return request
+
+
+class MultiInstanceGitHubAuthenticator(GitHubTokenAuthenticator):
+    """Authenticator that handles multiple GitHub instances with different tokens."""
+    
+    def __init__(self, stream: RESTStream) -> None:
+        """Initialize with stream and prepare instance-specific tokens."""
+        super().__init__(stream=stream)
+        self._instance_tokens = self._prepare_instance_tokens()
+    
+    def _prepare_instance_tokens(self) -> dict[str, str]:
+        """Prepare a mapping of API base URLs to their auth tokens."""
+        instance_tokens = {}
+        search_scope = self._config.get("search_scope", {})
+        instances = search_scope.get("instances", [])
+        
+        for instance in instances:
+            api_base = instance.get("api_url_base", "")
+            auth_token = instance.get("auth_token")
+            if api_base and auth_token:
+                instance_tokens[api_base] = auth_token
+        
+        return instance_tokens
+    
+    def authenticate_request(
+        self,
+        request: requests.PreparedRequest,
+    ) -> requests.PreparedRequest:
+        """Authenticate request with instance-specific token if available."""
+        # Try to find instance-specific token first
+        url = request.url
+        if url:
+            for api_base, token in self._instance_tokens.items():
+                if api_base in url:
+                    request.headers["Authorization"] = f"token {token}"
+                    return request
+        
+        # Fall back to standard authentication
+        return super().authenticate_request(request)
