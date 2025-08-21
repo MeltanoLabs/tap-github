@@ -220,7 +220,15 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         
         return months
 
-    def _get_last_complete_month(self) -> date:
+    def _get_last_complete_month(self) -> str:
+        """Get the last complete month as YYYY-MM string (always exclude current month)."""
+        today = date.today()
+        if today.month == 1:
+            return f"{today.year - 1}-12"
+        else:
+            return f"{today.year}-{today.month - 1:02d}"
+    
+    def _get_last_complete_month_date(self) -> date:
         """Get the last complete month as a date object (always exclude current month)."""
         today = date.today()
         if today.month == 1:
@@ -252,7 +260,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
     def _should_include_month(self, month_str: str, bookmark_date: date | None) -> bool:
         """Simple logic: include months after bookmark up to last complete month."""
         month_date = self._month_to_date(month_str)
-        last_complete = self._get_last_complete_month()
+        last_complete = self._get_last_complete_month_date()
         
         # Never process future or current months
         if month_date > last_complete:
