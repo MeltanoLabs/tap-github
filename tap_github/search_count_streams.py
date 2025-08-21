@@ -76,7 +76,7 @@ class SearchCountStreamBase(GitHubGraphqlStream):
 
     @property
     def partitions(self) -> list[dict]:
-        """Generate partitions using existing search_scope configuration."""
+        """Generate filtered partitions using incremental state and last complete month logic."""
         cfg = self.config
         
         # Get months to process (backfill or sliding window)
@@ -92,6 +92,8 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         # Determine which stream config to use based on stream type
         if self.stream_type == "issue":
             stream_config = search_scope.get("issue_streams", {})
+        elif self.stream_type == "bug":
+            stream_config = search_scope.get("issue_streams", {})
         elif self.stream_type == "pr":
             stream_config = search_scope.get("pr_streams", {})
         else:
@@ -100,6 +102,30 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         
         # Get instances from stream config
         stream_instances = stream_config.get("instances", [])
+        
+        # Collect unique org contexts for state lookup
+        org_contexts = set()
+        for instance_config in stream_instances:
+            instance_name = instance_config.get("instance", "github.com")
+            for org in instance_config.get("org", []):
+                org_contexts.add((instance_name, org))
+            for repo in instance_config.get("repo_level", []):
+                org = repo.split("/")[0]
+                org_contexts.add((instance_name, org))
+        
+        # Pre-calculate bookmark dates per org context
+        org_bookmarks = {}
+        for instance_name, org in org_contexts:
+            context = {"source": instance_name, "org": org}
+            bookmark_str = self._get_bookmark_for_context(context)
+            
+            if bookmark_str:
+                bookmark_date = self._month_to_date(bookmark_str)
+                org_bookmarks[instance_name, org] = bookmark_date
+                self.logger.debug(f"Org {org} bookmark={bookmark_str}")
+            else:
+                org_bookmarks[instance_name, org] = None
+                self.logger.debug(f"Org {org} has no bookmark, will process all months")
         
         for month in months:
             year, month_num = map(int, month.split("-"))
@@ -114,33 +140,45 @@ class SearchCountStreamBase(GitHubGraphqlStream):
                 
                 # Process org-level searches
                 for org in instance_config.get("org", []):
-                    query = self._build_search_query(org, start_date, end_date, self.stream_type)
-                    partitions.append({
-                        "search_name": f"{org}_{self.stream_type}_{month}",
-                        "search_query": query,
-                        "source": instance_name,
-                        "api_url_base": api_url_base,
-                        "org": org,
-                        "month": month,
-                        "kind": self.stream_type,
-                        "repo_breakdown": repo_breakdown
-                    })
+                    # Check if this month should be included
+                    bookmark_date = org_bookmarks.get((instance_name, org))
+                    if self._should_include_month(month, bookmark_date):
+                        query = self._build_search_query(org, start_date, end_date, self.stream_type)
+                        partitions.append({
+                            "search_name": f"{org}_{self.stream_type}_{month}",
+                            "search_query": query,
+                            "source": instance_name,
+                            "api_url_base": api_url_base,
+                            "org": org,
+                            "month": month,
+                            "kind": self.stream_type,
+                            "repo_breakdown": repo_breakdown
+                        })
+                    else:
+                        self.logger.debug(f"Filtered out partition org={org} month={month}")
                 
                 # Process repo-level searches
                 for repo in instance_config.get("repo_level", []):
                     org = repo.split("/")[0]
-                    query = self._build_repo_search_query(repo, start_date, end_date, self.stream_type)
-                    partitions.append({
-                        "search_name": f"{repo.replace('/', '_')}_{self.stream_type}_{month}",
-                        "search_query": query,
-                        "source": instance_name,
-                        "api_url_base": api_url_base,
-                        "org": org,
-                        "month": month,
-                        "kind": self.stream_type,
-                        "repo_breakdown": False  # Individual repos don't need breakdown
-                    })
+                    
+                    # Check if this month should be included  
+                    bookmark_date = org_bookmarks.get((instance_name, org))
+                    if self._should_include_month(month, bookmark_date):
+                        query = self._build_repo_search_query(repo, start_date, end_date, self.stream_type)
+                        partitions.append({
+                            "search_name": f"{repo.replace('/', '_')}_{self.stream_type}_{month}",
+                            "search_query": query,
+                            "source": instance_name,
+                            "api_url_base": api_url_base,
+                            "org": org,
+                            "month": month,
+                            "kind": self.stream_type,
+                            "repo_breakdown": False  # Individual repos don't need breakdown
+                        })
+                    else:
+                        self.logger.debug(f"Filtered out partition repo={repo} month={month}")
 
+        self.logger.info(f"Generated {len(partitions)} partitions after incremental filtering")
         return partitions
 
     def _get_months_to_process(self) -> list[str]:
@@ -182,63 +220,52 @@ class SearchCountStreamBase(GitHubGraphqlStream):
         
         return months
 
-    def _get_last_complete_month(self) -> str:
-        """Get the last complete month as YYYY-MM."""
+    def _get_last_complete_month(self) -> date:
+        """Get the last complete month as a date object (always exclude current month)."""
         today = date.today()
-        if today.day == 1:
-            last_month = today - timedelta(days=1)
+        if today.month == 1:
+            return date(today.year - 1, 12, 1)
         else:
-            last_month = today.replace(day=1) - timedelta(days=1)
-        return f"{last_month.year}-{last_month.month:02d}"
+            return date(today.year, today.month - 1, 1)
     
-    def _should_skip_partition(self, partition: dict) -> bool:
-        """Check if partition should be skipped due to incremental state."""
+    def _month_to_date(self, month_str: str) -> date:
+        """Convert YYYY-MM string to date object (first day of month)."""
+        year, month = map(int, month_str.split("-"))
+        return date(year, month, 1)
+    
+    def _get_bookmark_for_context(self, context: dict) -> str | None:
+        """Get bookmark for a specific context from tap state."""
         try:
-            # Look up the bookmark from the tap's state for this partition context
             stream_state = self.tap.state.get("bookmarks", {}).get(self.name, {})
             partitions_state = stream_state.get("partitions", [])
             
-            # Find matching partition in state
-            partition_context = {
-                "source": partition["source"],
-                "org": partition["org"]
-            }
-            
             for partition_state in partitions_state:
                 state_context = partition_state.get("context", {})
-                if (state_context.get("source") == partition_context["source"] and 
-                    state_context.get("org") == partition_context["org"]):
-                    
-                    bookmark = partition_state.get("replication_key_value")
-                    replication_key_name = partition_state.get("replication_key_name")
-                    
-                    if bookmark and replication_key_name == "month":
-                        self.logger.info(f"Found bookmark for {partition['org']}: {bookmark}")
-                        # If we have a bookmark and current month <= bookmark, skip
-                        if partition["month"] <= bookmark:
-                            return True
-                        else:
-                            self.logger.info(f"Processing {partition['org']}/{partition['month']} (after bookmark {bookmark})")
-                        break
+                if (state_context.get("source") == context["source"] and 
+                    state_context.get("org") == context["org"]):
+                    return partition_state.get("replication_key_value")
             
-            return False
-        except Exception as e:
-            self.logger.info(f"No bookmark found for {partition['org']}/{partition['month']}: {e}")
-            return False
+            return None
+        except Exception:
+            return None
     
-    def _get_starting_month_from_state(self) -> str | None:
-        """Get the minimum starting month from incremental state across all partitions."""
-        try:
-            # Get the starting replication key value (this will be the max bookmark)
-            starting_value = self.get_starting_replication_key_value(None)
-            if starting_value:
-                self.logger.info(f"Found global starting replication value: {starting_value}")
-                return starting_value
-            
-            return None
-        except Exception as e:
-            self.logger.warning(f"Could not determine starting month from state: {e}")
-            return None
+    def _should_include_month(self, month_str: str, bookmark_date: date | None) -> bool:
+        """Simple logic: include months after bookmark up to last complete month."""
+        month_date = self._month_to_date(month_str)
+        last_complete = self._get_last_complete_month()
+        
+        # Never process future or current months
+        if month_date > last_complete:
+            return False
+        
+        # If no bookmark, include everything up to last complete
+        if bookmark_date is None:
+            return True
+        
+        # Only include months after bookmark
+        return month_date > bookmark_date
+    
+    
 
     def _build_search_query(self, org: str, start_date: str, end_date: str, kind: str) -> str:
         """Build GitHub search query for an organization."""
@@ -280,11 +307,6 @@ class SearchCountStreamBase(GitHubGraphqlStream):
             query = partition["search_query"]
             api_url_base = partition["api_url_base"]
             repo_breakdown = partition.get("repo_breakdown", False)
-            
-            # Check if this partition should be skipped due to incremental state
-            if self._should_skip_partition(partition):
-                self.logger.info(f"Skipping partition {org}/{month} - already processed")
-                continue
             
             self.logger.info(f"Processing partition: {org}/{month}")
             
@@ -453,6 +475,27 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
         months = self._get_months_to_process()
         stream_name = self.stream_config['name']
         
+        # Collect unique org contexts for state lookup
+        org_contexts = set()
+        for instance_config in instances:
+            instance_name = instance_config.get("instance", "github.com")
+            for org in instance_config.get("org", []):
+                org_contexts.add((instance_name, org))
+        
+        # Pre-calculate bookmark dates per org context
+        org_bookmarks = {}
+        for instance_name, org in org_contexts:
+            context = {"source": instance_name, "org": org}
+            bookmark_str = self._get_bookmark_for_context(context)
+            
+            if bookmark_str:
+                bookmark_date = self._month_to_date(bookmark_str)
+                org_bookmarks[instance_name, org] = bookmark_date
+                self.logger.debug(f"Org {org} bookmark={bookmark_str}")
+            else:
+                org_bookmarks[instance_name, org] = None
+                self.logger.debug(f"Org {org} has no bookmark, will process all months")
+        
         for month in months:
             year, month_num = map(int, month.split("-"))
             start_date = f"{year:04d}-{month_num:02d}-01"
@@ -469,18 +512,24 @@ class ConfigurableSearchCountStream(SearchCountStreamBase):
                 repo_breakdown = instance_config.get("repo_breakdown", False)
                 
                 for org in instance_config.get("org", []):
-                    query = self._build_search_query(org, start_date, end_date, self.stream_type)
-                    partitions.append({
-                        "search_name": f"{org}_{stream_name}_{month}",
-                        "search_query": query,
-                        "source": instance_name,
-                        "api_url_base": api_url_base,
-                        "org": org,
-                        "month": month,
-                        "kind": self.stream_type,
-                        "repo_breakdown": repo_breakdown
-                    })
+                    # Check if this month should be included
+                    bookmark_date = org_bookmarks.get((instance_name, org))
+                    if self._should_include_month(month, bookmark_date):
+                        query = self._build_search_query(org, start_date, end_date, self.stream_type)
+                        partitions.append({
+                            "search_name": f"{org}_{stream_name}_{month}",
+                            "search_query": query,
+                            "source": instance_name,
+                            "api_url_base": api_url_base,
+                            "org": org,
+                            "month": month,
+                            "kind": self.stream_type,
+                            "repo_breakdown": repo_breakdown
+                        })
+                    else:
+                        self.logger.debug(f"Filtered out partition org={org} month={month}")
 
+        self.logger.info(f"Generated {len(partitions)} partitions after incremental filtering")
         return partitions
 
 
