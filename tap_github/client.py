@@ -265,7 +265,7 @@ class GitHubRestStream(RESTStream):
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
-        # TODO - Split into handle_reponse and parse_response.
+        # TODO - Split into handle_response and parse_response.
         if response.status_code in (
             [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
         ):
@@ -274,8 +274,8 @@ class GitHubRestStream(RESTStream):
         # Update token rate limit info and loop through tokens if needed.
         self.authenticator.update_rate_limit(response.headers)
 
+        # Get all items from the response
         resp_json = response.json()
-
         if isinstance(resp_json, list):
             results = resp_json
         elif resp_json.get("items") is not None:
@@ -283,7 +283,43 @@ class GitHubRestStream(RESTStream):
         else:
             results = [resp_json]
 
-        yield from results
+        if not results:
+            return
+
+        # Filter items based on replication key's date if needed
+        since = self.get_starting_timestamp(self.context)
+        filtered_results = []
+        if self.replication_key and self.use_fake_since_parameter and since:
+            for item in results:
+                item_date = parse(item[self.replication_key])
+                if item_date >= since:
+                    filtered_results.append(item)
+        else:
+            filtered_results = results
+
+        # Replace NUL values
+        for item in filtered_results:
+            self.replace_nul_values(item)
+
+        yield from filtered_results
+
+    # Sadly, the GitHub API returns NUL values in some fields.
+    # This function recursively replaces them with empty strings.
+    # Otherwise postgres will raise an error when inserting the data.
+    def replace_nul_values(self, obj):
+        """Recursively replace NUL values in strings within dictionaries and lists."""
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if isinstance(value, str):
+                    obj[key] = value.replace("\x00", "")
+                elif isinstance(value, (dict, list)):
+                    self.replace_nul_values(value)
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                if isinstance(item, str):
+                    obj[i] = item.replace("\x00", "")
+                elif isinstance(item, (dict, list)):
+                    self.replace_nul_values(item)
 
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
