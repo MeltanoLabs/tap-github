@@ -280,12 +280,18 @@ class GitHubRestStream(RESTStream):
 
         resp_json = response.json()
 
+        # Handle different response structures
         if isinstance(resp_json, list):
+            # Direct array response
             results = resp_json
-        elif resp_json.get("items") is not None:
-            results = resp_json.get("items")
         else:
-            results = [resp_json]
+            # Use records_jsonpath to extract records
+            results = list(extract_jsonpath(self.records_jsonpath, input=resp_json))
+
+            # Fallback: if no records found via jsonpath, treat the whole response as a
+            # single record
+            if not results:
+                results = [resp_json]
 
         yield from results
 
