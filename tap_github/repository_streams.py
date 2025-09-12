@@ -2961,9 +2961,9 @@ class WorkflowRunsStream(GitHubRestStream):
     name = "workflow_runs"
     path = "/repos/{org}/{repo}/actions/runs"
     primary_keys: ClassVar[list[str]] = ["id"]
-    replication_key = None
+    replication_key = "created_at"
     parent_stream_type = RepositoryStream
-    ignore_parent_replication_key = False
+    ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     records_jsonpath = "$.workflow_runs[*]"
 
@@ -3005,6 +3005,21 @@ class WorkflowRunsStream(GitHubRestStream):
         th.Property("rerun_url", th.StringType),
         th.Property("workflow_url", th.StringType),
     ).to_dict()
+
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        """Return a dictionary of values to be used in URL parameterization."""
+        params = super().get_url_params(context, next_page_token)
+        
+        # GitHub Actions API uses 'created' parameter instead of 'since'
+        since = self.get_starting_timestamp(context)
+        if self.replication_key and since:
+            params["created"] = f"{since.isoformat(sep='T')}..*"
+            
+        return params
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
