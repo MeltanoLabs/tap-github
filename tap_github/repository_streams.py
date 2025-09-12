@@ -3013,12 +3013,12 @@ class WorkflowRunsStream(GitHubRestStream):
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params = super().get_url_params(context, next_page_token)
-        
+
         # GitHub Actions API uses 'created' parameter instead of 'since'
         since = self.get_starting_timestamp(context)
         if self.replication_key and since:
             params["created"] = f"{since.isoformat(sep='T')}..*"
-            
+
         return params
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
