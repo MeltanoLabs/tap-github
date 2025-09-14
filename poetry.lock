@@ -1372,22 +1372,22 @@ files = [
 
 [[package]]
 name = "singer-sdk"
-version = "0.48.1"
-description = "A framework for building Singer taps"
+version = "0.49.1"
+description = "A framework for building Singer taps and targets"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "singer_sdk-0.48.1-py3-none-any.whl", hash = "sha256:63d969e06f69a7a94b84917f9a8c22b8e5bd8b87ee7082c77e2436e0c14cfdc0"},
-    {file = "singer_sdk-0.48.1.tar.gz", hash = "sha256:f6ac6ba9a184713b328c0f271b811560b51c25f1eb3d8469abdb2f9a66fd6578"},
+    {file = "singer_sdk-0.49.1-py3-none-any.whl", hash = "sha256:fdcf74ba8f27f039363334eafeb7d7ecf9e7c67014ab5fcfe8210fe195fe8f7f"},
+    {file = "singer_sdk-0.49.1.tar.gz", hash = "sha256:8839ef96e169c83b1c2c63bcc45156e65cd69e6f9dc944f07767fd385f69777d"},
 ]
 
 [package.dependencies]
 backoff = ">=2.0.0,<4"
 backports-datetime-fromisoformat = {version = ">=2.0.1", markers = "python_version < \"3.11\""}
-click = ">=8.0,<9"
+click = ">=8.2,<9"
 fsspec = ">=2024.9.0"
-importlib-metadata = {version = ">=5.0", markers = "python_version < \"3.12\""}
+importlib-metadata = {version = ">=6.5", markers = "python_version < \"3.12\""}
 inflection = ">=0.5.1"
 joblib = ">=1.3.0"
 jsonpath-ng = ">=1.5.3"
@@ -1409,6 +1409,7 @@ jwt = ["cryptography (>=3.4.6)", "pyjwt (>=2.4.0)"]
 msgspec = ["msgspec (>=0.19.0)"]
 parquet = ["pyarrow (>=15)"]
 s3 = ["s3fs (>=2024.9.0)"]
+sql = ["sqlalchemy (>=2)"]
 ssh = ["paramiko (>=3.3.0)"]
 testing = ["pytest (>=7.5)"]
 
@@ -1732,4 +1733,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "1adb69272c9855cacef94f29ab370ee0b5b22ca99bba7e3410fe6b8ff2407c84"
+content-hash = "ab2eab81d8d4d5e1da663b59634493508bc330206812f221add17fe6dcd61522"
