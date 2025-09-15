@@ -50,7 +50,7 @@ class GitHubRestStream(RESTStream):
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
         if self._authenticator is None:
-            self._authenticator = GitHubTokenAuthenticator(stream=self)
+            self._authenticator = GitHubTokenAuthenticator.from_stream(self)
         return self._authenticator
 
     @property
@@ -214,7 +214,10 @@ class GitHubRestStream(RESTStream):
         """
         full_path = urlparse(response.url).path
         if response.status_code in (
-            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
+            [
+                *self.tolerated_http_errors,
+                EMPTY_REPO_ERROR_STATUS,
+            ]
         ):
             msg = (
                 f"{response.status_code} Tolerated Status Code "
@@ -271,7 +274,10 @@ class GitHubRestStream(RESTStream):
         """Parse the response and return an iterator of result rows."""
         # TODO - Split into handle_reponse and parse_response.
         if response.status_code in (
-            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
+            [
+                *self.tolerated_http_errors,
+                EMPTY_REPO_ERROR_STATUS,
+            ]
         ):
             return
 
