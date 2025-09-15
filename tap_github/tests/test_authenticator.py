@@ -1,9 +1,11 @@
+import logging
 import re
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+import requests.exceptions
 from singer_sdk.streams import RESTStream
 
 from tap_github.authenticator import (
@@ -68,7 +70,7 @@ class TestTokenManager:
                 headers={"Authorization": "token validtoken"},
             )
 
-    def test_is_valid_token_failure(self):
+    def test_is_valid_token_failure(self, caplog: pytest.LogCaptureFixture):
         with patch("requests.get") as mock_get:
             # Setup for a failed request
             mock_response = mock_get.return_value
@@ -78,11 +80,11 @@ class TestTokenManager:
             mock_response.reason = "Unauthorized"
 
             token_manager = TokenManager("invalidtoken")
-            token_manager.logger = MagicMock()
 
-            assert not token_manager.is_valid_token()
-            token_manager.logger.warning.assert_called_once()
-            assert "401" in token_manager.logger.warning.call_args[0][0]
+            with caplog.at_level(logging.WARNING):
+                assert not token_manager.is_valid_token()
+
+            assert "401" in caplog.text
 
     def test_has_calls_remaining_succeeds_if_token_never_used(self):
         token_manager = TokenManager("mytoken")
@@ -179,7 +181,10 @@ class TestAppTokenManager:
             assert token_manager.token == "valid_token"
             assert token_manager.token_expires_at == token_time
 
-    def test_has_calls_remaining_regenerates_a_token_if_close_to_expiry(self):
+    def test_has_calls_remaining_regenerates_a_token_if_close_to_expiry(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ):
         unexpired_time = _now() + timedelta(days=1)
         expired_time = _now() - timedelta(days=1)
         with (
@@ -197,21 +202,20 @@ class TestAppTokenManager:
             }
 
             token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
-            token_manager.logger = MagicMock()
             token_manager.token_expires_at = expired_time
             token_manager.update_rate_limit(mock_response_headers)
 
-            assert token_manager.has_calls_remaining()
+            with caplog.at_level(logging.INFO):
+                assert token_manager.has_calls_remaining()
+
             # calling has_calls_remaining() will trigger the token generation function to be called again,  # noqa: E501
             # so token_expires_at should have been reset back to the mocked unexpired_time  # noqa: E501
             assert token_manager.token_expires_at == unexpired_time
-            token_manager.logger.info.assert_called_once()
-            assert (
-                "GitHub app token refresh succeeded."
-                in token_manager.logger.info.call_args[0][0]
-            )
+            assert "GitHub app token refresh succeeded." in caplog.text
 
-    def test_has_calls_remaining_logs_warning_if_token_regeneration_fails(self):
+    def test_has_calls_remaining_logs_warning_if_token_regeneration_fails(
+        self, caplog: pytest.LogCaptureFixture
+    ):
         unexpired_time = _now() + timedelta(days=1)
         expired_time = _now() - timedelta(days=1)
         with (
@@ -231,17 +235,13 @@ class TestAppTokenManager:
             }
 
             token_manager = AppTokenManager("12345;;key\\ncontent;;67890")
-            token_manager.logger = MagicMock()
             token_manager.token_expires_at = expired_time
             token_manager.update_rate_limit(mock_response_headers)
 
             mock_is_valid.return_value = False
-            assert not token_manager.has_calls_remaining()
-            assert isinstance(token_manager.logger.warning, MagicMock)
-            token_manager.logger.warning.assert_has_calls(
-                [call("GitHub app token refresh failed.")],
-                any_order=True,
-            )
+            with caplog.at_level(logging.WARNING):
+                assert not token_manager.has_calls_remaining()
+                assert "GitHub app token refresh failed." in caplog.text
 
     def test_has_calls_remaining_succeeds_if_token_new_and_never_used(self):
         unexpired_time = _now() + timedelta(days=1)
@@ -330,7 +330,6 @@ class TestAppTokenManager:
 @pytest.fixture
 def mock_stream():
     stream = MagicMock(spec=RESTStream)
-    stream.logger = MagicMock()
     stream.tap_name = "tap_github"
     stream.config = {"rate_limit_buffer": 5}
     return stream
@@ -346,7 +345,7 @@ class TestGitHubTokenAuthenticator:
             ),
             patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
         ):
-            auth = GitHubTokenAuthenticator(stream=mock_stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 0
@@ -362,7 +361,7 @@ class TestGitHubTokenAuthenticator:
         ):
             stream = mock_stream
             stream.config.update({"auth_token": "gt5"})
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 1
@@ -379,7 +378,7 @@ class TestGitHubTokenAuthenticator:
         ):
             stream = mock_stream
             stream.config.update({"additional_auth_tokens": ["gt7", "gt8", "gt9"]})
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 3
@@ -398,7 +397,7 @@ class TestGitHubTokenAuthenticator:
             ),
             patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
         ):
-            auth = GitHubTokenAuthenticator(stream=mock_stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 2
@@ -427,7 +426,7 @@ class TestGitHubTokenAuthenticator:
                     ],
                 }
             )
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 7
@@ -460,7 +459,7 @@ class TestGitHubTokenAuthenticator:
                 return_value=("installationtoken12345", MagicMock()),
             ),
         ):
-            auth = GitHubTokenAuthenticator(stream=mock_stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 1
@@ -494,7 +493,7 @@ class TestGitHubTokenAuthenticator:
                     "additional_auth_tokens": ["gt7", "gt8", "gt9"],
                 }
             )
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 5
@@ -532,7 +531,7 @@ class TestGitHubTokenAuthenticator:
                     "auth_token": "gt5",
                 }
             )
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 4
@@ -567,7 +566,7 @@ class TestGitHubTokenAuthenticator:
                     "additional_auth_tokens": ["gt1", "gt1", "gt8", "gt8", "gt9"],
                 }
             )
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 3
@@ -593,13 +592,17 @@ class TestGitHubTokenAuthenticator:
         ):
             stream = mock_stream
             stream.config.update({"auth_token": "gt1"})
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 2
             assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt2"]
 
-    def test_handle_error_if_app_key_invalid(self, mock_stream):
+    def test_handle_error_if_app_key_invalid(
+        self,
+        mock_stream,
+        caplog: pytest.LogCaptureFixture,
+    ):
         # Confirm expected behaviour if an error is raised while setting up the app token manager:  # noqa: E501
         # - don"t crash
         # - print the error as a warning
@@ -614,12 +617,12 @@ class TestGitHubTokenAuthenticator:
         ):
             mock_app_manager.side_effect = ValueError("Invalid key format")
 
-            auth = GitHubTokenAuthenticator(stream=mock_stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             auth.prepare_tokens()
 
-            mock_stream.logger.warning.assert_called_with(
-                "An error was thrown while preparing an app token: Invalid key format"
-            )
+            msg = "An error was thrown while preparing an app token: Invalid key format"
+            with caplog.at_level(logging.WARNING):
+                assert msg in caplog.text
 
     def test_exclude_generated_app_token_if_invalid(self, mock_stream):
         with (
@@ -634,7 +637,7 @@ class TestGitHubTokenAuthenticator:
                 return_value=("installationtoken12345", MagicMock()),
             ),
         ):
-            auth = GitHubTokenAuthenticator(stream=mock_stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 0
@@ -663,7 +666,7 @@ class TestGitHubTokenAuthenticator:
                     "additional_auth_tokens": ["gt7", "gt8", "gt9"],
                 }
             )
-            auth = GitHubTokenAuthenticator(stream=stream)
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 0
