@@ -3042,7 +3042,7 @@ class WorkflowRunsStream(GitHubRestStream):
 class WorkflowRunJobsStream(GitHubRestStream):
     """Defines 'workflow_run_jobs' stream."""
 
-    MAX_PER_PAGE = 100
+    MAX_PER_PAGE = 80
 
     name = "workflow_run_jobs"
     path = "/repos/{org}/{repo}/actions/runs/{run_id}/jobs"
