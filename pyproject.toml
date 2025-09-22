@@ -33,7 +33,7 @@ packages = [
 
 [tool.poetry.dependencies]
 beautifulsoup4 = "~=4.13.3"
-cryptography = { version = "~=45.0.2" }
+cryptography = { version = "~=46.0.1" }
 nested-lookup = "~=0.2.25"
 PyJWT = "2.10.1"
 python = ">=3.10,<4"
