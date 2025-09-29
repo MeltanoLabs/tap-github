@@ -32,7 +32,7 @@ packages = [
 "Issue Tracker" = "https://github.com/MeltanoLabs/tap-github/issues"
 
 [tool.poetry.dependencies]
-beautifulsoup4 = "~=4.13.3"
+beautifulsoup4 = "~=4.14.2"
 cryptography = { version = "~=46.0.1" }
 nested-lookup = "~=0.2.25"
 PyJWT = "2.10.1"
