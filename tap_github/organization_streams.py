@@ -653,6 +653,12 @@ class ProjectItemsStream(GitHubGraphqlStream):
                     f"Context: {context}. Error: {e}"
                 )
                 return
+            elif "Timeout on validation of query" in error_message:
+                self.logger.warning(
+                    f"Skipping project due to query validation timeout error. "
+                    f"Context: {context}. Error: {e}"
+                )
+                return
 
             raise
 
