@@ -1673,6 +1673,30 @@ class ReviewCommentsStream(GitHubRestStream):
     ).to_dict()
 
 
+class ReviewCommentReactionsStream(GitHubRestStream):
+    name = "review_comment_reactions"
+    path = "/repos/{org}/{repo}/pulls/comments/{comment_id}/reactions"
+    primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key = None
+    parent_stream_type = ReviewCommentsStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("comment_id", th.IntegerType),
+        # Reaction properties
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("user", user_object),
+        th.Property("content", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+    ).to_dict()
+
+
 class ContributorsStream(GitHubRestStream):
     """Defines 'Contributors' stream. Fetching User & Bot contributors."""
 
