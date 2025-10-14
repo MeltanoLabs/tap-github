@@ -1672,6 +1672,15 @@ class ReviewCommentsStream(GitHubRestStream):
         th.Property("side", th.StringType),
     ).to_dict()
 
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        """Return a child context object from the record and optional provided context."""
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "comment_id": record["id"],
+        }
+
 
 class ReviewCommentReactionsStream(GitHubRestStream):
     name = "review_comment_reactions"
