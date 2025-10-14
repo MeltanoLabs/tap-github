@@ -25,7 +25,7 @@ contributors_regex = re.compile(" {3}Contributors ")
 
 def parse_int(s: str) -> int:
     """For example, '1,808' -> 1808."""
-    return int(str.strip().replace(",", "").replace("+", ""))
+    return int(s.strip().replace(",", "").replace("+", ""))
 
 
 def scrape_dependents(
