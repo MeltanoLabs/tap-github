@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 used_by_regex = re.compile(" {3}Used by ")
 contributors_regex = re.compile(" {3}Contributors ")
 
-def parse_int(str)
+def parse_int(s: str) -> int:
+    """For example, '1,808' -> 1808."""
     return int(str.strip().replace(",", "").replace("+", ""))
 
 
