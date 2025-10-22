@@ -36,12 +36,12 @@ beautifulsoup4 = "~=4.14.2"
 cryptography = { version = "~=46.0.1" }
 nested-lookup = "~=0.2.25"
 PyJWT = "2.10.1"
-python = ">=3.10,<4"
+python = ">=3.10"
 python-dateutil = "~=2.9"
 requests = "~=2.32.3"
 # For local SDK dev:
 # singer-sdk = {path = "../singer-sdk", develop = true}
-singer-sdk = "~=0.51.0"
+singer-sdk = "~=0.52.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=1.15.0"
