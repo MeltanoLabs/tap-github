@@ -1678,9 +1678,9 @@ class ReviewCommentsStream(GitHubRestStream):
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
             "repo_id": context["repo_id"] if context else None,
-            "pull_request_url": record["pull_request_url"],
-            "comment_id": record["id"],
-            "comment_url": record["html_url"],
+            "pull_request_url": record["pull_request_url"] if context else None,
+            "comment_id": record["id"] if context else None,
+            "comment_url": record["html_url"] if context else None,
         }
 
 
