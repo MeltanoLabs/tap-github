@@ -1700,6 +1700,13 @@ class ReviewCommentReactionsStream(GitHubRestStream):
 
         row = super().post_process(row, context)
         self.logger.info(f"Processed row: {row}")
+
+        if context:
+            row["pull_request_url"] = context.get("pull_request_url")
+            row["comment_id"] = context.get("comment_id")
+            row["comment_url"] = context.get("comment_url")
+        self.logger.info(f"Post-Processed row: {row}")
+
         return row
     
     schema = th.PropertiesList(
