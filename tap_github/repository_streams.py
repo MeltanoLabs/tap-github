@@ -1693,6 +1693,15 @@ class ReviewCommentReactionsStream(GitHubRestStream):
     ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
+    
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
+        self.logger.info(f"Context: {context}")
+        self.logger.info(f"Unprocessed row: {row}")
+
+        row = super().post_process(row, context)
+        self.logger.info(f"Processed row: {row}")
+        return row
+    
     schema = th.PropertiesList(
         # Parent keys
         th.Property("org", th.StringType),
