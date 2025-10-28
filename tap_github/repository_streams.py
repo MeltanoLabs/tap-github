@@ -1688,7 +1688,7 @@ class ReviewCommentReactionsStream(GitHubRestStream):
     primary_keys: ClassVar[list[str]] = ["id"]
     replication_key = "created_at"
     parent_stream_type = ReviewCommentsStream
-    ignore_parent_replication_key = True
+    ignore_parent_replication_key = False
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
 
     schema = th.PropertiesList(
