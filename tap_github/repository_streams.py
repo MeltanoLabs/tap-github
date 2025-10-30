@@ -1694,17 +1694,12 @@ class ReviewCommentReactionsStream(GitHubRestStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     
     def post_process(self, row: dict, context: Context | None = None) -> dict:
-        self.logger.info(f"Context: {context}")
-        self.logger.info(f"Unprocessed row: {row}")
-
         row = super().post_process(row, context)
-        self.logger.info(f"Processed row: {row}")
 
         if context:
             row["pull_request_url"] = context.get("pull_request_url")
             row["comment_id"] = context.get("comment_id")
             row["comment_url"] = context.get("comment_url")
-        self.logger.info(f"Post-Processed row: {row}")
 
         return row
     
