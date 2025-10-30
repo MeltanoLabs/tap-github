@@ -1678,7 +1678,6 @@ class ReviewCommentsStream(GitHubRestStream):
             "org": context["org"] if context else None,
             "repo": context["repo"] if context else None,
             "repo_id": context["repo_id"] if context else None,
-            "pull_request_url": record["pull_request_url"] if context else None,
             "comment_id": record["id"] if context else None,
             "comment_url": record["html_url"] if context else None,
         }
@@ -1697,7 +1696,6 @@ class ReviewCommentReactionsStream(GitHubRestStream):
         row = super().post_process(row, context)
 
         if context:
-            row["pull_request_url"] = context.get("pull_request_url")
             row["comment_id"] = context.get("comment_id")
             row["comment_url"] = context.get("comment_url")
 
@@ -1708,7 +1706,6 @@ class ReviewCommentReactionsStream(GitHubRestStream):
         th.Property("org", th.StringType),
         th.Property("repo", th.StringType),
         th.Property("repo_id", th.IntegerType),
-        th.Property("pull_request_url", th.StringType),
         th.Property("comment_id", th.IntegerType),
         th.Property("comment_url", th.StringType),
         # Reaction properties
