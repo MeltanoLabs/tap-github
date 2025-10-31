@@ -1672,6 +1672,49 @@ class ReviewCommentsStream(GitHubRestStream):
         th.Property("side", th.StringType),
     ).to_dict()
 
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "repo_id": context["repo_id"] if context else None,
+            "comment_id": record["id"] if context else None,
+            "comment_url": record["html_url"] if context else None,
+        }
+
+
+class ReviewCommentReactionsStream(GitHubRestStream):
+    name = "review_comment_reactions"
+    path = "/repos/{org}/{repo}/pulls/comments/{comment_id}/reactions"
+    primary_keys: ClassVar[list[str]] = ["id"]
+    replication_key = "created_at"
+    parent_stream_type = ReviewCommentsStream
+    ignore_parent_replication_key = False
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
+        row = super().post_process(row, context)
+
+        if context:
+            row["comment_id"] = context.get("comment_id")
+            row["comment_url"] = context.get("comment_url")
+
+        return row
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("org", th.StringType),
+        th.Property("repo", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("comment_id", th.IntegerType),
+        th.Property("comment_url", th.StringType),
+        # Reaction properties
+        th.Property("id", th.IntegerType),
+        th.Property("node_id", th.StringType),
+        th.Property("user", user_object),
+        th.Property("content", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+    ).to_dict()
+
 
 class ContributorsStream(GitHubRestStream):
     """Defines 'Contributors' stream. Fetching User & Bot contributors."""
