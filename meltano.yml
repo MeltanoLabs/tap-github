@@ -22,7 +22,7 @@ plugins:
     - name: additional_auth_tokens
       kind: array
     - name: auth_app_keys
-      kind: array
+      kind: object
     - name: rate_limit_buffer
       kind: integer
     - name: expiry_time_buffer
