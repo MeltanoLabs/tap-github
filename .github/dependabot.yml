@@ -8,7 +8,7 @@ updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
       day: monday
     versioning-strategy: increase-if-necessary
     groups:
@@ -18,19 +18,6 @@ updates:
         dependency-type: production
         update-types:
           - "patch"
-    commit-message:
-      prefix: "fix(deps)"
-      prefix-development: "chore:(deps-dev)"
-  - package-ecosystem: pip
-    directory: "/"
-    schedule:
-      interval: weekly
-    allow:
-      - dependency-type: "all"
-    versioning-strategy: lockfile-only
-    commit-message:
-      prefix: "fix(deps)"
-      prefix-development: "chore:(deps-dev)"
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
