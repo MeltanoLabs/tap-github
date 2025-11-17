@@ -89,16 +89,21 @@ class RepositoryStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, repo_list) -> None:  # noqa: ANN001
+            def __init__(self, tap, repo_list, parent_authenticator=None) -> None:  # noqa: ANN001
                 super().__init__(tap)
                 self.repo_list = repo_list
+                # Use parent's authenticator to maintain consistent auth state and rate limits
+                if parent_authenticator is not None:
+                    self._authenticator = parent_authenticator
 
             @property
             def query(self) -> str:
                 chunks = []
                 for i, repo in enumerate(self.repo_list):
+                    org, repo_name = repo
+                    self.logger.info(f"[TempStream.query] Building query for {org}/{repo_name} with authenticator org: {self.authenticator.current_organization}")
                     chunks.append(
-                        f'repo{i}: repository(name: "{repo[1]}", owner: "{repo[0]}") '
+                        f'repo{i}: repository(name: "{repo_name}", owner: "{org}") '
                         "{ nameWithOwner databaseId }"
                     )
                 return "query {" + " ".join(chunks) + " rateLimit { cost } }"
@@ -118,9 +123,20 @@ class RepositoryStream(GitHubRestStream):
 
         if len(repo_list) < 1:
             return []
+        self.logger.info(f"Getting repo ids for {len(repo_list)} repositories")
+
+        # Log parent stream authenticator info
+        self.logger.info(f"[get_repo_ids] Parent stream authenticator ID: {id(self.authenticator)}")
+        self.logger.info(f"[get_repo_ids] Parent stream current_org: {self.authenticator.current_organization}")
+        self.logger.info(f"[get_repo_ids] Parent stream active_token org: {getattr(self.authenticator.active_token, 'github_organization', 'N/A')}")
 
         repos_with_ids: list = []
-        temp_stream = TempStream(self._tap, list(repo_list))
+        temp_stream = TempStream(self._tap, list(repo_list), self.authenticator)
+
+        # Log TempStream authenticator info
+        self.logger.info(f"[get_repo_ids] TempStream authenticator ID: {id(temp_stream.authenticator)}")
+        self.logger.info(f"[get_repo_ids] TempStream current_org: {temp_stream.authenticator.current_organization}")
+        self.logger.info(f"[get_repo_ids] TempStream active_token org: {getattr(temp_stream.authenticator.active_token, 'github_organization', 'N/A')}")
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
         # See https://github.com/MeltanoLabs/tap-github/issues/110
@@ -131,6 +147,7 @@ class RepositoryStream(GitHubRestStream):
                 if item == "rateLimit":
                     continue
                 try:
+                    self.logger.info(f"Processing record within TempStream: {record[item]}")
                     repo_full_name = "/".join(repo_list[int(item[4:])])
                     name_with_owner = record[item]["nameWithOwner"]
                     org, repo = name_with_owner.split("/")
@@ -172,17 +189,35 @@ class RepositoryStream(GitHubRestStream):
 
         if "repositories" in self.config:
             split_repo_names = [s.split("/") for s in self.config["repositories"]]
+
+            # Group repositories by organization for org-specific authentication
+            from collections import defaultdict
+            repos_by_org = defaultdict(list)
+            self.logger.info(f"Split repository names as part of repository stream: {split_repo_names}")
+            for org, repo in split_repo_names:
+                repos_by_org[org].append((org, repo))
+
             augmented_repo_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
             # seems closer to 1000, use half that to stay safe.
             chunk_size = 500
             list_length = len(split_repo_names)
-            self.logger.info(f"Filtering repository list of {list_length} repositories")
-            for ndx in range(0, list_length, chunk_size):
-                augmented_repo_list += self.get_repo_ids(
-                    split_repo_names[ndx : ndx + chunk_size]
-                )
+            self.logger.info(f"Filtering repository list of {list_length} repositories across {len(repos_by_org)} organizations")
+
+            # Process each organization's repos separately with org-specific auth
+            for org, org_repos in repos_by_org.items():
+                self.logger.info(f"Validating {len(org_repos)} repositories for organization: {org}")
+                # Set organization-specific authentication before validating repos
+                self.logger.info(f"Setting organization within repository stream: {org}")
+                self.authenticator.set_organization(org)
+
+                # Process in chunks
+                for ndx in range(0, len(org_repos), chunk_size):
+                    augmented_repo_list += self.get_repo_ids(
+                        org_repos[ndx : ndx + chunk_size]
+                    )
+
             self.logger.info(
                 f"Running the tap on {len(augmented_repo_list)} repositories"
             )
@@ -216,6 +251,11 @@ class RepositoryStream(GitHubRestStream):
         quota when only syncing a child stream. Without this,
         the API call is sent but data is discarded.
         """
+        # Set organization-specific authentication before fetching records
+        if context is not None and "org" in context:
+            self.logger.info(f"Setting organization within repository stream: {context['org']}")
+            self.authenticator.set_organization(context["org"])
+
         if (
             not self.selected
             and "skip_parent_streams" in self.config

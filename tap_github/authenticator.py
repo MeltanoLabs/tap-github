@@ -354,9 +354,11 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.auth_app_keys = auth_app_keys
 
         self.token_managers = self.prepare_tokens()
-        initial_org = min(self.token_managers)
+        self.current_organization: str | None = None
+        initial_org = min(self.token_managers) if self.token_managers else None
+        self.logger.info(f"Setting initial organization for authenticator: {initial_org}")
         self.active_token: TokenManager | None = (
-            choice(self.token_managers[initial_org]) if self.token_managers else None
+            choice(self.token_managers[initial_org]) if initial_org is not None else None
         )
 
     @classmethod
@@ -369,9 +371,53 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             auth_app_keys=stream.config.get("auth_app_keys"),
         )
 
+    def set_organization(self, org: str) -> None:
+        """Set the current organization and switch to an appropriate token.
+
+        Args:
+            org: The organization name to switch to.
+        """
+        # If we're already using this org, no need to switch
+        if self.current_organization == org:
+            return
+
+        logger.info(f"Switching authentication context to organization: {org}")
+        self.current_organization = org
+
+        # Get tokens for this org (check both org-specific and None keys)
+        available_tokens = self.token_managers.get(org, [])
+        if not available_tokens and None in self.token_managers:
+            # Fall back to org-agnostic tokens (personal tokens or env var app keys)
+            available_tokens = self.token_managers[None]
+            logger.info(
+                f"No org-specific tokens found for '{org}', using org-agnostic tokens"
+            )
+
+        if not available_tokens:
+            logger.warning(
+                f"No authentication tokens available for organization: {org}"
+            )
+            self.active_token = None
+            return
+
+        # Select a token with remaining calls
+        for token_manager in available_tokens:
+            if token_manager.has_calls_remaining():
+                self.active_token = token_manager
+                logger.info(f"Selected token for organization: {org}")
+                return
+
+        # If no tokens have calls remaining, just pick the first one
+        # (it might refresh or we'll rotate later)
+        self.active_token = available_tokens[0]
+        logger.info(
+            f"Selected token for organization: {org} (may need rate limit refresh)"
+        )
+
     def get_next_auth_token(self) -> None:
         current_token = self.active_token.token if self.active_token else ""
         token_managers = deepcopy(self.token_managers)
+        # TODO: fix to handle a dictionary of token managers
         shuffle(token_managers)
         for token_manager in token_managers:
             if (
@@ -401,6 +447,11 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         request: requests.PreparedRequest,
     ) -> requests.PreparedRequest:
         if self.active_token:
+            logger.info(
+                f"[authenticate_request] Authenticator ID: {id(self)}, "
+                f"current_org: {self.current_organization}, "
+                f"token org: {getattr(self.active_token, 'github_organization', 'N/A')}"
+            )
             # Make sure that our token is still valid or update it.
             if not self.active_token.has_calls_remaining():
                 self.get_next_auth_token()
