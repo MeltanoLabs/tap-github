@@ -334,6 +334,12 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             len(personal_token_managers),
             sum([len(app_token_managers[org]) for org in app_token_managers]),
         )
+
+        # Merge personal tokens (org-agnostic) and app tokens (org-specific)
+        # Personal tokens are stored under None key as they work across orgs
+        if personal_token_managers:
+            app_token_managers[None].extend(personal_token_managers)
+
         return app_token_managers
 
     def __init__(
@@ -365,11 +371,18 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         self.token_managers = self.prepare_tokens()
         self.current_organization: str | None = None
-        initial_org = min(self.token_managers) if self.token_managers else None
-        self.logger.info(f"Setting initial organization for authenticator: {initial_org}")
-        self.active_token: TokenManager | None = (
-            choice(self.token_managers[initial_org]) if initial_org is not None else None
-        )
+        if self.token_managers:
+            # Prefer org-specific tokens over org-agnostic (None key)
+            org_keys = [k for k in self.token_managers.keys() if k is not None]
+            if org_keys:
+                initial_org = min(org_keys)
+            else:
+                initial_org = None
+            self.logger.info(f"Setting initial organization for authenticator: {initial_org}")
+            self.active_token: TokenManager | None = choice(self.token_managers[initial_org])
+        else:
+            self.logger.info("Setting initial organization for authenticator: None")
+            self.active_token: TokenManager | None = None
 
     @classmethod
     def from_stream(cls, stream: RESTStream) -> GitHubTokenAuthenticator:

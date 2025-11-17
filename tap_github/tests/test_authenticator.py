@@ -336,6 +336,16 @@ def mock_stream():
 
 
 class TestGitHubTokenAuthenticator:
+    @staticmethod
+    def _count_total_tokens(token_managers):
+        """Count total tokens across all organizations."""
+        return sum(len(tokens) for tokens in token_managers.values())
+
+    @staticmethod
+    def _flatten_token_managers(token_managers):
+        """Flatten token_managers dict to a list of all TokenManager objects."""
+        return [tm for tokens in token_managers.values() for tm in tokens]
+
     def test_prepare_tokens_returns_empty_if_none_found(self, mock_stream):
         with (
             patch.object(
@@ -364,8 +374,8 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 1
-            assert token_managers[0].token == "gt5"
+            assert self._count_total_tokens(token_managers) == 1
+            assert token_managers[None][0].token == "gt5"
 
     def test_config_additional_auth_tokens_only(self, mock_stream):
         with (
@@ -381,8 +391,9 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 3
-            assert sorted({tm.token for tm in token_managers}) == ["gt7", "gt8", "gt9"]
+            assert self._count_total_tokens(token_managers) == 3
+            all_tokens = self._flatten_token_managers(token_managers)
+            assert sorted({tm.token for tm in all_tokens}) == ["gt7", "gt8", "gt9"]
 
     def test_env_personal_tokens_only(self, mock_stream):
         with (
@@ -400,8 +411,9 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 2
-            assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt2"]
+            assert self._count_total_tokens(token_managers) == 2
+            all_tokens = self._flatten_token_managers(token_managers)
+            assert sorted({tm.token for tm in all_tokens}) == ["gt1", "gt2"]
 
     def test_config_app_keys(self, mock_stream):
         def generate_token_mock(app_id, private_key, installation_id):
@@ -429,10 +441,11 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 7
+            assert self._count_total_tokens(token_managers) == 7
 
+            all_tokens = self._flatten_token_managers(token_managers)
             app_token_managers = {
-                tm for tm in token_managers if isinstance(tm, AppTokenManager)
+                tm for tm in all_tokens if isinstance(tm, AppTokenManager)
             }
             assert len(app_token_managers) == 3
 
@@ -462,8 +475,8 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=mock_stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 1
-            assert token_managers[0].token == "installationtoken12345"
+            assert self._count_total_tokens(token_managers) == 1
+            assert token_managers[None][0].token == "installationtoken12345"
 
     def test_all_token_types(self, mock_stream):
         # Expectations:
@@ -496,8 +509,9 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 5
-            assert sorted({tm.token for tm in token_managers}) == [
+            assert self._count_total_tokens(token_managers) == 5
+            all_tokens = self._flatten_token_managers(token_managers)
+            assert sorted({tm.token for tm in all_tokens}) == [
                 "gt5",
                 "gt7",
                 "gt8",
@@ -534,8 +548,9 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 4
-            assert sorted({tm.token for tm in token_managers}) == [
+            assert self._count_total_tokens(token_managers) == 4
+            all_tokens = self._flatten_token_managers(token_managers)
+            assert sorted({tm.token for tm in all_tokens}) == [
                 "gt1",
                 "gt2",
                 "gt5",
@@ -569,8 +584,9 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 3
-            assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt8", "gt9"]
+            assert self._count_total_tokens(token_managers) == 3
+            all_tokens = self._flatten_token_managers(token_managers)
+            assert sorted({tm.token for tm in all_tokens}) == ["gt1", "gt8", "gt9"]
 
     def test_auth_token_and_env_tokens_deduped(self, mock_stream):
         with (
@@ -595,8 +611,9 @@ class TestGitHubTokenAuthenticator:
             auth = GitHubTokenAuthenticator.from_stream(stream=stream)
             token_managers = auth.prepare_tokens()
 
-            assert len(token_managers) == 2
-            assert sorted({tm.token for tm in token_managers}) == ["gt1", "gt2"]
+            assert self._count_total_tokens(token_managers) == 2
+            all_tokens = self._flatten_token_managers(token_managers)
+            assert sorted({tm.token for tm in all_tokens}) == ["gt1", "gt2"]
 
     def test_handle_error_if_app_key_invalid(
         self,
@@ -670,3 +687,139 @@ class TestGitHubTokenAuthenticator:
             token_managers = auth.prepare_tokens()
 
             assert len(token_managers) == 0
+
+    def test_get_next_auth_token_rotates_within_org(self, mock_stream):
+        """Test that token rotation works correctly with org-specific token pools."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": {
+                        "acme-corp": ["app1;;key1", "app2;;key2"],
+                    }
+                }
+            )
+
+            def mock_generate_token(app_id, private_key, installation_id):
+                return (f"token_for_{app_id}", MagicMock())
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                side_effect=mock_generate_token,
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                # Get the two tokens for acme-corp org
+                org_tokens = auth.token_managers["acme-corp"]
+                assert len(org_tokens) == 2
+
+                # Set current org and active token
+                auth.current_organization = "acme-corp"
+                auth.active_token = org_tokens[0]
+
+                # Mock first token as exhausted, second as available
+                with (
+                    patch.object(org_tokens[0], "has_calls_remaining", return_value=False),
+                    patch.object(org_tokens[1], "has_calls_remaining", return_value=True),
+                ):
+                    initial_token = auth.active_token
+
+                    # Should rotate to second token
+                    auth.get_next_auth_token()
+
+                    assert auth.active_token != initial_token
+                    assert auth.active_token == org_tokens[1]
+                    assert auth.current_organization == "acme-corp"
+
+    def test_get_next_auth_token_falls_back_to_org_agnostic(self, mock_stream):
+        """Test that token rotation falls back to org-agnostic tokens."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "additional_auth_tokens": ["personal_token"],
+                    "auth_app_keys": {
+                        "acme-corp": ["app1;;key1"],
+                    },
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("org_app_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                # Get tokens
+                org_token = auth.token_managers["acme-corp"][0]
+                agnostic_token = auth.token_managers[None][0]
+
+                # Set current org with exhausted token
+                auth.current_organization = "acme-corp"
+                auth.active_token = org_token
+
+                # Mock org-specific token as exhausted, agnostic as available
+                with (
+                    patch.object(org_token, "has_calls_remaining", return_value=False),
+                    patch.object(agnostic_token, "has_calls_remaining", return_value=True),
+                ):
+                    # Should fall back to agnostic token
+                    auth.get_next_auth_token()
+
+                    assert auth.active_token == agnostic_token
+                    assert auth.current_organization == "acme-corp"
+
+    def test_get_next_auth_token_raises_when_all_exhausted(self, mock_stream):
+        """Test that get_next_auth_token raises when all tokens are exhausted."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": {
+                        "acme-corp": ["app1;;key1", "app2;;key2"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("org_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                org_tokens = auth.token_managers["acme-corp"]
+                auth.current_organization = "acme-corp"
+                auth.active_token = org_tokens[0]
+
+                # Mock all tokens as exhausted
+                with (
+                    patch.object(org_tokens[0], "has_calls_remaining", return_value=False),
+                    patch.object(org_tokens[1], "has_calls_remaining", return_value=False),
+                ):
+                    # Should raise RuntimeError
+                    with pytest.raises(
+                        RuntimeError,
+                        match="All GitHub tokens for organization 'acme-corp' have hit their rate limit"
+                    ):
+                        auth.get_next_auth_token()
