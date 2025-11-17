@@ -426,10 +426,24 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
     def get_next_auth_token(self) -> None:
         current_token = self.active_token.token if self.active_token else ""
-        token_managers = deepcopy(self.token_managers)
-        # TODO: fix to handle a dictionary of token managers
-        shuffle(token_managers)
-        for token_manager in token_managers:
+
+        # Build a list of candidate tokens for the current organization
+        candidates = []
+
+        # Priority 1: Other tokens for the current organization
+        if self.current_organization and self.current_organization in self.token_managers:
+            org_tokens = list(self.token_managers[self.current_organization])
+            shuffle(org_tokens)
+            candidates.extend(org_tokens)
+
+        # Priority 2: Org-agnostic tokens (stored under None key)
+        if None in self.token_managers:
+            agnostic_tokens = list(self.token_managers[None])
+            shuffle(agnostic_tokens)
+            candidates.extend(agnostic_tokens)
+
+        # Try to find a token with remaining capacity
+        for token_manager in candidates:
             if (
                 token_manager.has_calls_remaining()
                 and current_token != token_manager.token
@@ -439,7 +453,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 return
 
         raise RuntimeError(
-            "All GitHub tokens have hit their rate limit. Stopping here."
+            f"All GitHub tokens for organization '{self.current_organization}' have hit their rate limit. Stopping here."
         )
 
     def update_rate_limit(
@@ -447,7 +461,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         response_headers: requests.models.CaseInsensitiveDict,
     ) -> None:
         # If no token or only one token is available, return early.
-        if len(self.token_managers) <= 1 or self.active_token is None:
+        # Count total tokens across all organizations
+        total_tokens = sum(len(tokens) for tokens in self.token_managers.values())
+        if total_tokens <= 1 or self.active_token is None:
             return
 
         self.active_token.update_rate_limit(response_headers)
