@@ -290,14 +290,24 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         app_keys: dict[str, list[str]] = defaultdict(list)
         if self.auth_app_keys:
-            for org in self.auth_app_keys:
-                for app_key in self.auth_app_keys[org]:
-                    app_keys[org].append(app_key)
-
-            logger.info(
-                "Provided %d app keys via config for authentication.",
-                sum([len(app_keys[org]) for org in app_keys]),
-            )
+            # Handle backwards compatibility: detect if it's a list (old format) or dict (new format)
+            if isinstance(self.auth_app_keys, list):
+                # Old format: treat all keys as org-agnostic
+                for app_key in self.auth_app_keys:
+                    app_keys[None].append(app_key)
+                logger.info(
+                    "Provided %d app keys via config for authentication (legacy array format).",
+                    len(self.auth_app_keys),
+                )
+            else:
+                # New format: org-specific keys
+                for org in self.auth_app_keys:
+                    for app_key in self.auth_app_keys[org]:
+                        app_keys[org].append(app_key)
+                logger.info(
+                    "Provided %d app keys via config for authentication.",
+                    sum([len(app_keys[org]) for org in app_keys]),
+                )
         elif "GITHUB_APP_PRIVATE_KEY" in env_dict:
             app_keys[None].append(env_dict["GITHUB_APP_PRIVATE_KEY"])
             logger.info("Found 1 app key via environment variable for authentication.")
