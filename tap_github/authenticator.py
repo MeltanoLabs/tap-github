@@ -249,7 +249,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
     def get_env():  # noqa: ANN205
         return dict(environ)
 
-    def prepare_tokens(self) -> dict[str, list[TokenManager]]:
+    def prepare_tokens(self) -> dict[str | None, list[TokenManager]]:
         """Prep GitHub tokens"""
 
         env_dict = self.get_env()
@@ -285,8 +285,11 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 logger.warning("A token was dismissed.")
 
         # Parse App level private keys and generate tokens
-        # To simplify settings, we use a single env-key formatted as follows:
-        # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
+        # App keys can be provided via:
+        # 1. Config as array (org-agnostic): ["app_id;;private_key", ...]
+        # 2. Config as dict (org-specific): {"org": ["app_id;;private_key", ...], ...}
+        # 3. Environment variable GITHUB_APP_PRIVATE_KEY: "app_id;;private_key"
+        # Format: "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
 
         app_keys: dict[str, list[str]] = defaultdict(list)
         if self.auth_app_keys:
@@ -296,7 +299,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 for app_key in self.auth_app_keys:
                     app_keys[None].append(app_key)
                 logger.info(
-                    "Provided %d app keys via config for authentication (legacy array format).",
+                    "Provided %d app keys via config for authentication.",
                     len(self.auth_app_keys),
                 )
             else:
@@ -304,15 +307,16 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 for org in self.auth_app_keys:
                     for app_key in self.auth_app_keys[org]:
                         app_keys[org].append(app_key)
-                logger.info(
-                    "Provided %d app keys via config for authentication.",
-                    sum([len(app_keys[org]) for org in app_keys]),
-                )
+                    logger.info(
+                      "Provided %d app keys via config for authentication for organization: %s",
+                      len(self.auth_app_keys[org]),
+                      org,
+                    )
         elif "GITHUB_APP_PRIVATE_KEY" in env_dict:
             app_keys[None].append(env_dict["GITHUB_APP_PRIVATE_KEY"])
             logger.info("Found 1 app key via environment variable for authentication.")
 
-        app_token_managers: dict[str, list[AppTokenManager]] = defaultdict(list)
+        token_managers: dict[str | None, list[TokenManager]] = defaultdict(list)
         for org in app_keys:
             for app_key in app_keys[org]:
                 try:
@@ -323,7 +327,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                         expiry_time_buffer=self.expiry_time_buffer,
                     )
                     if app_token_manager.is_valid_token():
-                        app_token_managers[org].append(app_token_manager)
+                        token_managers[org].append(app_token_manager)
                 except ValueError as e:  # noqa: PERF203
                     logger.warning(
                         f"An error was thrown while preparing an app token: {e}"
@@ -332,15 +336,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         logger.info(
             "Tap will run with %d personal auth tokens and %d app keys.",
             len(personal_token_managers),
-            sum([len(app_token_managers[org]) for org in app_token_managers]),
+            sum([len(token_managers[org]) for org in token_managers]),
         )
 
-        # Merge personal tokens (org-agnostic) and app tokens (org-specific)
-        # Personal tokens are stored under None key as they work across orgs
+        # Merge personal tokens and app tokens.
+        # Personal tokens are stored under None key as they are org-agnostic.
         if personal_token_managers:
-            app_token_managers[None].extend(personal_token_managers)
+            token_managers[None].extend(personal_token_managers)
 
-        return app_token_managers
+        return token_managers
 
     def __init__(
         self,
@@ -466,7 +470,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 return
 
         raise RuntimeError(
-            f"All GitHub tokens for organization '{self.current_organization}' have hit their rate limit. Stopping here."
+            "All GitHub tokens have hit their rate limit. Stopping here."
         )
 
     def update_rate_limit(
@@ -486,11 +490,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         request: requests.PreparedRequest,
     ) -> requests.PreparedRequest:
         if self.active_token:
-            logger.info(
-                f"[authenticate_request] Authenticator ID: {id(self)}, "
-                f"current_org: {self.current_organization}, "
-                f"token org: {getattr(self.active_token, 'github_organization', 'N/A')}"
-            )
             # Make sure that our token is still valid or update it.
             if not self.active_token.has_calls_remaining():
                 self.get_next_auth_token()
