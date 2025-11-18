@@ -237,7 +237,6 @@ class GitHubRestStream(RESTStream):
                 and "rate limit exceeded" in str(response.content).lower()
             ):
                 # Update token
-                self.logger.info("CONTEXT: " + repr(self.context))
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
                 raise RetriableAPIError(msg, response)

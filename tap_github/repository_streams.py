@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
+from collections import defaultdict
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -101,7 +102,6 @@ class RepositoryStream(GitHubRestStream):
                 chunks = []
                 for i, repo in enumerate(self.repo_list):
                     org, repo_name = repo
-                    self.logger.info(f"[TempStream.query] Building query for {org}/{repo_name} with authenticator org: {self.authenticator.current_organization}")
                     chunks.append(
                         f'repo{i}: repository(name: "{repo_name}", owner: "{org}") '
                         "{ nameWithOwner databaseId }"
@@ -123,20 +123,10 @@ class RepositoryStream(GitHubRestStream):
 
         if len(repo_list) < 1:
             return []
-        self.logger.info(f"Getting repo ids for {len(repo_list)} repositories")
-
-        # Log parent stream authenticator info
-        self.logger.info(f"[get_repo_ids] Parent stream authenticator ID: {id(self.authenticator)}")
-        self.logger.info(f"[get_repo_ids] Parent stream current_org: {self.authenticator.current_organization}")
-        self.logger.info(f"[get_repo_ids] Parent stream active_token org: {getattr(self.authenticator.active_token, 'github_organization', 'N/A')}")
 
         repos_with_ids: list = []
         temp_stream = TempStream(self._tap, list(repo_list), self.authenticator)
 
-        # Log TempStream authenticator info
-        self.logger.info(f"[get_repo_ids] TempStream authenticator ID: {id(temp_stream.authenticator)}")
-        self.logger.info(f"[get_repo_ids] TempStream current_org: {temp_stream.authenticator.current_organization}")
-        self.logger.info(f"[get_repo_ids] TempStream active_token org: {getattr(temp_stream.authenticator.active_token, 'github_organization', 'N/A')}")
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
         # See https://github.com/MeltanoLabs/tap-github/issues/110
@@ -147,7 +137,6 @@ class RepositoryStream(GitHubRestStream):
                 if item == "rateLimit":
                     continue
                 try:
-                    self.logger.info(f"Processing record within TempStream: {record[item]}")
                     repo_full_name = "/".join(repo_list[int(item[4:])])
                     name_with_owner = record[item]["nameWithOwner"]
                     org, repo = name_with_owner.split("/")
@@ -191,9 +180,7 @@ class RepositoryStream(GitHubRestStream):
             split_repo_names = [s.split("/") for s in self.config["repositories"]]
 
             # Group repositories by organization for org-specific authentication
-            from collections import defaultdict
             repos_by_org = defaultdict(list)
-            self.logger.info(f"Split repository names as part of repository stream: {split_repo_names}")
             for org, repo in split_repo_names:
                 repos_by_org[org].append((org, repo))
 
@@ -207,9 +194,7 @@ class RepositoryStream(GitHubRestStream):
 
             # Process each organization's repos separately with org-specific auth
             for org, org_repos in repos_by_org.items():
-                self.logger.info(f"Validating {len(org_repos)} repositories for organization: {org}")
-                # Set organization-specific authentication before validating repos
-                self.logger.info(f"Setting organization within repository stream: {org}")
+                # Set organization-specific authentication
                 self.authenticator.set_organization(org)
 
                 # Process in chunks
@@ -253,7 +238,6 @@ class RepositoryStream(GitHubRestStream):
         """
         # Set organization-specific authentication before fetching records
         if context is not None and "org" in context:
-            self.logger.info(f"Setting organization within repository stream: {context['org']}")
             self.authenticator.set_organization(context["org"])
 
         if (
