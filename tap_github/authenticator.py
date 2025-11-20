@@ -420,6 +420,16 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 f"No org-specific tokens found for '{org}', using org-agnostic tokens"
             )
 
+        # If still no tokens, try tokens from other orgs (for public data access)
+        if not available_tokens:
+            for other_org, tokens in self.token_managers.items():
+                if other_org is not None and tokens:
+                    available_tokens = tokens
+                    logger.info(
+                        f"No tokens for '{org}', using tokens from '{other_org}' for public data access"
+                    )
+                    break
+
         if not available_tokens:
             logger.warning(
                 f"No authentication tokens available for organization: {org}"
@@ -458,6 +468,14 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             agnostic_tokens = list(self.token_managers[None])
             shuffle(agnostic_tokens)
             candidates.extend(agnostic_tokens)
+
+        # Priority 3: Tokens from other organizations (for public data access)
+        # GitHub tokens can access public data from any org
+        for org, tokens in self.token_managers.items():
+            if org != self.current_organization and org is not None:
+                other_org_tokens = list(tokens)
+                shuffle(other_org_tokens)
+                candidates.extend(other_org_tokens)
 
         # Try to find a token with remaining capacity
         for token_manager in candidates:
