@@ -820,6 +820,339 @@ class TestGitHubTokenAuthenticator:
                     # Should raise RuntimeError
                     with pytest.raises(
                         RuntimeError,
-                        match="All GitHub tokens for organization 'acme-corp' have hit their rate limit"
+                        match="All GitHub tokens have hit their rate limit"
                     ):
                         auth.get_next_auth_token()
+
+    def test_auth_app_keys_array_format_stores_under_none_key(self, mock_stream):
+        """Test that array format for auth_app_keys stores tokens under None key."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": ["app1;;key1", "app2;;key2"],
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("array_format_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+                token_managers = auth.prepare_tokens()
+
+                # Tokens should be stored under None key (org-agnostic)
+                assert None in token_managers
+                assert len(token_managers[None]) == 2
+                assert self._count_total_tokens(token_managers) == 2
+
+                # Should not have any org-specific keys
+                org_keys = [k for k in token_managers.keys() if k is not None]
+                assert len(org_keys) == 0
+
+    def test_auth_app_keys_object_format_stores_by_org(self, mock_stream):
+        """Test that object format for auth_app_keys stores tokens by organization."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": {
+                        "org1": ["app1;;key1"],
+                        "org2": ["app2;;key2", "app3;;key3"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("org_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+                token_managers = auth.prepare_tokens()
+
+                # Tokens should be stored under org-specific keys
+                assert "org1" in token_managers
+                assert "org2" in token_managers
+                assert len(token_managers["org1"]) == 1
+                assert len(token_managers["org2"]) == 2
+                assert self._count_total_tokens(token_managers) == 3
+
+                # Should not have any tokens under None key
+                assert None not in token_managers or len(token_managers[None]) == 0
+
+    def test_auth_app_keys_mixed_with_personal_tokens(self, mock_stream):
+        """Test that org-specific app keys and personal tokens coexist correctly."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_token": "personal_token",
+                    "auth_app_keys": {
+                        "org1": ["app1;;key1"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("org_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+                token_managers = auth.prepare_tokens()
+
+                # Should have both org-specific and org-agnostic tokens
+                assert "org1" in token_managers
+                assert None in token_managers
+                assert len(token_managers["org1"]) == 1
+                assert len(token_managers[None]) == 1
+                assert self._count_total_tokens(token_managers) == 2
+
+                # Verify personal token is under None key
+                personal_tokens = [
+                    tm for tm in token_managers[None]
+                    if isinstance(tm, PersonalTokenManager)
+                ]
+                assert len(personal_tokens) == 1
+                assert personal_tokens[0].token == "personal_token"
+
+    def test_set_organization_switches_to_org_specific_token(self, mock_stream):
+        """Test that set_organization switches to org-specific token."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": {
+                        "org1": ["app1;;key1"],
+                        "org2": ["app2;;key2"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("org_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                # Initially should be on org1 (alphabetically first)
+                assert auth.current_organization is None  # Not set yet
+                org1_token = auth.token_managers["org1"][0]
+                org2_token = auth.token_managers["org2"][0]
+
+                # Mock has_calls_remaining to return True for all tokens
+                with (
+                    patch.object(org1_token, "has_calls_remaining", return_value=True),
+                    patch.object(org2_token, "has_calls_remaining", return_value=True),
+                ):
+                    # Switch to org1
+                    auth.set_organization("org1")
+                    assert auth.current_organization == "org1"
+                    assert auth.active_token == org1_token
+
+                    # Switch to org2
+                    auth.set_organization("org2")
+                    assert auth.current_organization == "org2"
+                    assert auth.active_token == org2_token
+
+                    # Switch back to org1
+                    auth.set_organization("org1")
+                    assert auth.current_organization == "org1"
+                    assert auth.active_token == org1_token
+
+    def test_set_organization_falls_back_to_org_agnostic(self, mock_stream):
+        """Test that set_organization falls back to org-agnostic tokens when no org-specific tokens."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "additional_auth_tokens": ["personal_token"],
+                }
+            )
+
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+            # Should have only org-agnostic token
+            assert None in auth.token_managers
+            assert len(auth.token_managers[None]) == 1
+            agnostic_token = auth.token_managers[None][0]
+
+            # Switch to an org that has no specific tokens
+            with patch("tap_github.authenticator.logger") as mock_logger:
+                auth.set_organization("some-org")
+
+                # Should fall back to org-agnostic token
+                assert auth.current_organization == "some-org"
+                assert auth.active_token == agnostic_token
+
+                # Verify fallback info message was logged
+                mock_logger.info.assert_any_call(
+                    "No org-specific tokens found for 'some-org', using org-agnostic tokens"
+                )
+
+    def test_initialization_prefers_org_specific_over_org_agnostic(self, mock_stream):
+        """Test that initialization prefers org-specific token over org-agnostic when both exist."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "additional_auth_tokens": ["personal_token"],
+                    "auth_app_keys": {
+                        "acme": ["app1;;key1"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                return_value=("org_token", MagicMock()),
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                # Verify both token pools exist
+                assert "acme" in auth.token_managers
+                assert None in auth.token_managers
+                acme_token = auth.token_managers["acme"][0]
+                agnostic_token = auth.token_managers[None][0]
+
+                # Mock has_calls_remaining to return True for all tokens
+                with (
+                    patch.object(acme_token, "has_calls_remaining", return_value=True),
+                    patch.object(agnostic_token, "has_calls_remaining", return_value=True),
+                ):
+                    # Set organization to acme
+                    auth.set_organization("acme")
+
+                    # Should prefer the org-specific token over org-agnostic
+                    assert auth.current_organization == "acme"
+                    assert auth.active_token == acme_token
+
+    def test_set_organization_falls_back_to_other_org_tokens(self, mock_stream):
+        """Test that set_organization falls back to tokens from other orgs when no tokens exist for target org."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": {
+                        "acme-corp": ["app1;;key1"],
+                        "widget-co": ["app2;;key2"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                side_effect=[("acme_token", MagicMock()), ("widget_token", MagicMock())],
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                # Verify token pools exist for both orgs
+                assert "acme-corp" in auth.token_managers
+                assert "widget-co" in auth.token_managers
+                acme_token = auth.token_managers["acme-corp"][0]
+                widget_token = auth.token_managers["widget-co"][0]
+
+                # Mock has_calls_remaining to return True for all tokens
+                with (
+                    patch.object(acme_token, "has_calls_remaining", return_value=True),
+                    patch.object(widget_token, "has_calls_remaining", return_value=True),
+                ):
+                    # Switch to an org with no tokens (public org like matplotlib)
+                    auth.set_organization("matplotlib")
+
+                    # Should fall back to a token from another org
+                    assert auth.current_organization == "matplotlib"
+                    assert auth.active_token in [acme_token, widget_token]
+
+    def test_get_next_auth_token_falls_back_to_other_org_tokens(self, mock_stream):
+        """Test that get_next_auth_token falls back to tokens from other orgs."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(TokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_app_keys": {
+                        "acme-corp": ["app1;;key1"],
+                        "widget-co": ["app2;;key2"],
+                    }
+                }
+            )
+
+            with patch(
+                "tap_github.authenticator.generate_app_access_token",
+                side_effect=[("acme_token", MagicMock()), ("widget_token", MagicMock())],
+            ):
+                auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+                # Set current org to public org with no tokens configured
+                auth.current_organization = "matplotlib"
+                auth.active_token = None
+
+                # Get tokens from other orgs
+                acme_token = auth.token_managers["acme-corp"][0]
+                widget_token = auth.token_managers["widget-co"][0]
+
+                # Mock widget-co token as available
+                with (
+                    patch.object(acme_token, "has_calls_remaining", return_value=False),
+                    patch.object(widget_token, "has_calls_remaining", return_value=True),
+                ):
+                    # Should fall back to token from another org
+                    auth.get_next_auth_token()
+
+                    assert auth.active_token == widget_token
+                    assert auth.current_organization == "matplotlib"
