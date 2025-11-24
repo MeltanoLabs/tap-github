@@ -70,11 +70,6 @@ class OrganizationStream(GitHubRestStream):
         quota when only syncing a child stream. Without this,
         the API call is sent but data is discarded.
         """
-        # Set organization-specific authentication before fetching records
-        if context is not None and "org" in context:
-            self.logger.info(f"Setting organization within organization stream: {context['org']}")
-            self.authenticator.set_organization(context["org"])
-
         if (
             not self.selected
             and "skip_parent_streams" in self.config
