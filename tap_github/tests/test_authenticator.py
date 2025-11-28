@@ -726,8 +726,12 @@ class TestGitHubTokenAuthenticator:
 
                 # Mock first token as exhausted, second as available
                 with (
-                    patch.object(org_tokens[0], "has_calls_remaining", return_value=False),
-                    patch.object(org_tokens[1], "has_calls_remaining", return_value=True),
+                    patch.object(
+                        org_tokens[0], "has_calls_remaining", return_value=False
+                    ),
+                    patch.object(
+                        org_tokens[1], "has_calls_remaining", return_value=True
+                    ),
                 ):
                     initial_token = auth.active_token
 
@@ -775,7 +779,9 @@ class TestGitHubTokenAuthenticator:
                 # Mock org-specific token as exhausted, agnostic as available
                 with (
                     patch.object(org_token, "has_calls_remaining", return_value=False),
-                    patch.object(agnostic_token, "has_calls_remaining", return_value=True),
+                    patch.object(
+                        agnostic_token, "has_calls_remaining", return_value=True
+                    ),
                 ):
                     # Should fall back to agnostic token
                     auth.get_next_auth_token()
@@ -814,13 +820,17 @@ class TestGitHubTokenAuthenticator:
 
                 # Mock all tokens as exhausted
                 with (
-                    patch.object(org_tokens[0], "has_calls_remaining", return_value=False),
-                    patch.object(org_tokens[1], "has_calls_remaining", return_value=False),
+                    patch.object(
+                        org_tokens[0], "has_calls_remaining", return_value=False
+                    ),
+                    patch.object(
+                        org_tokens[1], "has_calls_remaining", return_value=False
+                    ),
                 ):
                     # Should raise RuntimeError
                     with pytest.raises(
                         RuntimeError,
-                        match="All GitHub tokens have hit their rate limit"
+                        match="All GitHub tokens have hit their rate limit",
                     ):
                         auth.get_next_auth_token()
 
@@ -910,7 +920,7 @@ class TestGitHubTokenAuthenticator:
                     "auth_token": "personal_token",
                     "auth_app_keys": {
                         "org1": ["app1;;key1"],
-                    }
+                    },
                 }
             )
 
@@ -930,7 +940,8 @@ class TestGitHubTokenAuthenticator:
 
                 # Verify personal token is under None key
                 personal_tokens = [
-                    tm for tm in token_managers[None]
+                    tm
+                    for tm in token_managers[None]
                     if isinstance(tm, PersonalTokenManager)
                 ]
                 assert len(personal_tokens) == 1
@@ -1040,7 +1051,7 @@ class TestGitHubTokenAuthenticator:
                     "additional_auth_tokens": ["personal_token"],
                     "auth_app_keys": {
                         "acme": ["app1;;key1"],
-                    }
+                    },
                 }
             )
 
@@ -1059,7 +1070,9 @@ class TestGitHubTokenAuthenticator:
                 # Mock has_calls_remaining to return True for all tokens
                 with (
                     patch.object(acme_token, "has_calls_remaining", return_value=True),
-                    patch.object(agnostic_token, "has_calls_remaining", return_value=True),
+                    patch.object(
+                        agnostic_token, "has_calls_remaining", return_value=True
+                    ),
                 ):
                     # Set organization to acme
                     auth.set_organization("acme")
@@ -1090,7 +1103,10 @@ class TestGitHubTokenAuthenticator:
 
             with patch(
                 "tap_github.authenticator.generate_app_access_token",
-                side_effect=[("acme_token", MagicMock()), ("widget_token", MagicMock())],
+                side_effect=[
+                    ("acme_token", MagicMock()),
+                    ("widget_token", MagicMock()),
+                ],
             ):
                 auth = GitHubTokenAuthenticator.from_stream(stream=stream)
 
@@ -1103,7 +1119,9 @@ class TestGitHubTokenAuthenticator:
                 # Mock has_calls_remaining to return True for all tokens
                 with (
                     patch.object(acme_token, "has_calls_remaining", return_value=True),
-                    patch.object(widget_token, "has_calls_remaining", return_value=True),
+                    patch.object(
+                        widget_token, "has_calls_remaining", return_value=True
+                    ),
                 ):
                     # Switch to an org with no tokens (public org like matplotlib)
                     auth.set_organization("matplotlib")
@@ -1134,7 +1152,10 @@ class TestGitHubTokenAuthenticator:
 
             with patch(
                 "tap_github.authenticator.generate_app_access_token",
-                side_effect=[("acme_token", MagicMock()), ("widget_token", MagicMock())],
+                side_effect=[
+                    ("acme_token", MagicMock()),
+                    ("widget_token", MagicMock()),
+                ],
             ):
                 auth = GitHubTokenAuthenticator.from_stream(stream=stream)
 
@@ -1149,7 +1170,9 @@ class TestGitHubTokenAuthenticator:
                 # Mock widget-co token as available
                 with (
                     patch.object(acme_token, "has_calls_remaining", return_value=False),
-                    patch.object(widget_token, "has_calls_remaining", return_value=True),
+                    patch.object(
+                        widget_token, "has_calls_remaining", return_value=True
+                    ),
                 ):
                     # Should fall back to token from another org
                     auth.get_next_auth_token()

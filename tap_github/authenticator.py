@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
-from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
@@ -308,9 +307,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     for app_key in self.auth_app_keys[org]:
                         app_keys[org].append(app_key)
                     logger.info(
-                      "Provided %d app keys via config for authentication for organization: %s",
-                      len(self.auth_app_keys[org]),
-                      org,
+                        "Provided %d app keys via config for authentication for organization: %s",
+                        len(self.auth_app_keys[org]),
+                        org,
                     )
         elif "GITHUB_APP_PRIVATE_KEY" in env_dict:
             app_keys[None].append(env_dict["GITHUB_APP_PRIVATE_KEY"])
@@ -382,8 +381,12 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 initial_org = min(org_keys)
             else:
                 initial_org = None
-            self.logger.info(f"Setting initial organization for authenticator: {initial_org}")
-            self.active_token: TokenManager | None = choice(self.token_managers[initial_org])
+            self.logger.info(
+                f"Setting initial organization for authenticator: {initial_org}"
+            )
+            self.active_token: TokenManager | None = choice(
+                self.token_managers[initial_org]
+            )
         else:
             self.logger.info("Setting initial organization for authenticator: None")
             self.active_token: TokenManager | None = None
@@ -458,7 +461,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         candidates = []
 
         # Priority 1: Other tokens for the current organization
-        if self.current_organization and self.current_organization in self.token_managers:
+        if (
+            self.current_organization
+            and self.current_organization in self.token_managers
+        ):
             org_tokens = list(self.token_managers[self.current_organization])
             shuffle(org_tokens)
             candidates.extend(org_tokens)

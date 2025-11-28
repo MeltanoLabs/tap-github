@@ -658,6 +658,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
                     f"Skipping project due to query validation timeout error. "
                     f"Context: {context}. Error: {e}"
                 )
+                return
 
             raise
 

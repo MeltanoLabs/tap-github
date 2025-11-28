@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
-from collections import defaultdict
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -190,7 +190,9 @@ class RepositoryStream(GitHubRestStream):
             # seems closer to 1000, use half that to stay safe.
             chunk_size = 500
             list_length = len(split_repo_names)
-            self.logger.info(f"Filtering repository list of {list_length} repositories across {len(repos_by_org)} organizations")
+            self.logger.info(
+                f"Filtering repository list of {list_length} repositories across {len(repos_by_org)} organizations"
+            )
 
             # Process each organization's repos separately with org-specific auth
             for org, org_repos in repos_by_org.items():
