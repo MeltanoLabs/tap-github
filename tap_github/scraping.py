@@ -23,6 +23,11 @@ used_by_regex = re.compile(" {3}Used by ")
 contributors_regex = re.compile(" {3}Contributors ")
 
 
+def parse_int(s: str) -> int:
+    """For example, '1,808' -> 1808."""
+    return int(s.strip().replace(",", "").replace("+", ""))
+
+
 def scrape_dependents(
     response: requests.Response, logger: logging.Logger | None = None
 ) -> Iterable[dict[str, Any]]:
@@ -58,11 +63,11 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, A
             for a in soup.select("a[data-hovercard-type=repository]")
         ]
         stars = [
-            int(s.next_sibling.strip())
+            parse_int(s.next_sibling)
             for s in soup.find_all("svg", {"class": "octicon octicon-star"})
         ]
         forks = [
-            int(s.next_sibling.strip())
+            parse_int(s.next_sibling)
             for s in soup.find_all("svg", {"class": "octicon octicon-repo-forked"})
         ]
 
@@ -111,7 +116,7 @@ def parse_counter(tag: Tag | NavigableString | None) -> int:
             title_string = cast("str", title)
         else:
             title_string = cast("str", title[0])
-        return int(title_string.strip().replace(",", "").replace("+", ""))
+        return parse_int(title_string)
     except (KeyError, ValueError) as e:
         raise IndexError(
             f"Could not parse counter {tag}. Maybe the GitHub page format has changed?"
