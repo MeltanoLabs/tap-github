@@ -68,6 +68,17 @@ class GitHubRestStream(RESTStream):
         headers["User-Agent"] = cast("str", self.config.get("user_agent", "tap-github"))
         return headers
 
+    def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
+        """
+        Override parent method to set organization-specific authentication
+        before fetching records.
+        """
+        # Set organization-specific authentication before fetching records
+        if context is not None and "org" in context:
+            self.authenticator.set_organization(context["org"])
+
+        yield from super().get_records(context)
+
     def get_next_page_token(
         self,
         response: requests.Response,

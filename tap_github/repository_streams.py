@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
@@ -89,16 +90,21 @@ class RepositoryStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, repo_list) -> None:  # noqa: ANN001
+            def __init__(self, tap, repo_list, parent_authenticator=None) -> None:  # noqa: ANN001
                 super().__init__(tap)
                 self.repo_list = repo_list
+                # Use parent's authenticator to maintain consistent auth state
+                # and rate limits
+                if parent_authenticator is not None:
+                    self._authenticator = parent_authenticator
 
             @property
             def query(self) -> str:
                 chunks = []
                 for i, repo in enumerate(self.repo_list):
+                    org, repo_name = repo
                     chunks.append(
-                        f'repo{i}: repository(name: "{repo[1]}", owner: "{repo[0]}") '
+                        f'repo{i}: repository(name: "{repo_name}", owner: "{org}") '
                         "{ nameWithOwner databaseId }"
                     )
                 return "query {" + " ".join(chunks) + " rateLimit { cost } }"
@@ -120,7 +126,8 @@ class RepositoryStream(GitHubRestStream):
             return []
 
         repos_with_ids: list = []
-        temp_stream = TempStream(self._tap, list(repo_list))
+        temp_stream = TempStream(self._tap, list(repo_list), self.authenticator)
+
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.
         # See https://github.com/MeltanoLabs/tap-github/issues/110
@@ -172,17 +179,34 @@ class RepositoryStream(GitHubRestStream):
 
         if "repositories" in self.config:
             split_repo_names = [s.split("/") for s in self.config["repositories"]]
+
+            # Group repositories by organization for org-specific authentication
+            repos_by_org = defaultdict(list)
+            for org, repo in split_repo_names:
+                repos_by_org[org].append((org, repo))
+
             augmented_repo_list = []
             # chunk requests to the graphql endpoint to avoid timeouts and other
             # obscure errors that the api doesn't say much about. The actual limit
             # seems closer to 1000, use half that to stay safe.
             chunk_size = 500
             list_length = len(split_repo_names)
-            self.logger.info(f"Filtering repository list of {list_length} repositories")
-            for ndx in range(0, list_length, chunk_size):
-                augmented_repo_list += self.get_repo_ids(
-                    split_repo_names[ndx : ndx + chunk_size]
-                )
+            self.logger.info(
+                f"Filtering repository list of {list_length} repositories "
+                f"across {len(repos_by_org)} organizations"
+            )
+
+            # Process each organization's repos separately with org-specific auth
+            for org, org_repos in repos_by_org.items():
+                # Set organization-specific authentication
+                self.authenticator.set_organization(org)
+
+                # Process in chunks
+                for ndx in range(0, len(org_repos), chunk_size):
+                    augmented_repo_list += self.get_repo_ids(
+                        org_repos[ndx : ndx + chunk_size]
+                    )
+
             self.logger.info(
                 f"Running the tap on {len(augmented_repo_list)} repositories"
             )

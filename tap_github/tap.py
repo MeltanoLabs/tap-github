@@ -54,11 +54,30 @@ class TapGitHub(Tap):
         ),
         th.Property(
             "auth_app_keys",
-            th.ArrayType(th.StringType),
+            th.CustomType(
+                {
+                    "oneOf": [
+                        {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                    ]
+                }
+            ),
             description=(
-                "List of GitHub App credentials to authenticate with. Each credential "
-                "can be constructed by combining an App ID and App private key into "
-                "the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----`."  # noqa: E501
+                "GitHub App credentials for authentication. Accepts either:\n"
+                "- Array format: List of app credentials (org-agnostic)\n"
+                "- Object format: Organization names mapped to lists of app "
+                "credentials (org-specific)\n"
+                "Each credential should be formatted as "
+                "`:app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."  # noqa: E501
             ),
         ),
         th.Property(
