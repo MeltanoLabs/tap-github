@@ -74,7 +74,8 @@ class TapGitHub(Tap):
             description=(
                 "GitHub App credentials for authentication. Accepts either:\n"
                 "- Array format (legacy): List of app credentials (org-agnostic)\n"
-                "- Object format: Organization names mapped to lists of app credentials (org-specific)\n"
+                "- Object format: Organization names mapped to lists of app "
+                "credentials (org-specific)\n"
                 "Each credential should be formatted as "
                 "`:app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."  # noqa: E501
             ),

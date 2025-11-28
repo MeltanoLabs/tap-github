@@ -331,7 +331,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     for app_key in self.auth_app_keys[org]:
                         app_keys[org].append(app_key)
                     logger.info(
-                        "Provided %d app keys via config for authentication for organization: %s",
+                        "Provided %d app keys via config for authentication "
+                        "for organization: %s",
                         len(self.auth_app_keys[org]),
                         org,
                     )
@@ -350,7 +351,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             app_keys: Dictionary mapping organization names to lists of app keys.
 
         Returns:
-            Dictionary mapping organization names to lists of validated AppTokenManager instances.
+            Dictionary mapping organization names to lists of validated
+            AppTokenManager instances.
         """
         token_managers: dict[str | None, list[TokenManager]] = defaultdict(list)
 
@@ -429,11 +431,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.current_organization: str | None = None
         if self.token_managers:
             # Prefer org-specific tokens over org-agnostic (None key)
-            org_keys = [k for k in self.token_managers.keys() if k is not None]
-            if org_keys:
-                initial_org = min(org_keys)
-            else:
-                initial_org = None
+            org_keys = [k for k in self.token_managers if k is not None]
+            initial_org = min(org_keys) if org_keys else None
             self.logger.info(
                 f"Setting initial organization for authenticator: {initial_org}"
             )
@@ -482,7 +481,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 if other_org is not None and tokens:
                     available_tokens = tokens
                     logger.info(
-                        f"No tokens for '{org}', using tokens from '{other_org}' for public data access"
+                        f"No tokens for '{org}', using tokens from '{other_org}' "
+                        f"for public data access"
                     )
                     break
 

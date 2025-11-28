@@ -826,13 +826,12 @@ class TestGitHubTokenAuthenticator:
                     patch.object(
                         org_tokens[1], "has_calls_remaining", return_value=False
                     ),
-                ):
-                    # Should raise RuntimeError
-                    with pytest.raises(
+                    pytest.raises(
                         RuntimeError,
                         match="All GitHub tokens have hit their rate limit",
-                    ):
-                        auth.get_next_auth_token()
+                    ),
+                ):
+                    auth.get_next_auth_token()
 
     def test_auth_app_keys_array_format_stores_under_none_key(self, mock_stream):
         """Test that array format for auth_app_keys stores tokens under None key."""
@@ -864,7 +863,7 @@ class TestGitHubTokenAuthenticator:
                 assert self._count_total_tokens(token_managers) == 2
 
                 # Should not have any org-specific keys
-                org_keys = [k for k in token_managers.keys() if k is not None]
+                org_keys = [k for k in token_managers if k is not None]
                 assert len(org_keys) == 0
 
     def test_auth_app_keys_object_format_stores_by_org(self, mock_stream):
@@ -999,7 +998,8 @@ class TestGitHubTokenAuthenticator:
                     assert auth.active_token == org1_token
 
     def test_set_organization_falls_back_to_org_agnostic(self, mock_stream):
-        """Test that set_organization falls back to org-agnostic tokens when no org-specific tokens."""
+        """Test set_organization falls back to org-agnostic tokens when no
+        org-specific tokens."""
         with (
             patch.object(
                 GitHubTokenAuthenticator,
@@ -1032,11 +1032,13 @@ class TestGitHubTokenAuthenticator:
 
                 # Verify fallback info message was logged
                 mock_logger.info.assert_any_call(
-                    "No org-specific tokens found for 'some-org', using org-agnostic tokens"
+                    "No org-specific tokens found for 'some-org', "
+                    "using org-agnostic tokens"
                 )
 
     def test_initialization_prefers_org_specific_over_org_agnostic(self, mock_stream):
-        """Test that initialization prefers org-specific token over org-agnostic when both exist."""
+        """Test that initialization prefers org-specific token over
+        org-agnostic when both exist."""
         with (
             patch.object(
                 GitHubTokenAuthenticator,
@@ -1082,7 +1084,8 @@ class TestGitHubTokenAuthenticator:
                     assert auth.active_token == acme_token
 
     def test_set_organization_falls_back_to_other_org_tokens(self, mock_stream):
-        """Test that set_organization falls back to tokens from other orgs when no tokens exist for target org."""
+        """Test that set_organization falls back to tokens from other orgs
+        when no tokens exist for target org."""
         with (
             patch.object(
                 GitHubTokenAuthenticator,

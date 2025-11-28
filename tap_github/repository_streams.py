@@ -93,7 +93,8 @@ class RepositoryStream(GitHubRestStream):
             def __init__(self, tap, repo_list, parent_authenticator=None) -> None:  # noqa: ANN001
                 super().__init__(tap)
                 self.repo_list = repo_list
-                # Use parent's authenticator to maintain consistent auth state and rate limits
+                # Use parent's authenticator to maintain consistent auth state
+                # and rate limits
                 if parent_authenticator is not None:
                     self._authenticator = parent_authenticator
 
@@ -191,7 +192,8 @@ class RepositoryStream(GitHubRestStream):
             chunk_size = 500
             list_length = len(split_repo_names)
             self.logger.info(
-                f"Filtering repository list of {list_length} repositories across {len(repos_by_org)} organizations"
+                f"Filtering repository list of {list_length} repositories "
+                f"across {len(repos_by_org)} organizations"
             )
 
             # Process each organization's repos separately with org-specific auth
