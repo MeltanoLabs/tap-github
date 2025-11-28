@@ -248,11 +248,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
     def get_env():  # noqa: ANN205
         return dict(environ)
 
-    def prepare_tokens(self) -> dict[str | None, list[TokenManager]]:
-        """Prep GitHub tokens"""
+    def _collect_personal_tokens(self, env_dict: dict) -> set[str]:
+        """Collect personal tokens from config and environment variables.
 
-        env_dict = self.get_env()
+        Args:
+            env_dict: Dictionary of environment variables.
 
+        Returns:
+            Set of personal access tokens.
+        """
         personal_tokens: set[str] = set()
         if self.auth_token:
             personal_tokens.add(self.auth_token)
@@ -271,7 +275,19 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     len(env_tokens),
                 )
                 personal_tokens = personal_tokens.union(env_tokens)
+        return personal_tokens
 
+    def _create_personal_token_managers(
+        self, personal_tokens: set[str]
+    ) -> list[TokenManager]:
+        """Create validated token managers from personal tokens.
+
+        Args:
+            personal_tokens: Set of personal access tokens.
+
+        Returns:
+            List of validated PersonalTokenManager instances.
+        """
         personal_token_managers: list[TokenManager] = []
         for token in personal_tokens:
             token_manager = PersonalTokenManager(
@@ -282,17 +298,25 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 personal_token_managers.append(token_manager)
             else:
                 logger.warning("A token was dismissed.")
+        return personal_token_managers
 
-        # Parse App level private keys and generate tokens
-        # App keys can be provided via:
-        # 1. Config as array (org-agnostic): ["app_id;;private_key", ...]
-        # 2. Config as dict (org-specific): {"org": ["app_id;;private_key", ...], ...}
-        # 3. Environment variable GITHUB_APP_PRIVATE_KEY: "app_id;;private_key"
-        # Format: "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
+    def _collect_app_keys(self, env_dict: dict) -> dict[str | None, list[str]]:
+        """Collect app keys from config and environment variables.
 
-        app_keys: dict[str, list[str]] = defaultdict(list)
+        App keys can be provided via:
+        1. Config as array (org-agnostic): ["app_id;;private_key", ...]
+        2. Config as dict (org-specific): {"org": ["app_id;;private_key", ...], ...}
+        3. Environment variable GITHUB_APP_PRIVATE_KEY: "app_id;;private_key"
+
+        Args:
+            env_dict: Dictionary of environment variables.
+
+        Returns:
+            Dictionary mapping organization names (or None) to lists of app keys.
+        """
+        app_keys: dict[str | None, list[str]] = defaultdict(list)
+
         if self.auth_app_keys:
-            # Handle backwards compatibility: detect if it's a list (old format) or dict (new format)
             if isinstance(self.auth_app_keys, list):
                 # Old format: treat all keys as org-agnostic
                 for app_key in self.auth_app_keys:
@@ -315,7 +339,21 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             app_keys[None].append(env_dict["GITHUB_APP_PRIVATE_KEY"])
             logger.info("Found 1 app key via environment variable for authentication.")
 
+        return app_keys
+
+    def _create_app_token_managers(
+        self, app_keys: dict[str | None, list[str]]
+    ) -> dict[str | None, list[TokenManager]]:
+        """Create validated app token managers from app keys.
+
+        Args:
+            app_keys: Dictionary mapping organization names to lists of app keys.
+
+        Returns:
+            Dictionary mapping organization names to lists of validated AppTokenManager instances.
+        """
         token_managers: dict[str | None, list[TokenManager]] = defaultdict(list)
+
         for org in app_keys:
             for app_key in app_keys[org]:
                 try:
@@ -332,10 +370,25 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                         f"An error was thrown while preparing an app token: {e}"
                     )
 
+        return token_managers
+
+    def prepare_tokens(self) -> dict[str | None, list[TokenManager]]:
+        """Prep GitHub tokens"""
+        env_dict = self.get_env()
+
+        # Collect and create personal token managers
+        personal_tokens = self._collect_personal_tokens(env_dict)
+        personal_token_managers = self._create_personal_token_managers(personal_tokens)
+
+        # Collect and create app token managers
+        app_keys = self._collect_app_keys(env_dict)
+        token_managers = self._create_app_token_managers(app_keys)
+
+        # Log summary
         logger.info(
             "Tap will run with %d personal auth tokens and %d app keys.",
             len(personal_token_managers),
-            sum([len(token_managers[org]) for org in token_managers]),
+            sum(len(token_managers[org]) for org in token_managers),
         )
 
         # Merge personal tokens and app tokens.
