@@ -38,9 +38,18 @@ This tap accepts the following configuration options:
     - `auth_token` - Takes a single token.
     - `additional_auth_tokens` - Takes a list of tokens. Can be used together with `auth_token` or as the sole source of PATs.
     - Any environment variables beginning with `GITHUB_TOKEN` will be assumed to be PATs. These tokens will be used in addition to `auth_token` (if provided), but will not be used if `additional_auth_tokens` is provided.
-  - GitHub App keys are another option for authentication, and can be used in combination with PATs if desired. App IDs and keys should be assembled into the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----` (replace `:app_id:` with your actual GitHub App ID and `_YOUR_P_KEY_` with your private key content) where the key can be generated from the `Private keys` section on https://github.com/organizations/:organization_name/settings/apps/:app_name.  Read more about GitHub App quotas [here](https://docs.github.com/en/enterprise-server@3.3/developers/apps/building-github-apps/rate-limits-for-github-apps#server-to-server-requests). Formatted app keys can be provided in 2 ways:
-    - `auth_app_keys` - List of GitHub App keys in the prescribed format.
-    - If `auth_app_keys` is not provided but there is an environment variable with the name `GITHUB_APP_PRIVATE_KEY`, it will be assumed to be an App key in the prescribed format.
+  - GitHub App keys are another option for authentication, and can be used in combination with PATs if desired. App IDs and keys should be assembled into the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----` (replace `:app_id:` with your actual GitHub App ID and `_YOUR_P_KEY_` with your private key content) where the key can be generated from the `Private keys` section on https://github.com/organizations/:organization_name/settings/apps/:app_name.  Read more about GitHub App quotas [here](https://docs.github.com/en/enterprise-server@3.3/developers/apps/building-github-apps/rate-limits-for-github-apps#server-to-server-requests). Formatted app keys can be provided in 3 ways:
+    - `auth_app_keys` (array format) - List of GitHub App keys in the prescribed format. These keys are organization-agnostic and will be used for all organizations.
+    - `auth_app_keys` (object format) - Object/dictionary mapping organization names to lists of GitHub App keys. This allows you to specify different app credentials for different organizations, enabling better rate limit management across multiple organizations. Example:
+      ```yaml
+      auth_app_keys:
+        org1:
+          - "app_id_1;;-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+          - "app_id_2;;-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+        org2:
+          - "app_id_3;;-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+      ```
+    - If `auth_app_keys` is not provided but there is an environment variable with the name `GITHUB_APP_PRIVATE_KEY`, it will be assumed to be an App key in the prescribed format (organization-agnostic).
 - Optional:
   - `user_agent`
   - `start_date`
@@ -64,6 +73,16 @@ tap-github --about
 ### Source Authentication and Authorization
 
 A small number of records may be pulled without an auth token. However, a Github auth token should generally be considered "required" since it gives more realistic rate limits. (See GitHub API docs for more info.)
+
+#### Multi-Organization Authentication
+
+When using the object format for `auth_app_keys`, the tap will automatically switch authentication contexts based on the organization being processed. This enables:
+
+- **Organization-specific rate limits**: Each organization can have its own set of GitHub App credentials, preventing rate limit exhaustion when processing multiple organizations.
+- **Automatic token selection**: When processing repositories from a specific organization, the tap will prefer tokens configured for that organization.
+- **Fallback behavior**: If no organization-specific tokens are available, the tap will fall back to:
+  1. Organization-agnostic tokens (personal tokens or array-format app keys)
+  2. Tokens from other organizations (for accessing public data)
 
 ## Usage
 

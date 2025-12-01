@@ -407,7 +407,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         expiry_time_buffer: int | None = None,
         auth_token: str | None = None,
         additional_auth_tokens: list[str] | None = None,
-        auth_app_keys: list[str] | None = None,
+        auth_app_keys: list[str] | dict[str, list[str]] | None = None,
     ) -> None:
         """Init authenticator.
 
@@ -418,7 +418,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 app tokens. Only relevant when authenticating as a GitHub app.
             auth_token: A personal access token.
             additional_auth_tokens: A list of personal access tokens.
-            auth_app_keys: A list of GitHub App keys.
+            auth_app_keys: GitHub App keys in either array format (list of keys for
+                all organizations) or object format (dict mapping organization names
+                to lists of keys for org-specific authentication).
         """
         super().__init__()
         self.rate_limit_buffer = rate_limit_buffer
