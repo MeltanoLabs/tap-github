@@ -27,7 +27,10 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     import requests
+    from singer_sdk import Tap
     from singer_sdk.helpers.types import Context
+
+    from tap_github.authenticator import GitHubTokenAuthenticator
 
 
 class RepositoryStream(GitHubRestStream):
@@ -73,7 +76,7 @@ class RepositoryStream(GitHubRestStream):
         else:
             return "$[*]"
 
-    def get_repo_ids(self, repo_list: list[tuple[str]]) -> list[dict[str, str]]:
+    def get_repo_ids(self, repo_list: list[tuple[str, str]]) -> list[dict[str, str]]:
         """Enrich the list of repos with their numeric ID from github.
 
         This helps maintain a stable id for context and bookmarks.
@@ -90,7 +93,13 @@ class RepositoryStream(GitHubRestStream):
                 th.Property("databaseId", th.IntegerType),
             ).to_dict()
 
-            def __init__(self, tap, repo_list, parent_authenticator=None) -> None:  # noqa: ANN001
+            def __init__(
+                self,
+                tap: Tap,
+                repo_list: list[tuple[str, str]],
+                *,
+                parent_authenticator: GitHubTokenAuthenticator | None = None,
+            ) -> None:
                 super().__init__(tap)
                 self.repo_list = repo_list
                 # Use parent's authenticator to maintain consistent auth state
@@ -126,7 +135,11 @@ class RepositoryStream(GitHubRestStream):
             return []
 
         repos_with_ids: list = []
-        temp_stream = TempStream(self._tap, list(repo_list), self.authenticator)
+        temp_stream = TempStream(
+            self._tap,
+            list(repo_list),
+            parent_authenticator=self.authenticator,
+        )
 
         # replace manually provided org/repo values by the ones obtained
         # from github api. This guarantees that case is correct in the output data.

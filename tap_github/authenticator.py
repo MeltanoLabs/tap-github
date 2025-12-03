@@ -328,13 +328,13 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         return app_keys
 
-    def _collect_org_auth_app_keys(self) -> dict[str, list[str]]:
+    def _collect_org_auth_app_keys(self) -> dict[str | None, list[str]]:
         """Collect organization-specific app keys from config.
 
         Returns:
             Dictionary mapping organization names to lists of app keys.
         """
-        org_app_keys: dict[str, list[str]] = defaultdict(list)
+        org_app_keys: dict[str | None, list[str]] = defaultdict(list)
 
         if self.org_auth_app_keys:
             for org, app_keys in self.org_auth_app_keys.items():
@@ -350,7 +350,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         return org_app_keys
 
     def _create_app_token_managers(
-        self, app_keys: dict[str | None, list[str]]
+        self,
+        app_keys: dict[str | None, list[str]],
     ) -> dict[str | None, list[TokenManager]]:
         """Create validated app token managers from app keys.
 
@@ -448,6 +449,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         self.token_managers = self.prepare_tokens()
         self.current_organization: str | None = None
+        self.active_token: TokenManager | None = None
         if self.token_managers:
             # Prefer org-specific tokens over org-agnostic (None key)
             org_keys = [k for k in self.token_managers if k is not None]
@@ -455,12 +457,9 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             self.logger.info(
                 f"Setting initial organization for authenticator: {initial_org}"
             )
-            self.active_token: TokenManager | None = choice(
-                self.token_managers[initial_org]
-            )
+            self.active_token = choice(self.token_managers[initial_org])
         else:
             self.logger.info("Setting initial organization for authenticator: None")
-            self.active_token: TokenManager | None = None
 
     @classmethod
     def from_stream(cls, stream: RESTStream) -> GitHubTokenAuthenticator:
