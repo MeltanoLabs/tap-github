@@ -487,13 +487,12 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                         f"for public data access"
                     )
                     break
-
-        if not available_tokens:
-            logger.warning(
-                f"No authentication tokens available for organization: {org}"
-            )
-            self.active_token = None
-            return
+            else:
+                logger.warning(
+                    f"No authentication tokens available for organization: {org}"
+                )
+                self.active_token = None
+                return
 
         # Select a token with remaining calls
         for token_manager in available_tokens:
