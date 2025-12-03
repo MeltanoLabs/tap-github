@@ -1199,7 +1199,7 @@ class TestGitHubTokenAuthenticator:
                     "auth_app_keys": ["fallback_app;;key_fallback"],
                     "org_auth_app_keys": {
                         "acme-corp": ["acme_app;;key_acme"],
-                    }
+                    },
                 }
             )
 
