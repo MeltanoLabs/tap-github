@@ -301,46 +301,53 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         return personal_token_managers
 
     def _collect_app_keys(self, env_dict: dict) -> dict[str | None, list[str]]:
-        """Collect app keys from config and environment variables.
+        """Collect org-agnostic app keys from config and environment variables.
 
         App keys can be provided via:
-        1. Config as array (org-agnostic): ["app_id;;private_key", ...]
-        2. Config as dict (org-specific): {"org": ["app_id;;private_key", ...], ...}
-        3. Environment variable GITHUB_APP_PRIVATE_KEY: "app_id;;private_key"
+        1. Config as array: ["app_id;;private_key", ...]
+        2. Environment variable GITHUB_APP_PRIVATE_KEY: "app_id;;private_key"
 
         Args:
             env_dict: Dictionary of environment variables.
 
         Returns:
-            Dictionary mapping organization names (or None) to lists of app keys.
+            Dictionary mapping None to lists of org-agnostic app keys.
         """
         app_keys: dict[str | None, list[str]] = defaultdict(list)
 
         if self.auth_app_keys:
-            if isinstance(self.auth_app_keys, list):
-                # Old format: treat all keys as org-agnostic
-                for app_key in self.auth_app_keys:
-                    app_keys[None].append(app_key)
-                logger.info(
-                    "Provided %d app keys via config for authentication.",
-                    len(self.auth_app_keys),
-                )
-            else:
-                # New format: org-specific keys
-                for org in self.auth_app_keys:
-                    for app_key in self.auth_app_keys[org]:
-                        app_keys[org].append(app_key)
-                    logger.info(
-                        "Provided %d app keys via config for authentication "
-                        "for organization: %s",
-                        len(self.auth_app_keys[org]),
-                        org,
-                    )
+            for app_key in self.auth_app_keys:
+                app_keys[None].append(app_key)
+            logger.info(
+                "Provided %d app keys via config for authentication.",
+                len(self.auth_app_keys),
+            )
         elif "GITHUB_APP_PRIVATE_KEY" in env_dict:
             app_keys[None].append(env_dict["GITHUB_APP_PRIVATE_KEY"])
             logger.info("Found 1 app key via environment variable for authentication.")
 
         return app_keys
+
+    def _collect_org_auth_app_keys(self) -> dict[str, list[str]]:
+        """Collect organization-specific app keys from config.
+
+        Returns:
+            Dictionary mapping organization names to lists of app keys.
+        """
+        org_app_keys: dict[str, list[str]] = defaultdict(list)
+
+        if self.org_auth_app_keys:
+            for org, app_keys in self.org_auth_app_keys.items():
+                for app_key in app_keys:
+                    org_app_keys[org].append(app_key)
+                logger.info(
+                    "Provided %d app keys via config for authentication "
+                    "for organization: %s",
+                    len(app_keys),
+                    org,
+                )
+
+        return org_app_keys
 
     def _create_app_token_managers(
         self, app_keys: dict[str | None, list[str]]
@@ -382,9 +389,17 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         personal_tokens = self._collect_personal_tokens(env_dict)
         personal_token_managers = self._create_personal_token_managers(personal_tokens)
 
-        # Collect and create app token managers
+        # Collect and create org-agnostic app token managers
         app_keys = self._collect_app_keys(env_dict)
         token_managers = self._create_app_token_managers(app_keys)
+
+        # Collect and create org-specific app token managers
+        org_app_keys = self._collect_org_auth_app_keys()
+        org_token_managers = self._create_app_token_managers(org_app_keys)
+
+        # Merge org-specific token managers into main dict
+        for org, managers in org_token_managers.items():
+            token_managers[org].extend(managers)
 
         # Log summary
         logger.info(
@@ -393,8 +408,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             sum(len(token_managers[org]) for org in token_managers),
         )
 
-        # Merge personal tokens and app tokens.
-        # Personal tokens are stored under None key as they are org-agnostic.
+        # Merge personal tokens into org-agnostic tokens (None key).
         if personal_token_managers:
             token_managers[None].extend(personal_token_managers)
 
@@ -407,7 +421,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         expiry_time_buffer: int | None = None,
         auth_token: str | None = None,
         additional_auth_tokens: list[str] | None = None,
-        auth_app_keys: list[str] | dict[str, list[str]] | None = None,
+        auth_app_keys: list[str] | None = None,
+        org_auth_app_keys: dict[str, list[str]] | None = None,
     ) -> None:
         """Init authenticator.
 
@@ -418,9 +433,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 app tokens. Only relevant when authenticating as a GitHub app.
             auth_token: A personal access token.
             additional_auth_tokens: A list of personal access tokens.
-            auth_app_keys: GitHub App keys in either array format (list of keys for
-                all organizations) or object format (dict mapping organization names
-                to lists of keys for org-specific authentication).
+            auth_app_keys: Organization-agnostic GitHub App keys used as fallback
+                for all organizations.
+            org_auth_app_keys: Organization-specific GitHub App keys. Dict mapping
+                organization names to lists of app keys.
         """
         super().__init__()
         self.rate_limit_buffer = rate_limit_buffer
@@ -428,6 +444,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.auth_token = auth_token
         self.additional_auth_tokens = additional_auth_tokens
         self.auth_app_keys = auth_app_keys
+        self.org_auth_app_keys = org_auth_app_keys
 
         self.token_managers = self.prepare_tokens()
         self.current_organization: str | None = None
@@ -453,6 +470,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             auth_token=stream.config.get("auth_token"),
             additional_auth_tokens=stream.config.get("additional_auth_tokens"),
             auth_app_keys=stream.config.get("auth_app_keys"),
+            org_auth_app_keys=stream.config.get("org_auth_app_keys"),
         )
 
     def set_organization(self, org: str) -> None:

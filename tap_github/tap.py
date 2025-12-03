@@ -54,30 +54,28 @@ class TapGitHub(Tap):
         ),
         th.Property(
             "auth_app_keys",
-            th.CustomType(
-                {
-                    "oneOf": [
-                        {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                        {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                            },
-                        },
-                    ]
-                }
+            th.ArrayType(th.StringType),
+            description=(
+                "List of GitHub App credentials to authenticate with. "
+                "These are organization-agnostic and will be used as "
+                "fallback for all organizations. Each credential should "
+                "be formatted as `:app_id:;;-----BEGIN RSA PRIVATE KEY-----"
+                "\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."
+            ),
+        ),
+        th.Property(
+            "org_auth_app_keys",
+            th.ObjectType(
+                additional_properties=th.ArrayType(th.StringType),
             ),
             description=(
-                "GitHub App credentials for authentication. Accepts either:\n"
-                "- Array format: List of app credentials (org-agnostic)\n"
-                "- Object format: Organization names mapped to lists of app "
-                "credentials (org-specific)\n"
+                "Organization-specific GitHub App credentials. "
+                "Maps organization names to lists of app credentials. "
+                "When processing repositories from a specific organization, "
+                "the tap will prefer tokens configured for that organization. "
                 "Each credential should be formatted as "
-                "`:app_id:;;-----BEGIN RSA PRIVATE KEY-----\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."  # noqa: E501
+                "`:app_id:;;-----BEGIN RSA PRIVATE KEY-----"
+                "\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."
             ),
         ),
         th.Property(
