@@ -171,7 +171,6 @@ class AppTokenManager(TokenManager):
     def __init__(
         self,
         env_key: str,
-        organization: str | None = None,
         rate_limit_buffer: int | None = None,
         expiry_time_buffer: int | None = None,
         **kwargs,  # noqa: ANN003
@@ -183,7 +182,6 @@ class AppTokenManager(TokenManager):
         self.github_app_id = parts[0]
         self.github_private_key = (parts[1:2] or [""])[0].replace("\\n", "\n")
         self.github_installation_id: str | None = parts[2] if len(parts) >= 3 else None
-        self.github_organization: str | None = organization
 
         if expiry_time_buffer is None:
             expiry_time_buffer = self.DEFAULT_EXPIRY_BUFFER_MINS
@@ -369,7 +367,6 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 try:
                     app_token_manager = AppTokenManager(
                         app_key,
-                        organization=org,
                         rate_limit_buffer=self.rate_limit_buffer,
                         expiry_time_buffer=self.expiry_time_buffer,
                     )
