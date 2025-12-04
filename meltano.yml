@@ -23,6 +23,8 @@ plugins:
       kind: array
     - name: auth_app_keys
       kind: array
+    - name: org_auth_app_keys
+      kind: object
     - name: rate_limit_buffer
       kind: integer
     - name: expiry_time_buffer
