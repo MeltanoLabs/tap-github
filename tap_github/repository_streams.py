@@ -3622,6 +3622,119 @@ class TagsStream(GitHubRestStream):
         th.Property("node_id", th.StringType),
     ).to_dict()
 
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        """Return a child context object from the record and optional provided context.
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "tag_name": record["name"],
+            "repo_id": context["repo_id"] if context else None,
+        }
+
+
+class GetTagShasStream(GitHubRestStream):
+    """A stream dedicated to fetching tag shas of a tag in a repository.
+
+    API docs: https://docs.github.com/en/rest/git/refs#get-a-reference
+    """
+
+    name = "get_tag_shas"
+    path = "/repos/{org}/{repo}/git/ref/tags/{tag_name}"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    parent_stream_type = TagsStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "tag_name"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("tag_name", th.StringType),
+        # Tag Sha Details
+        th.Property("ref", th.StringType),
+        th.Property("node_id", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property(
+            "object",
+            th.ObjectType(
+                th.Property("type", th.StringType),
+                th.Property("sha", th.StringType),
+                th.Property("url", th.StringType),
+            ),
+        ),
+    ).to_dict()
+
+    def get_child_context(self, record: dict, context: dict | None) -> dict:
+        """Return a child context object from the record and optional provided context.
+        By default, will return context if provided and otherwise the record dict.
+        Developers may override this behavior to send specific information to child
+        streams for context.
+        """
+        return {
+            "org": context["org"] if context else None,
+            "repo": context["repo"] if context else None,
+            "tag_sha": record["object"]["sha"] if record.get("object") else None,
+            "repo_id": context["repo_id"] if context else None,
+        }
+
+
+class TagDetailsStream(GitHubRestStream):
+    """A stream dedicated to fetching details of a tag in a repository."""
+
+    name = "tag_details"
+    path = "/repos/{org}/{repo}/git/tags/{tag_sha}"
+    primary_keys: ClassVar[list[str]] = ["node_id"]
+    parent_stream_type = GetTagShasStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org", "tag_sha"]
+    tolerated_http_errors: ClassVar[list[int]] = [404]
+
+    schema = th.PropertiesList(
+        # Parent Keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        th.Property("tag_sha", th.StringType),
+        # Tag Details
+        th.Property("node_id", th.StringType),
+        th.Property("tag", th.StringType),
+        th.Property("sha", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("message", th.StringType),
+        th.Property(
+            "tagger",
+            th.ObjectType(
+                th.Property("name", th.StringType),
+                th.Property("email", th.StringType),
+                th.Property("date", th.DateTimeType),
+            ),
+        ),
+        th.Property(
+            "object",
+            th.ObjectType(
+                th.Property("type", th.StringType),
+                th.Property("sha", th.StringType),
+                th.Property("url", th.StringType),
+            ),
+        ),
+        th.Property(
+            "verification",
+            th.ObjectType(
+                th.Property("verified", th.BooleanType),
+                th.Property("reason", th.StringType),
+                th.Property("signature", th.StringType),
+                th.Property("payload", th.StringType),
+                th.Property("verified_at", th.StringType),
+            ),
+        ),
+    ).to_dict()
+
 
 class DeploymentsStream(GitHubRestStream):
     """A stream dedicated to fetching deployments in a repository."""
