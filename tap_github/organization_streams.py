@@ -603,6 +603,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
     parent_stream_type = ProjectFieldConfigurationsStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["org", "project_number"]
+    tolerated_http_errors: ClassVar[list[int]] = [414]
     query_jsonpath = "$.data.organization.projectV2.items.nodes[*]"
 
     # Project's custom fields supports types: Text, Number, Date, SingleSelect,
