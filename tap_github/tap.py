@@ -93,6 +93,12 @@ class TapGitHub(Tap):
             ),
         ),
         th.Property(
+            "backoff_max_tries",
+            th.IntegerType,
+            default=5,
+            description="Maximum number of retry attempts for failed API requests that are retriable. Defaults to 5.",  # noqa: E501
+        ),
+        th.Property(
             "searches",
             th.ArrayType(
                 th.ObjectType(

@@ -338,6 +338,10 @@ class GitHubRestStream(RESTStream):
             self.authenticator.get_next_auth_token()
             prepared_request.headers.update(self.authenticator.auth_headers or {})
 
+    def backoff_max_tries(self) -> int:
+        """Return the maximum number of retry attempts."""
+        return self.config["backoff_max_tries"]
+
     def calculate_sync_cost(
         self,
         request: requests.PreparedRequest,
