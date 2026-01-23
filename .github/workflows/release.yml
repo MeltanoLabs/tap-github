@@ -12,6 +12,7 @@ jobs:
     name: Build wheel and sdist
     runs-on: ubuntu-latest
     outputs:
+      name: ${{ steps.baipp.outputs.package_name }}
       version: ${{ steps.baipp.outputs.package_version }}
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -23,24 +24,16 @@ jobs:
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
     needs: [build]
     environment:
       name: pypi
-      url: https://pypi.org/project/meltanolabs-tap-github/${{ needs.build.outputs.version }}
-    if: startsWith(github.ref, 'refs/tags/')
+      url: https://pypi.org/project/${{ needs.build.outputs.name }}/${{ needs.build.outputs.version }}
 
     steps:
     - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       with:
         name: Packages
         path: dist
-    - name: Upload wheel to release
-      uses: svenstaro/upload-release-action@6b7fa9f267e90b50a19fef07b3596790bb941741 # 2.11.3
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: dist/*.whl
-        tag: ${{ github.ref }}
-        overwrite: true
-        file_glob: true
     - name: Deploy to PyPI
       uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
