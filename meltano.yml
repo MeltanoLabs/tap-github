@@ -29,6 +29,8 @@ plugins:
       kind: integer
     - name: expiry_time_buffer
       kind: integer
+    - name: backoff_max_tries
+      kind: integer
     - name: searches
       kind: array
     - name: organizations
