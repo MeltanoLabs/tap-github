@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from ..utils.filter_stdout import FilterStdOutput
+from tap_github.utils.filter_stdout import FilterStdOutput
 
 if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
 
 # Filter out singer output during tests
-sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')  # type: ignore
+sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')
 
 
 @pytest.fixture

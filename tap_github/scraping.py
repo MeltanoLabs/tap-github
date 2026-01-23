@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import requests
@@ -97,7 +97,7 @@ def _scrape_dependents(url: str, logger: logging.Logger) -> Iterable[dict[str, A
             url = str(href if not isinstance(href, list) else href[0])
             time.sleep(1)
         else:
-            url = ""
+            url = ""  # type: ignore[unreachable]
 
 
 def parse_counter(tag: Tag | NavigableString | None) -> int:
@@ -111,11 +111,8 @@ def parse_counter(tag: Tag | NavigableString | None) -> int:
     try:
         if tag == "\n":
             return 0
-        title = tag["title"]  # type: ignore
-        if isinstance(title, str):
-            title_string = cast("str", title)
-        else:
-            title_string = cast("str", title[0])
+        title = tag["title"]  # type: ignore[index]
+        title_string = title if isinstance(title, str) else title[0]
         return parse_int(title_string)
     except (KeyError, ValueError) as e:
         raise IndexError(

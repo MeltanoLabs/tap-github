@@ -25,7 +25,7 @@ class UserStream(GitHubRestStream):
     replication_key = "updated_at"
 
     @property
-    def path(self) -> str:  # type: ignore
+    def path(self) -> str:  # type: ignore[override, return]
         """Return the API endpoint path."""
         if "user_usernames" in self.config:
             return "/users/{username}"
