@@ -124,8 +124,8 @@ def generate_jwt_token(
     }
     token = jwt.encode(payload, github_private_key, algorithm=algorithm)
 
-    if isinstance(token, bytes):
-        token = token.decode("utf-8")
+    if isinstance(token, bytes):  # type: ignore[unreachable]
+        token = token.decode("utf-8")  # type: ignore[unreachable]
 
     return token
 

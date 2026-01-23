@@ -1,4 +1,4 @@
-name: Test tap-github
+name: CI
 
 on:
   # Run on all pull requests and on pushes to main.
@@ -7,14 +7,15 @@ on:
     - .github/workflows/test_tap.yml
     - poetry.lock
     - pyproject.toml
+    - uv.lock
     - 'tap_github/**'
   push:
     branches:
       - main
     paths:
     - .github/workflows/test_tap.yml
-    - poetry.lock
     - pyproject.toml
+    - uv.lock
     - 'tap_github/**'
   workflow_dispatch:
   schedule:
@@ -30,11 +31,13 @@ env:
 
 jobs:
   tests:
+    name: CI
 
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       ORG_LEVEL_TOKEN: ${{secrets.ORG_LEVEL_TOKEN}}
+      UV_PYTHON: ${{ matrix.python-version }}
     strategy:
       matrix:
         python-version:
@@ -44,10 +47,9 @@ jobs:
         - "3.11"
         - "3.10"
       # run the matrix jobs one after the other so they can benefit from caching
-      max-parallel: 1
 
     steps:
-    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Get Date
       id: get-date
       run: |
@@ -64,37 +66,34 @@ jobs:
         # file in the cache. See issue #119
         key: api-cache-v4-${{ steps.get-date.outputs.date }}
 
-    - name: Install Poetry
-      uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-      with:
-        # Version of Poetry to use
-        version: 2.2.1
-        virtualenvs-create: true
-        virtualenvs-in-project: true
     - name: Set up Python ${{ matrix.python-version }}
       id: setup-python
-      uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
-        cache: poetry
-    - name: Install dependencies
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+
+
+    - name: Install Tox
       run: |
-        poetry env use ${{ steps.setup-python.outputs.python-path }}
-        poetry install
-    - name: Type check with mypy
-      id: type_check
-      continue-on-error: true
-      run: |
-        poetry run mypy tap_github
-    - name: Test with pytest
+        uv tool install --with tox-gh tox
+
+    - name: Run Tox
       id: test_pytest
       continue-on-error: true
+      env:
+        LOGLEVEL: WARNING
       run: |
-        LOGLEVEL=WARNING poetry run pytest --capture=no
-    - name: Test with pytest (run 2)
+        tox
+
+    - name: Run Tox (run 2)
       id: retry_test_pytest
       if: steps.test_pytest.outcome=='failure'         # check the step outcome, wait and retry
+      env:
+        LOGLEVEL: WARNING
       run: |
         # sleep as little as possible to reduce CI run time
         # This assumes that REST quota is the one that caused problem
@@ -103,4 +102,4 @@ jobs:
         current_ts=$(date +%s)
         seconds_to_sleep=$(echo "$target_ts - $current_ts" | bc)
         sleep $seconds_to_sleep
-        LOGLEVEL=WARNING poetry run pytest --capture=no
+        tox

@@ -1,24 +1,23 @@
-[build-system]
-requires = [
-    "poetry-core==2.2.1",
-    "poetry-dynamic-versioning==1.9.1",
-]
-build-backend = "poetry_dynamic_versioning.backend"
-
 [project]
 name = "meltanolabs-tap-github"
 dynamic = [ "version" ]
 description = "Singer tap for GitHub, built with the Singer SDK."
-authors = [ { name = "Meltano and Meltano Community", email = "hello@meltano.com" } ]
+authors = [{ name = "Meltano and Meltano Community", email = "hello@meltano.com" }]
+requires-python = ">=3.10"
+readme = "README.md"
+license = "Apache-2.0"
 maintainers = [
     { name = "Meltano and Meltano Community", email = "hello@meltano.com" },
     { name = "Edgar Ramírez-Mondragón", email = "edgarrm358@gmail.com" },
 ]
-requires-python = ">=3.10"
-license = "Apache-2.0"
-license-files = [ "LICENSE" ]
-keywords = ["Meltano", "Singer", "Meltano SDK", "Singer SDK", "ELT", "GitHub"]
-readme = "README.md"
+keywords = [
+    "Meltano",
+    "Singer",
+    "Meltano SDK",
+    "Singer SDK",
+    "ELT",
+    "GitHub",
+]
 classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
@@ -47,41 +46,72 @@ Repository = "https://github.com/MeltanoLabs/tap-github"
 "Issue Tracker" = "https://github.com/MeltanoLabs/tap-github/issues"
 
 [project.scripts]
-# CLI declaration
-tap-github = 'tap_github.tap:cli'
+tap-github = "tap_github.tap:cli"
+
+[build-system]
+requires = [
+    "hatchling>=1.28,<2",
+    "hatch-vcs>=0.5",
+]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+fallback-version = "0.0.0"
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+include = ["tap_github"]
+
+[tool.hatch.build.targets.wheel]
+include = ["tap_github"]
+
+[tool.uv]
+required-version = ">=0.9.17"
+
+[tool.uv.sources]
+singer-sdk = { git = "https://github.com/meltano/sdk.git", rev = "main" }
 
 [dependency-groups]
 dev = [
-    "mypy>=1.15.0",
-    "pytest>=7.3.1",
+    { include-group = "test" },
+    { include-group = "type" },
+]
+test = [
+    "pytest~=9.0",
     "requests-cache>=1.0.1",
-    "types-beautifulsoup4>=4.12.0",
-    "types-python-dateutil~=2.9.0",
-    "types-requests>=2.30.0",
-    "types-simplejson~=3.20.0",
+]
+type = [
+    { include-group = "test" },
+    "mypy~=1.19.0",
+    "ty>=0.0.13",
+    "types-beautifulsoup4~=4.12",
+    "types-python-dateutil~=2.9",
+    "types-requests~=2.32",
+    "types-simplejson~=3.20",
 ]
 
-[tool.poetry]
-requires-poetry = ">=2.2"
-packages = [
-    { include = "tap_github", format = ["sdist", "wheel"] }
-]
-version = "0.0.0"
-
-[tool.poetry-dynamic-versioning]
-enable = true
-
-[[tool.mypy.overrides]]
-module = [
-    "nested_lookup",
-]
-ignore_missing_imports = true
+[tool.mypy]
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+follow_untyped_imports = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
 
 [tool.pytest]
-minversion = "9.0.0"
+addopts = [
+    "--durations=5",
+    "-m",
+    "not noconfig",
+]
+minversion = "9"
 markers = [
+    "noconfig: mark a test as not requiring a config",
     "repo_list: mark a test as using a list of repos in config",
     "username_list: mark a test as using a list of usernames in config",
+]
+testpaths = [
+    "tap_github/tests",
 ]
 
 [tool.ruff.lint]
@@ -109,3 +139,45 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tap_github/tests/*" = ["ANN"]
+
+[tool.tox]
+requires = [
+    "tox>=4.32",
+    "tox-gh>=1.6.1",
+]
+env_list = [
+    "type",
+    "3.14",
+    "3.13",
+    "3.12",
+    "3.11",
+    "3.10",
+]
+
+[tool.tox.gh.python]
+"3.14" = ["type", "noconfig", "3.14"]
+"3.13" = ["noconfig"]
+"3.12" = ["noconfig"]
+"3.11" = ["noconfig"]
+"3.10" = ["noconfig"]
+
+[tool.tox.env_run_base]
+description = "Run test under {base_python}"
+dependency_groups = [
+  "test",
+]
+commands = [["pytest", "--capture=no"]]
+
+[tool.tox.env.noconfig]
+description = "validate that `tap-github --discover` works"
+commands = [["pytest", "-m", "noconfig"]]
+
+[tool.tox.env.type]
+description = "run type check on code base"
+dependency_groups = [
+  "type",
+]
+commands = [
+    ["mypy", "tap_github"],
+    ["ty", "check", "tap_github"],
+]

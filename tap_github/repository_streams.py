@@ -56,7 +56,7 @@ class RepositoryStream(GitHubRestStream):
         return params
 
     @property
-    def path(self) -> str:  # type: ignore
+    def path(self) -> str:  # type: ignore[override, return]
         """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
@@ -70,7 +70,7 @@ class RepositoryStream(GitHubRestStream):
             return "/orgs/{org}/repos"
 
     @property
-    def records_jsonpath(self) -> str:  # type: ignore
+    def records_jsonpath(self) -> str:
         if "searches" in self.config:
             return "$.items[*]"
         else:
