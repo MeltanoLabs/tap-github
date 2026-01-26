@@ -8,7 +8,8 @@ on:
     - poetry.lock
     - pyproject.toml
     - uv.lock
-    - 'tap_github/**'
+    - tap_github/**'
+    - tests/**
   push:
     branches:
       - main
@@ -16,7 +17,8 @@ on:
     - .github/workflows/test_tap.yml
     - pyproject.toml
     - uv.lock
-    - 'tap_github/**'
+    - tap_github/**
+    - tests/**
   workflow_dispatch:
   schedule:
   # Every 6 hours
