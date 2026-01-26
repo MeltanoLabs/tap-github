@@ -66,6 +66,7 @@ include = ["tap_github"]
 include = ["tap_github"]
 
 [tool.uv]
+prerelease = "allow"
 required-version = ">=0.9.17"
 
 [tool.uv.sources]
