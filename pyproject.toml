@@ -166,6 +166,11 @@ description = "Run test under {base_python}"
 dependency_groups = [
   "test",
 ]
+passenv = [
+  "LOGLEVEL",
+  "GITHUB_TOKEN",
+  "ORG_LEVEL_TOKEN",
+]
 commands = [["pytest", "--capture=no"]]
 
 [tool.tox.env.noconfig]
