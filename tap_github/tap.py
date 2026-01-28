@@ -19,7 +19,7 @@ class TapGitHub(Tap):
     package_name = "meltanolabs-tap-github"
 
     @classproperty
-    def logger(cls: type[TapGitHub]) -> logging.Logger:  # noqa: N805
+    def logger(cls) -> logging.Logger:  # noqa: N805
         """Get logger.
 
         Returns:
@@ -35,7 +35,11 @@ class TapGitHub(Tap):
         return logger
 
     config_jsonschema = th.PropertiesList(
-        th.Property("user_agent", th.StringType),
+        th.Property(
+            "user_agent",
+            th.StringType,
+            description="User agent to use for API requests.",
+        ),
         th.Property("metrics_log_level", th.StringType),
         # Authentication options
         th.Property(
@@ -52,9 +56,26 @@ class TapGitHub(Tap):
             "auth_app_keys",
             th.ArrayType(th.StringType),
             description=(
-                "List of GitHub App credentials to authenticate with. Each credential "
-                "can be constructed by combining an App ID and App private key into "
-                "the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----`."  # noqa: E501
+                "List of GitHub App credentials to authenticate with. "
+                "These are organization-agnostic and will be used as "
+                "fallback for all organizations. Each credential should "
+                "be formatted as `:app_id:;;-----BEGIN RSA PRIVATE KEY-----"
+                "\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."
+            ),
+        ),
+        th.Property(
+            "org_auth_app_keys",
+            th.ObjectType(
+                additional_properties=th.ArrayType(th.StringType),
+            ),
+            description=(
+                "Organization-specific GitHub App credentials. "
+                "Maps organization names to lists of app credentials. "
+                "When processing repositories from a specific organization, "
+                "the tap will prefer tokens configured for that organization. "
+                "Each credential should be formatted as "
+                "`:app_id:;;-----BEGIN RSA PRIVATE KEY-----"
+                "\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."
             ),
         ),
         th.Property(
@@ -68,8 +89,14 @@ class TapGitHub(Tap):
             description=(
                 "When authenticating as a GitHub App, this buffer controls how many "
                 "minutes before expiry the GitHub app tokens will be refreshed. "
-                "Defaults to 10 minutes.",
+                "Defaults to 10 minutes."
             ),
+        ),
+        th.Property(
+            "backoff_max_tries",
+            th.IntegerType,
+            default=5,
+            description="Maximum number of retry attempts for failed API requests that are retriable. Defaults to 5.",  # noqa: E501
         ),
         th.Property(
             "searches",
@@ -79,12 +106,21 @@ class TapGitHub(Tap):
                     th.Property("query", th.StringType, required=True),
                 )
             ),
+            description=(
+                "An array of search descriptor objects with the following properties:\n"
+                '"name" - a human readable name for the search query.\n'
+                '"query" -  a github search string (generally the same as would come after ?q= in the URL)"'  # noqa: E501
+            ),
         ),
         th.Property("organizations", th.ArrayType(th.StringType)),
         th.Property("repositories", th.ArrayType(th.StringType)),
         th.Property("user_usernames", th.ArrayType(th.StringType)),
         th.Property("user_ids", th.ArrayType(th.StringType)),
-        th.Property("start_date", th.DateTimeType),
+        th.Property(
+            "start_date",
+            th.DateTimeType,
+            description="Start date for incremental sync.",
+        ),
         th.Property("stream_maps", th.ObjectType()),
         th.Property("stream_map_config", th.ObjectType()),
         th.Property(
@@ -131,7 +167,7 @@ class TapGitHub(Tap):
         ):
             raise ValueError(
                 "This tap requires one and only one of the following path options: "
-                f"{Streams.all_valid_queries()}."
+                f"{Streams.all_valid_queries()}, provided config: {self.config}"
             )
         streams = []
         for stream_type in Streams:

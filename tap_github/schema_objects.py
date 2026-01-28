@@ -60,6 +60,12 @@ reactions_object = th.ObjectType(
     th.Property("eyes", th.IntegerType),
 )
 
+reaction_type_object = th.ObjectType(
+    th.Property("reaction_type", th.StringType),
+    th.Property("reacted_at", th.DateTimeType),
+    th.Property("user", user_object),
+)
+
 files_object = th.ObjectType(
     th.Property("sha", th.StringType),
     th.Property("filename", th.StringType),

@@ -6,7 +6,6 @@ import email.utils
 import inspect
 import random
 import time
-from types import FrameType
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 from urllib.parse import parse_qs, urlparse
 
@@ -20,9 +19,11 @@ from tap_github.authenticator import GitHubTokenAuthenticator
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from types import FrameType
 
     import requests
     from backoff.types import Details
+    from singer_sdk.helpers.types import Context
 
 EMPTY_REPO_ERROR_STATUS = 409
 
@@ -41,12 +42,15 @@ class GitHubRestStream(RESTStream):
     # This only has effect on streams whose `replication_key` is `updated_at`.
     use_fake_since_parameter = False
 
+    # Set to True to use cursor-based pagination instead of page-based pagination
+    use_cursor_pagination = False
+
     _authenticator: GitHubTokenAuthenticator | None = None
 
     @property
     def authenticator(self) -> GitHubTokenAuthenticator:
         if self._authenticator is None:
-            self._authenticator = GitHubTokenAuthenticator(stream=self)
+            self._authenticator = GitHubTokenAuthenticator.from_stream(self)
         return self._authenticator
 
     @property
@@ -61,8 +65,19 @@ class GitHubRestStream(RESTStream):
     def http_headers(self) -> dict[str, str]:
         """Return the http headers needed."""
         headers = {"Accept": "application/vnd.github.v3+json"}
-        headers["User-Agent"] = cast(str, self.config.get("user_agent", "tap-github"))
+        headers["User-Agent"] = cast("str", self.config.get("user_agent", "tap-github"))
         return headers
+
+    def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
+        """
+        Override parent method to set organization-specific authentication
+        before fetching records.
+        """
+        # Set organization-specific authentication before fetching records
+        if context is not None and "org" in context:
+            self.authenticator.set_organization(context["org"])
+
+        yield from super().get_records(context)
 
     def get_next_page_token(
         self,
@@ -73,8 +88,10 @@ class GitHubRestStream(RESTStream):
         if (
             previous_token
             and self.MAX_RESULTS_LIMIT
+            and not self.use_cursor_pagination
             and (
-                cast(int, previous_token) * self.MAX_PER_PAGE >= self.MAX_RESULTS_LIMIT
+                cast("int", previous_token) * self.MAX_PER_PAGE
+                >= self.MAX_RESULTS_LIMIT
             )
         ):
             return None
@@ -84,7 +101,11 @@ class GitHubRestStream(RESTStream):
             return None
 
         resp_json = response.json()
-        results = resp_json if isinstance(resp_json, list) else resp_json.get("items")
+        results = (
+            resp_json
+            if isinstance(resp_json, list)
+            else list(extract_jsonpath(self.records_jsonpath, input=resp_json))
+        )
 
         # Exit early if the response has no items. ? Maybe duplicative the "next" link check.  # noqa: E501
         if not results:
@@ -126,7 +147,13 @@ class GitHubRestStream(RESTStream):
             ):
                 return None
 
-        # Use header links returned by the GitHub API.
+        # Handle cursor-based pagination
+        if self.use_cursor_pagination:
+            parsed_url = urlparse(response.links["next"]["url"])
+            captured_after_value_list = parse_qs(parsed_url.query).get("after")
+            return captured_after_value_list[0] if captured_after_value_list else None
+
+        # Use header links returned by the GitHub API for page-based pagination.
         parsed_url = urlparse(response.links["next"]["url"])
         captured_page_value_list = parse_qs(parsed_url.query).get("page")
         next_page_string = (
@@ -139,13 +166,16 @@ class GitHubRestStream(RESTStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {"per_page": self.MAX_PER_PAGE}
         if next_page_token:
-            params["page"] = next_page_token
+            if self.use_cursor_pagination:
+                params["after"] = next_page_token
+            else:
+                params["page"] = next_page_token
 
         if self.replication_key == "updated_at":
             params["sort"] = "updated"
@@ -172,7 +202,7 @@ class GitHubRestStream(RESTStream):
             params[since_key] = since.isoformat(sep="T")
             # Leverage conditional requests to save API quotas
             # https://github.community/t/how-does-if-modified-since-work/139627
-            self._http_headers["If-modified-since"] = email.utils.format_datetime(since)
+            self.http_headers["If-modified-since"] = email.utils.format_datetime(since)
         return params
 
     def validate_response(self, response: requests.Response) -> None:
@@ -195,7 +225,10 @@ class GitHubRestStream(RESTStream):
         """
         full_path = urlparse(response.url).path
         if response.status_code in (
-            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
+            [
+                *self.tolerated_http_errors,
+                EMPTY_REPO_ERROR_STATUS,
+            ]
         ):
             msg = (
                 f"{response.status_code} Tolerated Status Code "
@@ -252,7 +285,10 @@ class GitHubRestStream(RESTStream):
         """Parse the response and return an iterator of result rows."""
         # TODO - Split into handle_reponse and parse_response.
         if response.status_code in (
-            [*self.tolerated_http_errors, EMPTY_REPO_ERROR_STATUS]
+            [
+                *self.tolerated_http_errors,
+                EMPTY_REPO_ERROR_STATUS,
+            ]
         ):
             return
 
@@ -261,16 +297,22 @@ class GitHubRestStream(RESTStream):
 
         resp_json = response.json()
 
+        # Handle different response structures
         if isinstance(resp_json, list):
+            # Direct array response
             results = resp_json
-        elif resp_json.get("items") is not None:
-            results = resp_json.get("items")
         else:
-            results = [resp_json]
+            # Use records_jsonpath to extract records
+            results = list(extract_jsonpath(self.records_jsonpath, input=resp_json))
+
+            # Fallback: if no records found via jsonpath, treat the whole response as a
+            # single record
+            if not results:
+                results = [resp_json]
 
         yield from results
 
-    def post_process(self, row: dict, context: dict[str, str] | None = None) -> dict:
+    def post_process(self, row: dict, context: Context | None = None) -> dict:
         """Add `repo_id` by default to all streams."""
         if context is not None and "repo_id" in context:
             row["repo_id"] = context["repo_id"]
@@ -283,8 +325,8 @@ class GitHubRestStream(RESTStream):
         # FIXME: replace this once https://github.com/litl/backoff/issues/158
         # is fixed
         exc = cast(
-            FrameType,
-            cast(FrameType, cast(FrameType, inspect.currentframe()).f_back).f_back,
+            "FrameType",
+            cast("FrameType", cast("FrameType", inspect.currentframe()).f_back).f_back,
         ).f_locals["e"]
         if (
             exc.response is not None
@@ -296,14 +338,67 @@ class GitHubRestStream(RESTStream):
             self.authenticator.get_next_auth_token()
             prepared_request.headers.update(self.authenticator.auth_headers or {})
 
+    def backoff_max_tries(self) -> int:
+        """Return the maximum number of retry attempts."""
+        return self.config["backoff_max_tries"]
+
     def calculate_sync_cost(
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: dict | None,
+        context: Context | None,
     ) -> dict[str, int]:
         """Return the cost of the last REST API call."""
         return {"rest": 1, "graphql": 0, "search": 0}
+
+
+class GitHubDiffStream(GitHubRestStream):
+    """Base class for GitHub diff streams."""
+
+    # Known Github API errors for diff requests
+    tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 502]
+
+    @property
+    def http_headers(self) -> dict:
+        """Return the http headers needed for diff requests."""
+        headers = super().http_headers
+        headers["Accept"] = "application/vnd.github.v3.diff"
+        return headers
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response to yield the diff text instead of an object
+        and prevent buffer overflow."""
+        if response.status_code != 200:
+            contents = response.json()
+            self.logger.info(
+                "Skipping %s due to %d error: %s",
+                self.name.replace("_", " "),
+                response.status_code,
+                contents["message"],
+            )
+            yield {
+                "success": False,
+                "error_message": contents["message"],
+            }
+            return
+
+        if content_length_str := response.headers.get("Content-Length"):
+            content_length = int(content_length_str)
+            max_size = 41_943_040  # 40 MiB
+            if content_length > max_size:
+                self.logger.info(
+                    "Skipping %s. The diff size (%.2f MiB) exceeded the maximum"
+                    " size limit of 40 MiB.",
+                    self.name.replace("_", " "),
+                    content_length / 1024 / 1024,
+                )
+                yield {
+                    "success": False,
+                    "error_message": "Diff exceeded the maximum size limit of 40 MiB.",
+                }
+                return
+
+        yield {"diff": response.text, "success": True}
 
 
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
@@ -399,11 +494,11 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
     def get_url_params(
         self,
-        context: dict | None,
+        context: Context | None,
         next_page_token: Any | None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
-        params = context.copy() if context else {}
+        params = dict(context) if context else {}
         params["per_page"] = self.MAX_PER_PAGE
         if next_page_token:
             params.update(next_page_token)
@@ -418,7 +513,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         self,
         request: requests.PreparedRequest,
         response: requests.Response,
-        context: dict | None,
+        context: Context | None,
     ) -> dict[str, int]:
         """Return the cost of the last graphql API call."""
         costgen = extract_jsonpath("$.data.rateLimit.cost", input=response.json())

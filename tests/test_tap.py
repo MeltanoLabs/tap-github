@@ -7,8 +7,8 @@ from unittest.mock import patch
 import pytest
 from bs4 import BeautifulSoup
 from dateutil.parser import isoparse
-from singer_sdk._singerlib import Catalog
 from singer_sdk.helpers import _catalog as cat_helpers
+from singer_sdk.singerlib import Catalog
 
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
@@ -54,7 +54,7 @@ def test_validate_repo_list_config(repo_list_config):  # noqa: F811
             "repo": repo[0].split("/")[1],
             "repo_id": repo[1],
         }
-        for repo in zip(repo_list_2_corrected, repo_list_2_ids)
+        for repo in zip(repo_list_2_corrected, repo_list_2_ids, strict=False)
     ]
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions

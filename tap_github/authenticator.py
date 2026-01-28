@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from copy import deepcopy
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from os import environ
 from random import choice, shuffle
@@ -12,10 +12,14 @@ from typing import TYPE_CHECKING, Any
 
 import jwt
 import requests
+import requests.exceptions
+import requests.models
 from singer_sdk.authenticators import APIAuthenticatorBase
 
 if TYPE_CHECKING:
     from singer_sdk.streams import RESTStream
+
+logger = logging.getLogger(__name__)
 
 
 class TokenManager:
@@ -37,7 +41,6 @@ class TokenManager:
     ) -> None:
         """Init TokenManager info."""
         self.token = token
-        self.logger = logger
         self.rate_limit = self.DEFAULT_RATE_LIMIT
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
         self.rate_limit_reset: datetime | None = None
@@ -77,8 +80,7 @@ class TokenManager:
                 f"{response.status_code} Client Error: "
                 f"{response.content!s} (Reason: {response.reason})"
             )
-            if self.logger is not None:
-                self.logger.warning(msg)
+            logger.warning(msg)
             return False
 
     def has_calls_remaining(self) -> bool:
@@ -122,8 +124,8 @@ def generate_jwt_token(
     }
     token = jwt.encode(payload, github_private_key, algorithm=algorithm)
 
-    if isinstance(token, bytes):
-        token = token.decode("utf-8")
+    if isinstance(token, bytes):  # type: ignore[unreachable]
+        token = token.decode("utf-8")  # type: ignore[unreachable]
 
     return token
 
@@ -173,8 +175,7 @@ class AppTokenManager(TokenManager):
         expiry_time_buffer: int | None = None,
         **kwargs,  # noqa: ANN003
     ) -> None:
-        if rate_limit_buffer is None:
-            rate_limit_buffer = self.DEFAULT_RATE_LIMIT_BUFFER
+        rate_limit_buffer = rate_limit_buffer or self.DEFAULT_RATE_LIMIT_BUFFER
         super().__init__(None, rate_limit_buffer=rate_limit_buffer, **kwargs)
 
         parts = env_key.split(";;")
@@ -212,10 +213,7 @@ class AppTokenManager(TokenManager):
 
         # Check if the token isn't valid.  If not, overwrite it with None
         if not self.is_valid_token():
-            if self.logger:
-                self.logger.warning(
-                    "An app token was generated but could not be validated."
-                )
+            logger.warning("An app token was generated but could not be validated.")
             self.token = None
             self.token_expires_at = None
 
@@ -233,12 +231,10 @@ class AppTokenManager(TokenManager):
             if close_to_expiry:
                 self.claim_token()
                 if self.token is None:
-                    if self.logger:
-                        self.logger.warning("GitHub app token refresh failed.")
+                    logger.warning("GitHub app token refresh failed.")
                     return False
                 else:
-                    if self.logger:
-                        self.logger.info("GitHub app token refresh succeeded.")
+                    logger.info("GitHub app token refresh succeeded.")
 
         return super().has_calls_remaining()
 
@@ -250,20 +246,20 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
     def get_env():  # noqa: ANN205
         return dict(environ)
 
-    def prepare_tokens(self) -> list[TokenManager]:
-        """Prep GitHub tokens"""
+    def _collect_personal_tokens(self, env_dict: dict) -> set[str]:
+        """Collect personal tokens from config and environment variables.
 
-        env_dict = self.get_env()
-        rate_limit_buffer = self._config.get("rate_limit_buffer", None)
-        expiry_time_buffer = self._config.get("expiry_time_buffer", None)
+        Args:
+            env_dict: Dictionary of environment variables.
 
+        Returns:
+            Set of personal access tokens.
+        """
         personal_tokens: set[str] = set()
-        if "auth_token" in self._config:
-            personal_tokens.add(self._config["auth_token"])
-        if "additional_auth_tokens" in self._config:
-            personal_tokens = personal_tokens.union(
-                self._config["additional_auth_tokens"]
-            )
+        if self.auth_token:
+            personal_tokens.add(self.auth_token)
+        if self.additional_auth_tokens:
+            personal_tokens = personal_tokens.union(self.additional_auth_tokens)
         else:
             # Accept multiple tokens using environment variables GITHUB_TOKEN*
             env_tokens = {
@@ -272,85 +268,297 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 if key.startswith("GITHUB_TOKEN")
             }
             if len(env_tokens) > 0:
-                self.logger.info(
-                    f"Found {len(env_tokens)} 'GITHUB_TOKEN' environment variables for authentication."  # noqa: E501
+                logger.info(
+                    "Found %d 'GITHUB_TOKEN' environment variables for authentication.",
+                    len(env_tokens),
                 )
                 personal_tokens = personal_tokens.union(env_tokens)
+        return personal_tokens
 
+    def _create_personal_token_managers(
+        self, personal_tokens: set[str]
+    ) -> list[TokenManager]:
+        """Create validated token managers from personal tokens.
+
+        Args:
+            personal_tokens: Set of personal access tokens.
+
+        Returns:
+            List of validated PersonalTokenManager instances.
+        """
         personal_token_managers: list[TokenManager] = []
         for token in personal_tokens:
             token_manager = PersonalTokenManager(
-                token, rate_limit_buffer=rate_limit_buffer, logger=self.logger
+                token,
+                rate_limit_buffer=self.rate_limit_buffer,
             )
             if token_manager.is_valid_token():
                 personal_token_managers.append(token_manager)
             else:
-                logging.warning("A token was dismissed.")
+                logger.warning("A token was dismissed.")
+        return personal_token_managers
 
-        # Parse App level private keys and generate tokens
-        # To simplify settings, we use a single env-key formatted as follows:
-        # "{app_id};;{-----BEGIN RSA PRIVATE KEY-----\n_YOUR_PRIVATE_KEY_\n-----END RSA PRIVATE KEY-----}"  # noqa: E501
+    def _collect_app_keys(self, env_dict: dict) -> dict[str | None, list[str]]:
+        """Collect org-agnostic app keys from config and environment variables.
 
-        app_keys: set[str] = set()
-        if "auth_app_keys" in self._config:
-            app_keys = app_keys.union(self._config["auth_app_keys"])
-            self.logger.info(
-                f"Provided {len(app_keys)} app keys via config for authentication."
+        App keys can be provided via:
+        1. Config as array: ["app_id;;private_key", ...]
+        2. Environment variable GITHUB_APP_PRIVATE_KEY: "app_id;;private_key"
+
+        Args:
+            env_dict: Dictionary of environment variables.
+
+        Returns:
+            Dictionary mapping None to lists of org-agnostic app keys.
+        """
+        app_keys: dict[str | None, list[str]] = defaultdict(list)
+
+        if self.auth_app_keys:
+            for app_key in self.auth_app_keys:
+                app_keys[None].append(app_key)
+            logger.info(
+                "Provided %d app keys via config for authentication.",
+                len(self.auth_app_keys),
             )
         elif "GITHUB_APP_PRIVATE_KEY" in env_dict:
-            app_keys.add(env_dict["GITHUB_APP_PRIVATE_KEY"])
-            self.logger.info(
-                "Found 1 app key via environment variable for authentication."
-            )
+            app_keys[None].append(env_dict["GITHUB_APP_PRIVATE_KEY"])
+            logger.info("Found 1 app key via environment variable for authentication.")
 
-        app_token_managers: list[TokenManager] = []
-        for app_key in app_keys:
-            try:
-                app_token_manager = AppTokenManager(
-                    app_key,
-                    rate_limit_buffer=rate_limit_buffer,
-                    expiry_time_buffer=expiry_time_buffer,
-                    logger=self.logger,
-                )
-                if app_token_manager.is_valid_token():
-                    app_token_managers.append(app_token_manager)
-            except ValueError as e:  # noqa: PERF203
-                self.logger.warning(
-                    f"An error was thrown while preparing an app token: {e}"
+        return app_keys
+
+    def _collect_org_auth_app_keys(self) -> dict[str | None, list[str]]:
+        """Collect organization-specific app keys from config.
+
+        Returns:
+            Dictionary mapping organization names to lists of app keys.
+        """
+        org_app_keys: dict[str | None, list[str]] = defaultdict(list)
+
+        if self.org_auth_app_keys:
+            for org, app_keys in self.org_auth_app_keys.items():
+                for app_key in app_keys:
+                    org_app_keys[org].append(app_key)
+                logger.info(
+                    "Provided %d app keys via config for authentication "
+                    "for organization: %s",
+                    len(app_keys),
+                    org,
                 )
 
-        self.logger.info(
-            f"Tap will run with {len(personal_token_managers)} personal auth tokens "
-            f"and {len(app_token_managers)} app keys."
+        return org_app_keys
+
+    def _create_app_token_managers(
+        self,
+        app_keys: dict[str | None, list[str]],
+    ) -> dict[str | None, list[TokenManager]]:
+        """Create validated app token managers from app keys.
+
+        Args:
+            app_keys: Dictionary mapping organization names to lists of app keys.
+
+        Returns:
+            Dictionary mapping organization names to lists of validated
+            AppTokenManager instances.
+        """
+        token_managers: dict[str | None, list[TokenManager]] = defaultdict(list)
+
+        for org in app_keys:
+            for app_key in app_keys[org]:
+                try:
+                    app_token_manager = AppTokenManager(
+                        app_key,
+                        rate_limit_buffer=self.rate_limit_buffer,
+                        expiry_time_buffer=self.expiry_time_buffer,
+                    )
+                    if app_token_manager.is_valid_token():
+                        token_managers[org].append(app_token_manager)
+                except ValueError as e:  # noqa: PERF203
+                    logger.warning(
+                        f"An error was thrown while preparing an app token: {e}"
+                    )
+
+        return token_managers
+
+    def prepare_tokens(self) -> dict[str | None, list[TokenManager]]:
+        """Prep GitHub tokens"""
+        env_dict = self.get_env()
+
+        # Collect and create personal token managers
+        personal_tokens = self._collect_personal_tokens(env_dict)
+        personal_token_managers = self._create_personal_token_managers(personal_tokens)
+
+        # Collect and create org-agnostic app token managers
+        app_keys = self._collect_app_keys(env_dict)
+        token_managers = self._create_app_token_managers(app_keys)
+
+        # Collect and create org-specific app token managers
+        org_app_keys = self._collect_org_auth_app_keys()
+        org_token_managers = self._create_app_token_managers(org_app_keys)
+
+        # Merge org-specific token managers into main dict
+        for org, managers in org_token_managers.items():
+            token_managers[org].extend(managers)
+
+        # Log summary
+        logger.info(
+            "Tap will run with %d personal auth tokens and %d app keys.",
+            len(personal_token_managers),
+            sum(len(token_managers[org]) for org in token_managers),
         )
-        return personal_token_managers + app_token_managers
 
-    def __init__(self, stream: RESTStream) -> None:
+        # Merge personal tokens into org-agnostic tokens (None key).
+        if personal_token_managers:
+            token_managers[None].extend(personal_token_managers)
+
+        return token_managers
+
+    def __init__(
+        self,
+        *,
+        rate_limit_buffer: int | None = None,
+        expiry_time_buffer: int | None = None,
+        auth_token: str | None = None,
+        additional_auth_tokens: list[str] | None = None,
+        auth_app_keys: list[str] | None = None,
+        org_auth_app_keys: dict[str, list[str]] | None = None,
+    ) -> None:
         """Init authenticator.
 
         Args:
             stream: A stream for a RESTful endpoint.
+            rate_limit_buffer: A buffer to add to the rate limit.
+            expiry_time_buffer: A buffer used when determining when to refresh GitHub
+                app tokens. Only relevant when authenticating as a GitHub app.
+            auth_token: A personal access token.
+            additional_auth_tokens: A list of personal access tokens.
+            auth_app_keys: Organization-agnostic GitHub App keys used as fallback
+                for all organizations.
+            org_auth_app_keys: Organization-specific GitHub App keys. Dict mapping
+                organization names to lists of app keys.
         """
-        super().__init__(stream=stream)
-        self.logger: logging.Logger = stream.logger
-        self.tap_name: str = stream.tap_name
-        self._config: dict[str, Any] = dict(stream.config)
+        super().__init__()
+        self.rate_limit_buffer = rate_limit_buffer
+        self.expiry_time_buffer = expiry_time_buffer
+        self.auth_token = auth_token
+        self.additional_auth_tokens = additional_auth_tokens
+        self.auth_app_keys = auth_app_keys
+        self.org_auth_app_keys = org_auth_app_keys
+
         self.token_managers = self.prepare_tokens()
-        self.active_token: TokenManager | None = (
-            choice(self.token_managers) if self.token_managers else None
+        self.current_organization: str | None = None
+        self.active_token: TokenManager | None = None
+        if self.token_managers:
+            # Prefer org-specific tokens over org-agnostic (None key)
+            org_keys = [k for k in self.token_managers if k is not None]
+            initial_org = min(org_keys) if org_keys else None
+            self.logger.info(
+                f"Setting initial organization for authenticator: {initial_org}"
+            )
+            self.active_token = choice(self.token_managers[initial_org])
+        else:
+            self.logger.info("Setting initial organization for authenticator: None")
+
+    @classmethod
+    def from_stream(cls, stream: RESTStream) -> GitHubTokenAuthenticator:
+        return cls(
+            rate_limit_buffer=stream.config.get("rate_limit_buffer"),
+            expiry_time_buffer=stream.config.get("expiry_time_buffer"),
+            auth_token=stream.config.get("auth_token"),
+            additional_auth_tokens=stream.config.get("additional_auth_tokens"),
+            auth_app_keys=stream.config.get("auth_app_keys"),
+            org_auth_app_keys=stream.config.get("org_auth_app_keys"),
+        )
+
+    def set_organization(self, org: str) -> None:
+        """Set the current organization and switch to an appropriate token.
+
+        Args:
+            org: The organization name to switch to.
+        """
+        # If we're already using this org, no need to switch
+        if self.current_organization == org:
+            return
+
+        logger.info(f"Switching authentication context to organization: {org}")
+        self.current_organization = org
+
+        # Get tokens for this org (check both org-specific and None keys)
+        available_tokens = self.token_managers.get(org, [])
+        if not available_tokens and None in self.token_managers:
+            # Fall back to org-agnostic tokens (personal tokens or env var app keys)
+            available_tokens = self.token_managers[None]
+            logger.info(
+                f"No org-specific tokens found for '{org}', using org-agnostic tokens"
+            )
+
+        # If still no tokens, try tokens from other orgs (for public data access)
+        if not available_tokens:
+            for other_org, tokens in self.token_managers.items():
+                if other_org is not None and tokens:
+                    available_tokens = tokens
+                    logger.info(
+                        f"No tokens for '{org}', using tokens from '{other_org}' "
+                        f"for public data access"
+                    )
+                    break
+            else:
+                logger.warning(
+                    f"No authentication tokens available for organization: {org}"
+                )
+                self.active_token = None
+                return
+
+        # Select a token with remaining calls
+        for token_manager in available_tokens:
+            if token_manager.has_calls_remaining():
+                self.active_token = token_manager
+                logger.info(f"Selected token for organization: {org}")
+                return
+
+        # If no tokens have calls remaining, just pick the first one
+        # (it might refresh or we'll rotate later)
+        self.active_token = available_tokens[0]
+        logger.info(
+            f"Selected token for organization: {org} (may need rate limit refresh)"
         )
 
     def get_next_auth_token(self) -> None:
         current_token = self.active_token.token if self.active_token else ""
-        token_managers = deepcopy(self.token_managers)
-        shuffle(token_managers)
-        for token_manager in token_managers:
+
+        # Build a list of candidate tokens for the current organization
+        candidates = []
+
+        # Priority 1: Other tokens for the current organization
+        if (
+            self.current_organization
+            and self.current_organization in self.token_managers
+        ):
+            org_tokens = list(self.token_managers[self.current_organization])
+            shuffle(org_tokens)
+            candidates.extend(org_tokens)
+
+        # Priority 2: Org-agnostic tokens (stored under None key)
+        if None in self.token_managers:
+            agnostic_tokens = list(self.token_managers[None])
+            shuffle(agnostic_tokens)
+            candidates.extend(agnostic_tokens)
+
+        # Priority 3: Tokens from other organizations (for public data access)
+        # GitHub tokens can access public data from any org
+        for org, tokens in self.token_managers.items():
+            if org != self.current_organization and org is not None:
+                other_org_tokens = list(tokens)
+                shuffle(other_org_tokens)
+                candidates.extend(other_org_tokens)
+
+        # Try to find a token with remaining capacity
+        for token_manager in candidates:
             if (
                 token_manager.has_calls_remaining()
                 and current_token != token_manager.token
             ):
                 self.active_token = token_manager
-                self.logger.info("Switching to fresh auth token")
+                logger.info("Switching to fresh auth token")
                 return
 
         raise RuntimeError(
@@ -358,10 +566,13 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         )
 
     def update_rate_limit(
-        self, response_headers: requests.models.CaseInsensitiveDict
+        self,
+        response_headers: requests.models.CaseInsensitiveDict,
     ) -> None:
         # If no token or only one token is available, return early.
-        if len(self.token_managers) <= 1 or self.active_token is None:
+        # Count total tokens across all organizations
+        total_tokens = sum(len(tokens) for tokens in self.token_managers.values())
+        if total_tokens <= 1 or self.active_token is None:
             return
 
         self.active_token.update_rate_limit(response_headers)
@@ -376,7 +587,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 self.get_next_auth_token()
             request.headers["Authorization"] = f"token {self.active_token.token}"
         else:
-            self.logger.info(
+            logger.info(
                 "No auth token detected. "
                 "For higher rate limits, please specify `auth_token` in config."
             )
