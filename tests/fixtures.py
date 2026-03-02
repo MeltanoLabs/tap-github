@@ -114,7 +114,7 @@ def alternative_sync_chidren(
     """
     for child_stream in self.child_streams:
         # Use org:write access level credentials for collaborators stream
-        if child_stream.name in ["collaborators"]:
+        if child_stream.name == "collaborators":
             ORG_LEVEL_TOKEN = os.environ.get("ORG_LEVEL_TOKEN")  # noqa: N806
             # TODO - Fix collaborators tests, likely by mocking API responses directly.
             # Currently we have to bypass them as they are failing frequently.
