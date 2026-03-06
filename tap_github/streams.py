@@ -81,7 +81,7 @@ class Streams(Enum):
         self.valid_queries = valid_queries
         self.streams = streams
 
-    REPOSITORY = (
+    REPOSITORY = (  # ty:ignore[invalid-assignment]
         {"repositories", "organizations", "searches"},
         [
             AnonymousContributorsStream,
@@ -133,7 +133,7 @@ class Streams(Enum):
             WorkflowsStream,
         ],
     )
-    USERS = (
+    USERS = (  # ty:ignore[invalid-assignment]
         {"user_usernames", "user_ids"},
         [
             StarredStream,
@@ -141,7 +141,7 @@ class Streams(Enum):
             UserStream,
         ],
     )
-    ORGANIZATIONS = (
+    ORGANIZATIONS = (  # ty:ignore[invalid-assignment]
         {"organizations"},
         [
             CustomPropertiesStream,
