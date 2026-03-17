@@ -27,18 +27,18 @@ This tap accepts the following configuration options:
 
 - Required: One and only one of the following modes:
   1. `repositories`: An array of strings specifying the GitHub repositories to be included. Each element of the array should be of the form `<org>/<repository>`, e.g. `MeltanoLabs/tap-github`.
-  2. `organizations`: An array of strings containing the github organizations to be included
-  3. `searches`: An array of search descriptor objects with the following properties:
+  1. `organizations`: An array of strings containing the github organizations to be included
+  1. `searches`: An array of search descriptor objects with the following properties:
      - `name`: A human readable name for the search query
      - `query`: A github search string (generally the same as would come after `?q=` in the URL)
-  4. `user_usernames`: A list of github usernames
-  5. `user_ids`: A list of github user ids [int]
+  1. `user_usernames`: A list of github usernames
+  1. `user_ids`: A list of github user ids [int]
 - Highly recommended:
   - Personal access tokens (PATs) for authentication can be provided in 3 ways:
     - `auth_token` - Takes a single token.
     - `additional_auth_tokens` - Takes a list of tokens. Can be used together with `auth_token` or as the sole source of PATs.
     - Any environment variables beginning with `GITHUB_TOKEN` will be assumed to be PATs. These tokens will be used in addition to `auth_token` (if provided), but will not be used if `additional_auth_tokens` is provided.
-  - GitHub App keys are another option for authentication, and can be used in combination with PATs if desired. App IDs and keys should be assembled into the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----` (replace `:app_id:` with your actual GitHub App ID and `_YOUR_P_KEY_` with your private key content) where the key can be generated from the `Private keys` section on https://github.com/organizations/:organization_name/settings/apps/:app_name.  Read more about GitHub App quotas [here](https://docs.github.com/en/enterprise-server@3.3/developers/apps/building-github-apps/rate-limits-for-github-apps#server-to-server-requests). Formatted app keys can be provided in 3 ways:
+  - GitHub App keys are another option for authentication, and can be used in combination with PATs if desired. App IDs and keys should be assembled into the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----` (replace `:app_id:` with your actual GitHub App ID and `_YOUR_P_KEY_` with your private key content) where the key can be generated from the `Private keys` section on https://github.com/organizations/:organization_name/settings/apps/:app_name. Read more about GitHub App quotas [here](https://docs.github.com/en/enterprise-server@3.3/developers/apps/building-github-apps/rate-limits-for-github-apps#server-to-server-requests). Formatted app keys can be provided in 3 ways:
     - `auth_app_keys` - List of GitHub App keys in the prescribed format. These keys are organization-agnostic and will be used as fallback for all organizations.
     - `org_auth_app_keys` - Object/dictionary mapping organization names to lists of GitHub App keys. This allows you to specify different app credentials for different organizations, enabling better rate limit management across multiple organizations. Example:
       ```yaml
@@ -85,7 +85,7 @@ When using `org_auth_app_keys`, the tap will automatically switch authentication
 - **Automatic token selection**: When processing repositories from a specific organization, the tap will prefer tokens configured for that organization.
 - **Fallback behavior**: If no organization-specific tokens are available, the tap will fall back to:
   1. Organization-agnostic tokens (personal tokens or `auth_app_keys`)
-  2. Tokens from other organizations (for accessing public data)
+  1. Tokens from other organizations (for accessing public data)
 
 ## Usage
 
@@ -103,7 +103,7 @@ You can easily run `tap-github` by itself or in a pipeline using [Meltano](www.m
 
 ### Notes regarding permissions
 
-* For the `traffic_*` streams, [you will need write access to the repository](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28). You can enable extraction for these streams by [selecting them in the catalog](https://hub.meltano.com/singer/spec/#metadata).
+- For the `traffic_*` streams, [you will need write access to the repository](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28). You can enable extraction for these streams by [selecting them in the catalog](https://hub.meltano.com/singer/spec/#metadata).
 
 ### Executing the Tap Directly
 
@@ -114,6 +114,7 @@ tap-github --config CONFIG --discover > ./catalog.json
 ```
 
 ## Contributing
+
 This project uses parent-child streams. Learn more about them [here.](https://gitlab.com/meltano/sdk/-/blob/main/docs/parent_streams.md)
 
 ### Initialize your Development Environment
