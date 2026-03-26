@@ -36,7 +36,7 @@ dependencies = [
     "nested-lookup~=0.2.25",
     "PyJWT~=2.12.1",
     "python-dateutil~=2.9",
-    "requests~=2.32.3",
+    "requests~=2.33.0",
     "singer-sdk~=0.53.0",
 ]
 
