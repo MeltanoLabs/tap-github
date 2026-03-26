@@ -111,7 +111,7 @@ def parse_counter(tag: Tag | NavigableString | None) -> int:
     try:
         if tag == "\n":
             return 0
-        title = tag["title"]  # type: ignore[index]
+        title = tag["title"]  # type: ignore[index] # ty:ignore[invalid-argument-type]
         title_string = title if isinstance(title, str) else title[0]
         return parse_int(title_string)
     except (KeyError, ValueError) as e:
