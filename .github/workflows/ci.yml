@@ -4,17 +4,16 @@ on:
   # Run on all pull requests and on pushes to main.
   pull_request:
     paths:
-    - .github/workflows/test_tap.yml
-    - poetry.lock
+    - .github/workflows/ci.yml
     - pyproject.toml
     - uv.lock
-    - tap_github/**'
+    - tap_github/**
     - tests/**
   push:
     branches:
       - main
     paths:
-    - .github/workflows/test_tap.yml
+    - .github/workflows/ci.yml
     - pyproject.toml
     - uv.lock
     - tap_github/**
