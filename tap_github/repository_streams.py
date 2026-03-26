@@ -56,7 +56,7 @@ class RepositoryStream(GitHubRestStream):
         return params
 
     @property
-    def path(self) -> str:  # type: ignore[override, return]
+    def path(self) -> str:  # type: ignore[override, return] # ty:ignore[invalid-return-type]
         """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
