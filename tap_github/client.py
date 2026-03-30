@@ -237,10 +237,14 @@ class GitHubRestStream(RESTStream):
             self.logger.info(msg)
             return
 
+        github_request_id = response.headers.get("X-GitHub-Request-Id")
+
         if 400 <= response.status_code < 500:
             msg = (
                 f"{response.status_code} Client Error: "
-                f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
+                f"{response.content!s} (Reason: {response.reason}) "
+                f"for path: {full_path} "
+                f"[GitHub-Request-Id: {github_request_id}]"
             )
             # Retry on rate limiting
             if (
@@ -269,15 +273,20 @@ class GitHubRestStream(RESTStream):
             ):
                 raise RetriableAPIError(msg, response)
 
+            # The GitHub API can return transient 404 errors, e.g. due to
+            # replication lag or temporary unavailability. Retry these.
+            if response.status_code == 404:
+                raise RetriableAPIError(msg, response)
+
             # all other errors are fatal
-            # Note: The API returns a 404 "Not Found" if trying to read a repo
-            # for which the token is not allowed access.
             raise FatalAPIError(msg)
 
         elif 500 <= response.status_code < 600:
             msg = (
                 f"{response.status_code} Server Error: "
-                f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"  # noqa: E501
+                f"{response.content!s} (Reason: {response.reason}) "
+                f"for path: {full_path} "
+                f"[GitHub-Request-Id: {github_request_id}]"
             )
             raise RetriableAPIError(msg, response)
 
