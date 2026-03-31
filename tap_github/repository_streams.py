@@ -976,6 +976,16 @@ class IssuesStream(GitHubRestStream):
                 th.Property("patch_url", th.StringType),
             ),
         ),
+        th.Property("state_reason", th.StringType),
+        th.Property("parent_issue_url", th.StringType),
+        th.Property(
+            "sub_issues_summary",
+            th.ObjectType(
+                th.Property("total", th.IntegerType),
+                th.Property("completed", th.IntegerType),
+                th.Property("percent_completed", th.IntegerType),
+            ),
+        ),
     ).to_dict()
 
 
