@@ -365,7 +365,7 @@ class GitHubDiffStream(GitHubRestStream):
     """Base class for GitHub diff streams."""
 
     # Known Github API errors for diff requests
-    tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 502]
+    tolerated_http_errors: ClassVar[list[int]] = [404, 406, 422, 500, 502, 504]
 
     @property
     def http_headers(self) -> dict:
