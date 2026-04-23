@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlparse
 
 from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
-from singer_sdk.exceptions import FatalAPIError
+from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
 from tap_github.client import GitHubDiffStream, GitHubGraphqlStream, GitHubRestStream
@@ -3342,6 +3342,19 @@ class DependenciesStream(GitHubGraphqlStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.hawkgirl-preview+json"
         return headers
+
+    def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
+        try:
+            yield from super().get_records(context)
+        except RetriableAPIError as e:
+            if "timedout" in str(e):
+                self.logger.warning(
+                    "Skipping dependencies for %s/%s due to GitHub API timeout.",
+                    context and context.get("org"),
+                    context and context.get("repo"),
+                )
+            else:
+                raise
 
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         """
