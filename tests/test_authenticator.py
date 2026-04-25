@@ -742,9 +742,7 @@ class TestGitHubTokenAuthenticator:
                     assert auth.active_token == org_tokens[1]
                     assert auth.current_organization == "acme-corp"
 
-    def test_get_next_auth_token_keeps_org_specific_tokens_isolated(
-        self, mock_stream
-    ):
+    def test_get_next_auth_token_keeps_org_specific_tokens_isolated(self, mock_stream):
         """Test org-specific token rotation does not fall back to agnostic tokens."""
         with (
             patch.object(
