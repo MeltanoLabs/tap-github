@@ -32,7 +32,7 @@ classifiers = [
 ]
 dependencies = [
     "beautifulsoup4~=4.14.2",
-    "cryptography~=46.0.1",
+    "cryptography~=47.0.0",
     "nested-lookup~=0.2.25",
     "PyJWT~=2.12.1",
     "python-dateutil~=2.9",
