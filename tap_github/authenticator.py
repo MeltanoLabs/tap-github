@@ -536,6 +536,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             and self.token_managers[self.current_organization]
         )
 
+        # Priority 1: Tokens scoped to the current org
         if has_current_org_tokens:
             org_tokens = list(self.token_managers[self.current_organization])
             shuffle(org_tokens)
