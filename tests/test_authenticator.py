@@ -742,8 +742,8 @@ class TestGitHubTokenAuthenticator:
                     assert auth.active_token == org_tokens[1]
                     assert auth.current_organization == "acme-corp"
 
-    def test_get_next_auth_token_falls_back_to_org_agnostic(self, mock_stream):
-        """Test that token rotation falls back to org-agnostic tokens."""
+    def test_get_next_auth_token_keeps_org_specific_tokens_isolated(self, mock_stream):
+        """Test org-specific token rotation does not fall back to agnostic tokens."""
         with (
             patch.object(
                 GitHubTokenAuthenticator,
@@ -768,26 +768,26 @@ class TestGitHubTokenAuthenticator:
             ):
                 auth = GitHubTokenAuthenticator.from_stream(stream=stream)
 
-                # Get tokens
                 org_token = auth.token_managers["acme-corp"][0]
                 agnostic_token = auth.token_managers[None][0]
 
-                # Set current org with exhausted token
                 auth.current_organization = "acme-corp"
                 auth.active_token = org_token
 
-                # Mock org-specific token as exhausted, agnostic as available
                 with (
                     patch.object(org_token, "has_calls_remaining", return_value=False),
                     patch.object(
                         agnostic_token, "has_calls_remaining", return_value=True
                     ),
+                    pytest.raises(
+                        RuntimeError,
+                        match="All GitHub tokens have hit their rate limit",
+                    ),
                 ):
-                    # Should fall back to agnostic token
                     auth.get_next_auth_token()
 
-                    assert auth.active_token == agnostic_token
-                    assert auth.current_organization == "acme-corp"
+                assert auth.active_token == org_token
+                assert auth.current_organization == "acme-corp"
 
     def test_get_next_auth_token_raises_when_all_exhausted(self, mock_stream):
         """Test that get_next_auth_token raises when all tokens are exhausted."""
@@ -1232,16 +1232,21 @@ class TestGitHubTokenAuthenticator:
                     assert auth.active_token == acme_token
                     assert auth.current_organization == "acme-corp"
 
-                # Test 2: Should fall back to org-agnostic when org-specific exhausted
+                # Test 2: Should not fall back when org-specific tokens are exhausted
                 with (
                     patch.object(acme_token, "has_calls_remaining", return_value=False),
                     patch.object(
                         fallback_token, "has_calls_remaining", return_value=True
                     ),
+                    pytest.raises(
+                        RuntimeError,
+                        match="All GitHub tokens have hit their rate limit",
+                    ),
                 ):
                     auth.get_next_auth_token()
-                    assert auth.active_token == fallback_token
-                    assert auth.current_organization == "acme-corp"
+
+                assert auth.active_token == acme_token
+                assert auth.current_organization == "acme-corp"
 
                 # Test 3: Org without specific tokens should use fallback
                 with (

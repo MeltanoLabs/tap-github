@@ -525,31 +525,36 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
     def get_next_auth_token(self) -> None:
         current_token = self.active_token.token if self.active_token else ""
 
-        # Build a list of candidate tokens for the current organization
+        # Build a list of candidate tokens for the current organization.
+        # If the current org has a configured token pool, stay within that pool.
+        # Installation tokens are org-scoped, so falling through to another org's
+        # token can turn legitimate private-repo calls into misleading 404s.
         candidates = []
-
-        # Priority 1: Other tokens for the current organization
-        if (
+        has_current_org_tokens = (
             self.current_organization
             and self.current_organization in self.token_managers
-        ):
+            and self.token_managers[self.current_organization]
+        )
+
+        # Priority 1: Tokens scoped to the current org
+        if has_current_org_tokens:
             org_tokens = list(self.token_managers[self.current_organization])
             shuffle(org_tokens)
             candidates.extend(org_tokens)
+        else:
+            # Priority 2: Org-agnostic tokens (stored under None key)
+            if None in self.token_managers:
+                agnostic_tokens = list(self.token_managers[None])
+                shuffle(agnostic_tokens)
+                candidates.extend(agnostic_tokens)
 
-        # Priority 2: Org-agnostic tokens (stored under None key)
-        if None in self.token_managers:
-            agnostic_tokens = list(self.token_managers[None])
-            shuffle(agnostic_tokens)
-            candidates.extend(agnostic_tokens)
-
-        # Priority 3: Tokens from other organizations (for public data access)
-        # GitHub tokens can access public data from any org
-        for org, tokens in self.token_managers.items():
-            if org != self.current_organization and org is not None:
-                other_org_tokens = list(tokens)
-                shuffle(other_org_tokens)
-                candidates.extend(other_org_tokens)
+            # Priority 3: Tokens from other organizations (for public data access)
+            # GitHub tokens can access public data from any org
+            for org, tokens in self.token_managers.items():
+                if org != self.current_organization and org is not None:
+                    other_org_tokens = list(tokens)
+                    shuffle(other_org_tokens)
+                    candidates.extend(other_org_tokens)
 
         # Try to find a token with remaining capacity
         for token_manager in candidates:
