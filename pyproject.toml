@@ -36,7 +36,7 @@ dependencies = [
     "nested-lookup~=0.2.25",
     "PyJWT~=2.12.1",
     "python-dateutil~=2.9",
-    "requests~=2.33.0",
+    "requests~=2.34.0",
     "singer-sdk~=0.53.0",
 ]
 
@@ -87,7 +87,6 @@ type = [
     "ty>=0.0.13",
     "types-beautifulsoup4~=4.12",
     "types-python-dateutil~=2.9",
-    "types-requests~=2.32",
     "types-simplejson~=3.20",
 ]
 
