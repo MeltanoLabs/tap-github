@@ -166,12 +166,10 @@ def test_repository_child_context_defaults_pull_request_capability_to_enabled(
     assert context["has_pull_requests"] is True
 
 
-def test_pull_requests_stream_skips_repos_with_repository_feature_exactly_false(
+def test_pull_requests_stream_skips_repos_with_pull_requests_disabled(
     repo_list_config,  # noqa: F811
-    caplog,
 ):
     """Do not call the pull requests API when repo metadata says it is disabled."""
-    caplog.set_level("INFO")
     tap = TapGitHub(config=repo_list_config)
     pull_requests_stream = tap.streams["pull_requests"]
     context = {
@@ -181,14 +179,17 @@ def test_pull_requests_stream_skips_repos_with_repository_feature_exactly_false(
         "has_pull_requests": False,
     }
 
-    with patch.object(GitHubRestStream, "get_records") as get_records:
+    with (
+        patch.object(GitHubRestStream, "get_records") as get_records,
+        patch.object(pull_requests_stream.logger, "debug") as log_debug,
+    ):
         records = list(pull_requests_stream.get_records(context))
 
     assert records == []
     get_records.assert_not_called()
-    assert "pull_requests" in caplog.text
-    assert "shop/issues-pi" in caplog.text
-    assert "has_pull_requests" in caplog.text
+    log_debug.assert_called_once_with(
+        "Repository shop/issues-pi: Pull requests not enabled, skipping API call",
+    )
 
 
 @pytest.mark.parametrize("has_pull_requests", [True, None, 0, "missing"])
@@ -242,10 +243,10 @@ def test_issues_stream_delegates_when_has_issues_is_false(
     get_records.assert_called_once_with(context)
 
 
-def test_repository_feature_gate_keeps_generic_404_retriable(
+def test_pull_requests_stream_keeps_generic_404_retriable(
     repo_list_config,  # noqa: F811
 ):
-    """Repository feature gating must not broaden tolerated GitHub errors."""
+    """Pull request gating must not broaden tolerated GitHub errors."""
     tap = TapGitHub(config=repo_list_config)
     pull_requests_stream = tap.streams["pull_requests"]
     response = Response()
