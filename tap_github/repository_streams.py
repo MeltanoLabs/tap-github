@@ -243,6 +243,7 @@ class RepositoryStream(GitHubRestStream):
             "has_discussions": record.get(
                 "has_discussions", False
             ),  # GitHub repos not updated after the feature was released in 2021 will not have this field. # noqa: E501
+            "has_pull_requests": record.get("has_pull_requests", True),
         }
 
     def get_records(self, context: Context | None) -> Iterable[dict[str, Any]]:
@@ -324,6 +325,7 @@ class RepositoryStream(GitHubRestStream):
         th.Property("network_count", th.IntegerType),
         th.Property("subscribers_count", th.IntegerType),
         th.Property("open_issues_count", th.IntegerType),
+        th.Property("has_pull_requests", th.BooleanType),
         th.Property("allow_squash_merge", th.BooleanType),
         th.Property("allow_merge_commit", th.BooleanType),
         th.Property("allow_rebase_merge", th.BooleanType),
@@ -1301,6 +1303,22 @@ class PullRequestsStream(GitHubRestStream):
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """Return pull request records, skipping repos with PRs disabled."""
+        assert context is not None, f"Context cannot be empty for '{self.name}' stream"
+
+        if context.get("has_pull_requests") is False:
+            org = context.get("org", "unknown")
+            repo = context.get("repo", "unknown")
+            self.logger.info(
+                "Repository %s/%s: Pull requests not enabled, skipping API call",
+                org,
+                repo,
+            )
+            return []
+
+        return super().get_records(context)
 
     def get_url_params(
         self,
