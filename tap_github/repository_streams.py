@@ -335,7 +335,6 @@ class RepositoryStream(GitHubRestStream):
     ).to_dict()
 
 
-
 class ReadmeStream(GitHubRestStream):
     """
     A stream dedicated to fetching the object version of a README.md.
