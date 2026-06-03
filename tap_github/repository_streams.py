@@ -335,6 +335,40 @@ class RepositoryStream(GitHubRestStream):
     ).to_dict()
 
 
+class RepositoryFeatureGatedStream(GitHubRestStream):
+    """REST stream that skips API calls for explicitly disabled repo features."""
+
+    required_repository_features: ClassVar[tuple[str, ...]] = ()
+
+    def _disabled_repository_feature(self, context: Context | None) -> str | None:
+        """Return the first explicitly disabled repository feature, if any."""
+        if context is None:
+            return None
+
+        for feature in self.required_repository_features:
+            if context.get(feature) is False:
+                return feature
+
+        return None
+
+    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
+        """Return records unless repository metadata explicitly disables a feature."""
+        if disabled_feature := self._disabled_repository_feature(context):
+            org = context.get("org", "unknown") if context is not None else "unknown"
+            repo = context.get("repo", "unknown") if context is not None else "unknown"
+            self.logger.info(
+                "Skipping '%s' for repository %s/%s because repository feature "
+                "'%s' is disabled",
+                self.name,
+                org,
+                repo,
+                disabled_feature,
+            )
+            return []
+
+        return super().get_records(context)
+
+
 class ReadmeStream(GitHubRestStream):
     """
     A stream dedicated to fetching the object version of a README.md.
@@ -1291,7 +1325,7 @@ class LabelsStream(GitHubRestStream):
     ).to_dict()
 
 
-class PullRequestsStream(GitHubRestStream):
+class PullRequestsStream(RepositoryFeatureGatedStream):
     """Defines 'PullRequests' stream."""
 
     name = "pull_requests"
@@ -1301,24 +1335,9 @@ class PullRequestsStream(GitHubRestStream):
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
     state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    required_repository_features: ClassVar[tuple[str, ...]] = ("has_pull_requests",)
     # GitHub is missing the "since" parameter on this endpoint.
     use_fake_since_parameter = True
-
-    def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
-        """Return pull request records, skipping repos with PRs disabled."""
-        assert context is not None, f"Context cannot be empty for '{self.name}' stream"
-
-        if context.get("has_pull_requests") is False:
-            org = context.get("org", "unknown")
-            repo = context.get("repo", "unknown")
-            self.logger.info(
-                "Repository %s/%s: Pull requests not enabled, skipping API call",
-                org,
-                repo,
-            )
-            return []
-
-        return super().get_records(context)
 
     def get_url_params(
         self,
