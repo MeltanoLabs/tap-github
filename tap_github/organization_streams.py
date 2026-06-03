@@ -684,6 +684,13 @@ class ProjectItemsStream(GitHubGraphqlStream):
         return f"field_{hash_suffix}"
 
     @property
+    def page_size(self) -> int:
+        """Return configured page size for ProjectV2 items."""
+        stream_options = self.config.get("stream_options", {})
+        project_items_options = stream_options.get("project_items", {})
+        return project_items_options.get("page_size", 100)
+
+    @property
     def query(self) -> str:
         """Dynamically build GraphQL query to fetch item and its field values."""
         field_value_queries = []
@@ -769,7 +776,7 @@ class ProjectItemsStream(GitHubGraphqlStream):
         ) {{
           organization(login: $org) {{
             projectV2(number: $project_number) {{
-              items(first: 100, after: $nextPageCursor_0) {{
+              items(first: {self.page_size}, after: $nextPageCursor_0) {{
                 nodes {{
                   node_id: id
                   id: fullDatabaseId

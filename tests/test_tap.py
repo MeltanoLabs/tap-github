@@ -10,11 +10,13 @@ from dateutil.parser import isoparse
 from singer_sdk.helpers import _catalog as cat_helpers
 from singer_sdk.singerlib import Catalog
 
+from tap_github.organization_streams import ProjectItemsStream
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
 
 from .fixtures import (  # noqa: F401
     alternative_sync_chidren,
+    organization_list_config,
     repo_list_config,
     username_list_config,
 )
@@ -59,6 +61,27 @@ def test_validate_repo_list_config(repo_list_config):  # noqa: F811
     tap = TapGitHub(config=repo_list_config)
     partitions = tap.streams["repositories"].partitions
     assert partitions == repo_list_context
+
+
+def test_project_items_query_uses_default_page_size(organization_list_config):  # noqa: F811
+    """Verify that project_items uses GitHub's max page size by default."""
+    tap = TapGitHub(config=organization_list_config)
+    stream = ProjectItemsStream(tap=tap)
+
+    assert "items(first: 100, after: $nextPageCursor_0)" in stream.query
+
+
+def test_project_items_query_uses_configured_page_size(organization_list_config):  # noqa: F811
+    """Verify that project_items page size can be configured."""
+    organization_list_config["stream_options"] = {
+        "project_items": {
+            "page_size": 50,
+        },
+    }
+    tap = TapGitHub(config=organization_list_config)
+    stream = ProjectItemsStream(tap=tap)
+
+    assert "items(first: 50, after: $nextPageCursor_0)" in stream.query
 
 
 def run_tap_with_config(
