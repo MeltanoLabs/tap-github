@@ -1320,9 +1320,6 @@ class PullRequestsStream(GitHubRestStream):
             )
             return []
 
-        self.logger.debug(
-            f"Repository {org}/{repo}: Pull requests enabled, making API call",
-        )
         return super().get_records(context)
 
     def get_url_params(
