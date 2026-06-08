@@ -151,6 +151,24 @@ class TapGitHub(Tap):
                     ),
                     description="Options specific to the 'milestones' stream.",
                 ),
+                th.Property(
+                    "project_items",
+                    th.ObjectType(
+                        th.Property(
+                            "page_size",
+                            th.IntegerType(minimum=1, maximum=100),
+                            default=100,
+                            description=(
+                                "Number of ProjectV2 items to request per GraphQL "
+                                "page. Defaults to 100, GitHub's maximum. Lower "
+                                "values can reduce GraphQL query complexity for "
+                                "projects with many custom fields."
+                            ),
+                        ),
+                        additional_properties=False,
+                    ),
+                    description="Options specific to the 'project_items' stream.",
+                ),
                 additional_properties=False,
             ),
             description="Options which change the behaviour of a specific stream.",
