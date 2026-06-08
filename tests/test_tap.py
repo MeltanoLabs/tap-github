@@ -7,10 +7,13 @@ from unittest.mock import patch
 import pytest
 from bs4 import BeautifulSoup
 from dateutil.parser import isoparse
+from requests import Response
+from singer_sdk.exceptions import RetriableAPIError
 from singer_sdk.helpers import _catalog as cat_helpers
 from singer_sdk.singerlib import Catalog
 
 from tap_github.organization_streams import ProjectItemsStream
+from tap_github.repository_streams import GitHubRestStream
 from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
 
@@ -147,6 +150,137 @@ def test_get_a_repository_in_repo_list_mode(
     # check that the tap corrects invalid case in config input
     assert '"repo": "Tap-GitLab"' not in captured_out
     assert '"org": "meltanolabs"' not in captured_out
+
+
+def test_repository_child_context_includes_pull_request_capability(repo_list_config):  # noqa: F811
+    """Verify repository context includes the pull request capability flag."""
+    tap = TapGitHub(config=repo_list_config)
+    repository_stream = tap.streams["repositories"]
+
+    context = repository_stream.get_child_context(
+        {
+            "id": 123,
+            "name": "issues-pi",
+            "owner": {"login": "shop"},
+            "has_pull_requests": False,
+        },
+        None,
+    )
+
+    assert context["has_pull_requests"] is False
+
+
+def test_repository_child_context_defaults_pull_request_capability_to_enabled(
+    repo_list_config,  # noqa: F811
+):
+    """Preserve existing behavior when GitHub does not return the capability flag."""
+    tap = TapGitHub(config=repo_list_config)
+    repository_stream = tap.streams["repositories"]
+
+    context = repository_stream.get_child_context(
+        {
+            "id": 123,
+            "name": "tap-github",
+            "owner": {"login": "MeltanoLabs"},
+        },
+        None,
+    )
+
+    assert context["has_pull_requests"] is True
+
+
+def test_pull_requests_stream_skips_repos_with_pull_requests_disabled(
+    repo_list_config,  # noqa: F811
+):
+    """Do not call the pull requests API when repo metadata says it is disabled."""
+    tap = TapGitHub(config=repo_list_config)
+    pull_requests_stream = tap.streams["pull_requests"]
+    context = {
+        "org": "shop",
+        "repo": "issues-pi",
+        "repo_id": 123,
+        "has_pull_requests": False,
+    }
+
+    with (
+        patch.object(GitHubRestStream, "get_records") as get_records,
+        patch.object(pull_requests_stream.logger, "debug") as log_debug,
+    ):
+        records = list(pull_requests_stream.get_records(context))
+
+    assert records == []
+    get_records.assert_not_called()
+    log_debug.assert_called_once_with(
+        "Repository shop/issues-pi: Pull requests not enabled, skipping API call",
+    )
+
+
+@pytest.mark.parametrize("has_pull_requests", [True, None, 0, "missing"])
+def test_pull_requests_stream_delegates_when_pull_request_capability_is_not_false(
+    repo_list_config,  # noqa: F811
+    has_pull_requests,
+):
+    """Fail open when the capability flag is enabled, missing, or unknown."""
+    tap = TapGitHub(config=repo_list_config)
+    pull_requests_stream = tap.streams["pull_requests"]
+    context = {
+        "org": "MeltanoLabs",
+        "repo": "tap-github",
+        "repo_id": 123,
+    }
+    if has_pull_requests != "missing":
+        context["has_pull_requests"] = has_pull_requests
+
+    with patch.object(
+        GitHubRestStream,
+        "get_records",
+        return_value=iter([{"id": 456}]),
+    ) as get_records:
+        records = list(pull_requests_stream.get_records(context))
+
+    assert records == [{"id": 456}]
+    get_records.assert_called_once_with(context)
+
+
+def test_issues_stream_delegates_when_has_issues_is_false(
+    repo_list_config,  # noqa: F811
+):
+    """Do not infer issues gating from repository feature metadata."""
+    tap = TapGitHub(config=repo_list_config)
+    issues_stream = tap.streams["issues"]
+    context = {
+        "org": "shop",
+        "repo": "issues-pi",
+        "repo_id": 123,
+        "has_issues": False,
+    }
+
+    with patch.object(
+        GitHubRestStream,
+        "get_records",
+        return_value=iter([{"id": 789}]),
+    ) as get_records:
+        records = list(issues_stream.get_records(context))
+
+    assert records == [{"id": 789}]
+    get_records.assert_called_once_with(context)
+
+
+def test_pull_requests_stream_keeps_generic_404_retriable(
+    repo_list_config,  # noqa: F811
+):
+    """Pull request gating must not broaden tolerated GitHub errors."""
+    tap = TapGitHub(config=repo_list_config)
+    pull_requests_stream = tap.streams["pull_requests"]
+    response = Response()
+    response.status_code = 404
+    response.url = "https://api.github.com/repos/shop/issues-pi/pulls"
+    response.reason = "Not Found"
+    response._content = b'{"message": "Not Found"}'
+    response.headers["X-GitHub-Request-Id"] = "request-id"
+
+    with pytest.raises(RetriableAPIError, match="404 Client Error"):
+        pull_requests_stream.validate_response(response)
 
 
 @pytest.mark.repo_list(["MeltanoLabs/tap-github"])

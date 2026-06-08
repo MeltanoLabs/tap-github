@@ -31,7 +31,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "beautifulsoup4~=4.14.2",
+    "beautifulsoup4>=4.14.2,<4.16.0",
     "cryptography>=47.0,<48.1",
     "nested-lookup~=0.2.25",
     "PyJWT~=2.12.1",
