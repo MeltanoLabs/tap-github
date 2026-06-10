@@ -3487,7 +3487,7 @@ class TrafficRestStream(GitHubRestStream):
         """  # noqa: E501
         if response.status_code == 403:
             contents = response.json()
-            if contents["message"] == "Resource not accessible by integration":
+            if "not accessible" in contents.get("message", ""):
                 self.logger.info("Permissions missing to sync stream '%s'", self.name)
                 return
         super().validate_response(response)

@@ -433,7 +433,9 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
         resp_json = response.json()
-        yield from extract_jsonpath(self.query_jsonpath, input=resp_json)
+        for record in extract_jsonpath(self.query_jsonpath, input=resp_json):
+            if record is not None:
+                yield record
 
     def get_next_page_token(
         self,
@@ -556,4 +558,10 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             msg = rj["errors"]
             if any(e.get("message") == "timedout" for e in msg if isinstance(e, dict)):
                 raise RetriableAPIError(f"Graphql error: {msg}", response)
+            # If partial data is present (partial success), log errors and continue.
+            # This handles e.g. FORBIDDEN errors on individual nodes in a paginated
+            # result where other nodes are accessible.
+            if rj.get("data") is not None:
+                self.logger.warning("Graphql partial errors (ignored): %s", msg)
+                return
             raise FatalAPIError(f"Graphql error: {msg}", response)
