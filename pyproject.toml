@@ -37,7 +37,7 @@ dependencies = [
     "PyJWT~=2.13.0",
     "python-dateutil~=2.9",
     "requests~=2.34.0",
-    "singer-sdk~=0.53.0",
+    "singer-sdk~=0.54.4",
 ]
 
 [project.urls]
