@@ -243,6 +243,7 @@ class RepositoryStream(GitHubRestStream):
             "has_discussions": record.get(
                 "has_discussions", False
             ),  # GitHub repos not updated after the feature was released in 2021 will not have this field. # noqa: E501
+            "has_issues": record.get("has_issues", True),
             "has_pull_requests": record.get("has_pull_requests", True),
         }
 
@@ -325,6 +326,7 @@ class RepositoryStream(GitHubRestStream):
         th.Property("network_count", th.IntegerType),
         th.Property("subscribers_count", th.IntegerType),
         th.Property("open_issues_count", th.IntegerType),
+        th.Property("has_issues", th.BooleanType),
         th.Property("has_pull_requests", th.BooleanType),
         th.Property("allow_squash_merge", th.BooleanType),
         th.Property("allow_merge_commit", th.BooleanType),
@@ -1018,6 +1020,19 @@ class IssueCommentsStream(GitHubRestStream):
 
         Each row emitted should be a dictionary of property names to their values.
         """
+        if (
+            context
+            and context.get("has_issues", True) is False
+            and context.get("has_pull_requests", True) is False
+        ):
+            repo = context.get("repo", "unknown")
+            org = context.get("org", "unknown")
+            self.logger.debug(
+                f"Repository {org}/{repo}: Issues and pull requests not enabled, "
+                "skipping issue comments API call",
+            )
+            return []
+
         if context and context.get("comments", None) == 0:
             self.logger.debug(f"No comments detected. Skipping '{self.name}' sync.")
             return []
