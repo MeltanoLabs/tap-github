@@ -874,7 +874,10 @@ class ProjectItemsStream(GitHubGraphqlStream):
                 # Copy all the values
                 for key in ["node_id", "id", "created_at", "updated_at"]:
                     if key in field_value_data:
-                        entry[key] = field_value_data[key]
+                        value = field_value_data[key]
+                        if key == "id" and value is not None:
+                            value = str(value)
+                        entry[key] = value
 
                 # Copy creator if present
                 if "creator" in field_value_data:
