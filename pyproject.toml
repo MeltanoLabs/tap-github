@@ -139,7 +139,7 @@ select = [
 
 [tool.tox]
 requires = [
-    "tox>=4.32",
+    "tox>=4.55",
     "tox-gh>=1.6.1",
 ]
 env_list = [
@@ -163,7 +163,7 @@ description = "Run test under {base_python}"
 dependency_groups = [
   "test",
 ]
-passenv = [
+pass_env = [
   "LOGLEVEL",
   "GITHUB_TOKEN",
   "ORG_LEVEL_TOKEN",
