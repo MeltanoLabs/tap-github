@@ -1,7 +1,7 @@
 ci:
   autofix_prs: true
   autofix_commit_msg: 'chore: pre-commit autofix'
-  autoupdate_schedule: monthly
+  autoupdate_schedule: quarterly
   autoupdate_commit_msg: 'chore: pre-commit autoupdate'
 
 repos:
