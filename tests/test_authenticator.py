@@ -67,7 +67,7 @@ class TestTokenManager:
             assert token_manager.is_valid_token()
             mock_get.assert_called_once_with(
                 url="https://api.github.com/rate_limit",
-                headers={"Authorization": "token validtoken"},
+                headers={"Authorization": "Bearer validtoken"},
             )
 
     def test_is_valid_token_failure(self, caplog: pytest.LogCaptureFixture):
