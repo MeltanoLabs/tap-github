@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qs, urlparse
@@ -1920,6 +1921,34 @@ class StargazersStream(GitHubRestStream):
         headers = super().http_headers
         headers["Accept"] = "application/vnd.github.v3.star+json"
         return headers
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Allow 403s caused by the credentials' auth type, not by permissions.
+
+        GitHub App/installation tokens cannot call this endpoint at all, even
+        with full repo access - it's restricted to personal access tokens.
+        """
+        if response.status_code == http.HTTPStatus.FORBIDDEN:
+            contents = response.json()
+            if str(contents.get("message", "")).startswith(
+                (
+                    "Resource not accessible by integration",
+                    "Resource not accessible by personal access token",
+                )
+            ):
+                self.logger.warning(
+                    "Skipping stargazers for '%s'. %s",
+                    urlparse(response.url).path,
+                    contents["message"],
+                )
+                return
+        super().validate_response(response)
+
+    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+        """Parse the response and return an iterator of result rows."""
+        if response.status_code != 200:
+            return
+        yield from super().parse_response(response)
 
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         """

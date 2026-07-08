@@ -95,6 +95,27 @@ wheels = [
 ]
 
 [[package]]
+name = "backports-httpmethod"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "backports-strenum", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/9a/a2d5d34f62039135fe7f876dcd6d70f98aa2b7c6946ce709b2344f658453/backports_httpmethod-0.2.1.tar.gz", hash = "sha256:dd730ceb82e646bbea5747ccdc89b670adfd1626a621282c51b1b514e89a88fe", size = 6655, upload-time = "2024-07-08T19:48:25.805Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/6e/5c6808bff6e2f34b55ca05aedc2475f14ff70388d05f4556e89085b73e7d/backports_httpmethod-0.2.1-py3-none-any.whl", hash = "sha256:0ff5d1323c6dfaaa436c69673307dbf555dc623de92d33063cf9de1cbe9ce558", size = 4111, upload-time = "2024-07-08T19:48:24.671Z" },
+]
+
+[[package]]
+name = "backports-strenum"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/c7/2ed54c32fed313591ffb21edbd48db71e68827d43a61938e5a0bc2b6ec91/backports_strenum-1.3.1.tar.gz", hash = "sha256:77c52407342898497714f0596e86188bb7084f89063226f4ba66863482f42414", size = 7257, upload-time = "2023-12-09T14:36:40.937Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d6/50/56cf20e2ee5127b603b81d5a69580a1a325083e2b921aa8f067da83927c0/backports_strenum-1.3.1-py3-none-any.whl", hash = "sha256:cdcfe36dc897e2615dc793b7d3097f54d359918fc448754a517e6f23044ccf83", size = 8304, upload-time = "2023-12-09T14:36:39.905Z" },
+]
+
+[[package]]
 name = "beautifulsoup4"
 version = "4.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -602,6 +623,7 @@ wheels = [
 name = "meltanolabs-tap-github"
 source = { editable = "." }
 dependencies = [
+    { name = "backports-httpmethod" },
     { name = "beautifulsoup4" },
     { name = "cryptography" },
     { name = "nested-lookup" },
@@ -637,6 +659,7 @@ type = [
 
 [package.metadata]
 requires-dist = [
+    { name = "backports-httpmethod", specifier = ">=0.2.1" },
     { name = "beautifulsoup4", specifier = ">=4.14.2,<4.16.0" },
     { name = "cryptography", specifier = ">=47.0,<49.1" },
     { name = "nested-lookup", specifier = "~=0.2.25" },

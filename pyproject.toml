@@ -31,6 +31,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "backports-httpmethod>=0.2.1",
     "beautifulsoup4>=4.14.2,<4.16.0",
     "cryptography>=47.0,<49.1",
     "nested-lookup~=0.2.25",
