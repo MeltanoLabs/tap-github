@@ -69,7 +69,7 @@ class TokenManager:
             response = requests.get(
                 url="https://api.github.com/rate_limit",
                 headers={
-                    "Authorization": f"Bearer {self.token}",
+                    "Authorization": f"token {self.token}",
                 },
             )
             response.raise_for_status()
@@ -590,7 +590,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             # Make sure that our token is still valid or update it.
             if not self.active_token.has_calls_remaining():
                 self.get_next_auth_token()
-            request.headers["Authorization"] = f"Bearer {self.active_token.token}"
+            request.headers["Authorization"] = f"token {self.active_token.token}"
         else:
             logger.info(
                 "No auth token detected. "
