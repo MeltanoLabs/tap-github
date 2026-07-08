@@ -36,7 +36,7 @@ jobs:
 
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      GITHUB_TOKEN: ${{secrets.ORG_LEVEL_TOKEN}}
       ORG_LEVEL_TOKEN: ${{secrets.ORG_LEVEL_TOKEN}}
       TOX_GH_MAJOR_MINOR: ${{ matrix.python-version }}
     strategy:
