@@ -8,8 +8,7 @@ updates:
   - package-ecosystem: uv
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     versioning-strategy: increase-if-necessary
     groups:
       development-dependencies:
@@ -21,8 +20,7 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: quarterly
     groups:
       actions:
         patterns:
