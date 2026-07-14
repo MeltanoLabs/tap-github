@@ -1934,6 +1934,7 @@ class StargazersStream(GitHubRestStream):
                 (
                     "Resource not accessible by integration",
                     "Resource not accessible by personal access token",
+                    "You do not have permission to view the stargazers of this repository",  # noqa: E501
                 )
             ):
                 self.logger.warning(
