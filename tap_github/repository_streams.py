@@ -925,6 +925,7 @@ class IssuesStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
+        row["issue_type"] = row["type"]
         row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
             # some issue bodies include control characters such as \x00
@@ -958,7 +959,71 @@ class IssuesStream(GitHubRestStream):
         th.Property("comments", th.IntegerType),
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
-        th.Property("type", th.StringType),
+        th.Property(
+            "issue_type",
+            th.ObjectType(
+                th.Property(
+                    "id",
+                    th.IntegerType,
+                    description="The unique identifier of the issue type.",
+                    required=True,
+                ),
+                th.Property(
+                    "node_id",
+                    th.StringType,
+                    description="The node identifier of the issue type.",
+                    required=True,
+                ),
+                th.Property(
+                    "name",
+                    th.StringType,
+                    description="The name of the issue type.",
+                    required=True,
+                ),
+                th.Property(
+                    "description",
+                    th.StringType,
+                    description="The description of the issue type.",
+                ),
+                th.Property(
+                    "color",
+                    th.StringType,
+                    description="The color of the issue type.",
+                    allowed_values=[
+                        "gray",
+                        "blue",
+                        "green",
+                        "yellow",
+                        "orange",
+                        "red",
+                        "pink",
+                        "purple",
+                    ],
+                ),
+                th.Property(
+                    "created_at",
+                    th.DateTimeType,
+                    description="The time the issue type created.",
+                ),
+                th.Property(
+                    "updated_at",
+                    th.DateTimeType,
+                    description="The time the issue type last updated.",
+                ),
+                th.Property(
+                    "is_enabled",
+                    th.BooleanType,
+                    description="The enabled state of the issue type.",
+                ),
+            ),
+            title="Issue Type",
+            description="The type assigned to the issue. This is only present for issues in repositories where issue types are supported.",  # noqa: E501
+        ),
+        th.Property(
+            "type",
+            th.StringType,
+            allowed_values=["issue", "pull_request"],
+        ),
         th.Property("user", user_object),
         th.Property(
             "labels",
