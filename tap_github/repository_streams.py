@@ -925,7 +925,8 @@ class IssuesStream(GitHubRestStream):
 
     def post_process(self, row: dict, context: Context | None = None) -> dict:
         row = super().post_process(row, context)
-        row["_sdc_issue_or_pr"] = "pull_request" if "pull_request" in row else "issue"
+        row["issue_type"] = row["type"]
+        row["type"] = "pull_request" if "pull_request" in row else "issue"
         if row["body"] is not None:
             # some issue bodies include control characters such as \x00
             # that some targets (such as postgresql) choke on. This ensures
@@ -959,7 +960,7 @@ class IssuesStream(GitHubRestStream):
         th.Property("author_association", th.StringType),
         th.Property("body", th.StringType),
         th.Property(
-            "type",
+            "issue_type",
             th.ObjectType(
                 th.Property(
                     "id",
@@ -1019,7 +1020,7 @@ class IssuesStream(GitHubRestStream):
             description="The type assigned to the issue. This is only present for issues in repositories where issue types are supported.",  # noqa: E501
         ),
         th.Property(
-            "_sdc_issue_or_pr",
+            "type",
             th.StringType,
             allowed_values=["issue", "pull_request"],
         ),
