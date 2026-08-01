@@ -85,7 +85,7 @@ type = [
     "ty>=0.0.13",
     "types-beautifulsoup4~=4.12",
     "types-python-dateutil~=2.9",
-    "types-simplejson~=3.20",
+    "types-simplejson>=3.20,<5.0",
 ]
 
 [tool.mypy]
