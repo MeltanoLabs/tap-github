@@ -248,7 +248,7 @@ class GitHubRestStream(RESTStream):
             params["direction"] = "desc" if self.use_fake_since_parameter else "asc"
 
         # Unfortunately the /starred, /stargazers (starred_at) and /events (created_at) endpoints do not support  # noqa: E501
-        # the "since" parameter out of the box. But we use a workaround in 'get_next_page_token'.  # noqa: E501
+        # the "since" parameter out of the box. But we use a workaround in the paginator.  # noqa: E501
         elif self.replication_key in ["starred_at", "created_at"]:
             params["sort"] = "created"
             params["direction"] = "desc"
