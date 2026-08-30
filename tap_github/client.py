@@ -13,6 +13,7 @@ from dateutil.parser import parse
 from nested_lookup import nested_lookup
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.pagination import BaseAPIPaginator
 from singer_sdk.streams import GraphQLStream, RESTStream
 
 from tap_github.authenticator import GitHubTokenAuthenticator
@@ -26,6 +27,152 @@ if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
 
 EMPTY_REPO_ERROR_STATUS = 409
+
+
+class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
+    """Paginator for GitHub REST API streams."""
+
+    def __init__(self, stream: GitHubRestStream, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        super().__init__(None, *args, **kwargs)
+        self.stream = stream
+
+    def has_more(self, response: requests.Response) -> bool:
+        """Check if there are more pages."""
+        if (
+            self.current_value
+            and self.stream.MAX_RESULTS_LIMIT
+            and not self.stream.use_cursor_pagination
+            and (
+                cast("int", self.current_value) * self.stream.MAX_PER_PAGE
+                >= self.stream.MAX_RESULTS_LIMIT
+            )
+        ):
+            return False
+
+        if "next" not in response.links:
+            return False
+
+        resp_json = response.json()
+        results = (
+            resp_json
+            if isinstance(resp_json, list)
+            else list(extract_jsonpath(self.stream.records_jsonpath, input=resp_json))
+        )
+
+        if not results:
+            return False
+
+        if self.stream.replication_key and self.stream.use_fake_since_parameter:
+            request_parameters = parse_qs(str(urlparse(response.request.url).query))
+            try:
+                since = (
+                    request_parameters["fake_since"][0].replace(" ", "+")
+                    if "fake_since" in request_parameters
+                    else ""
+                )
+            except IndexError:
+                return False
+
+            direction = (
+                request_parameters["direction"][0]
+                if "direction" in request_parameters
+                else None
+            )
+
+            replication_date = (
+                results[-1][self.stream.replication_key]
+                if self.stream.replication_key != "commit_timestamp"
+                else results[-1]["commit"]["committer"]["date"]
+            )
+            if (
+                since
+                and direction == "desc"
+                and (parse(replication_date) < parse(since))
+            ):
+                return False
+
+        return True
+
+    def get_next(self, response: requests.Response) -> int | str | None:
+        """Get the next pagination token."""
+        if self.stream.use_cursor_pagination:
+            parsed_url = urlparse(response.links["next"]["url"])
+            captured_after_value_list = parse_qs(parsed_url.query).get("after")
+            return captured_after_value_list[0] if captured_after_value_list else None
+
+        parsed_url = urlparse(response.links["next"]["url"])
+        captured_page_value_list = parse_qs(parsed_url.query).get("page")
+        next_page_string = (
+            captured_page_value_list[0] if captured_page_value_list else None
+        )
+        if next_page_string and next_page_string.isdigit():
+            return int(next_page_string)
+
+        current = self.current_value
+        if isinstance(current, int):
+            return current + 1
+        return 2
+
+
+class GitHubGraphQLPaginator(BaseAPIPaginator[dict[str, str] | None]):
+    """Paginator for GitHub GraphQL API streams."""
+
+    def __init__(self, stream: GitHubGraphqlStream, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        super().__init__(None, *args, **kwargs)
+        self.stream = stream
+
+    def has_more(self, response: requests.Response) -> bool:
+        """Check if there are more pages."""
+        resp_json = response.json()
+        next_page_results = nested_lookup(
+            key="hasNextPage_",
+            document=resp_json,
+            wild=True,
+            with_keys=True,
+        )
+        has_next_page_indices: list[int] = []
+        for key, value in next_page_results.items():
+            if any(value):
+                pagination_index = int(str(key).split("_")[1])
+                has_next_page_indices.append(pagination_index)
+        return len(has_next_page_indices) > 0
+
+    def get_next(self, response: requests.Response) -> dict[str, str] | None:
+        """Get the next pagination token."""
+        resp_json = response.json()
+        next_page_results = nested_lookup(
+            key="hasNextPage_",
+            document=resp_json,
+            wild=True,
+            with_keys=True,
+        )
+        has_next_page_indices: list[int] = []
+        for key, value in next_page_results.items():
+            if any(value):
+                pagination_index = int(str(key).split("_")[1])
+                has_next_page_indices.append(pagination_index)
+
+        if not has_next_page_indices:
+            return None
+
+        max_pagination_index = max(has_next_page_indices)
+        next_page_cursors: dict[str, str] = {}
+        for key, value in (self.current_value or {}).items():
+            pagination_index = int(str(key).split("_")[1])
+            if pagination_index < max_pagination_index:
+                next_page_cursors[key] = value
+
+        next_page_end_cursor_results = nested_lookup(
+            key=f"endCursor_{max_pagination_index}",
+            document=resp_json,
+        )
+        next_page_key = f"nextPageCursor_{max_pagination_index}"
+        next_page_cursor = next(
+            cursor for cursor in next_page_end_cursor_results if cursor is not None
+        )
+        next_page_cursors[next_page_key] = next_page_cursor
+
+        return next_page_cursors
 
 
 class GitHubRestStream(RESTStream):
@@ -79,90 +226,9 @@ class GitHubRestStream(RESTStream):
 
         yield from super().get_records(context)
 
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """Return a token for identifying next page or None if no more pages."""
-        if (
-            previous_token
-            and self.MAX_RESULTS_LIMIT
-            and not self.use_cursor_pagination
-            and (
-                cast("int", previous_token) * self.MAX_PER_PAGE
-                >= self.MAX_RESULTS_LIMIT
-            )
-        ):
-            return None
-
-        # Leverage header links returned by the GitHub API.
-        if "next" not in response.links:
-            return None
-
-        resp_json = response.json()
-        results = (
-            resp_json
-            if isinstance(resp_json, list)
-            else list(extract_jsonpath(self.records_jsonpath, input=resp_json))
-        )
-
-        # Exit early if the response has no items. ? Maybe duplicative the "next" link check.  # noqa: E501
-        if not results:
-            return None
-
-        # Unfortunately endpoints such as /starred, /stargazers, /events and /pulls do not support  # noqa: E501
-        # the "since" parameter out of the box. So we use a workaround here to exit early.  # noqa: E501
-        # For such streams, we sort by descending dates (most recent first), and paginate  # noqa: E501
-        # "back in time" until we reach records before our "fake_since" parameter.
-        if self.replication_key and self.use_fake_since_parameter:
-            request_parameters = parse_qs(str(urlparse(response.request.url).query))
-            # parse_qs interprets "+" as a space, revert this to keep an aware datetime
-            try:
-                since = (
-                    request_parameters["fake_since"][0].replace(" ", "+")
-                    if "fake_since" in request_parameters
-                    else ""
-                )
-            except IndexError:
-                return None
-
-            direction = (
-                request_parameters["direction"][0]
-                if "direction" in request_parameters
-                else None
-            )
-
-            # commit_timestamp is a constructed key which does not exist in the raw response  # noqa: E501
-            replication_date = (
-                results[-1][self.replication_key]
-                if self.replication_key != "commit_timestamp"
-                else results[-1]["commit"]["committer"]["date"]
-            )
-            # exit early if the replication_date is before our since parameter
-            if (
-                since
-                and direction == "desc"
-                and (parse(replication_date) < parse(since))
-            ):
-                return None
-
-        # Handle cursor-based pagination
-        if self.use_cursor_pagination:
-            parsed_url = urlparse(response.links["next"]["url"])
-            captured_after_value_list = parse_qs(parsed_url.query).get("after")
-            return captured_after_value_list[0] if captured_after_value_list else None
-
-        # Use header links returned by the GitHub API for page-based pagination.
-        parsed_url = urlparse(response.links["next"]["url"])
-        captured_page_value_list = parse_qs(parsed_url.query).get("page")
-        next_page_string = (
-            captured_page_value_list[0] if captured_page_value_list else None
-        )
-        if next_page_string and next_page_string.isdigit():
-            return int(next_page_string)
-
-        return (previous_token or 1) + 1
+    def get_new_paginator(self) -> BaseAPIPaginator | None:
+        """Get a new paginator for this stream."""
+        return GitHubRestPaginator(self)
 
     def get_url_params(
         self,
@@ -437,71 +503,9 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
             if record is not None:
                 yield record
 
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """
-        Return a dict of cursors for identifying next page or None if no more pages.
-
-        Note - pagination requires the Graphql query to have nextPageCursor_X parameters
-        with the assosciated hasNextPage_X, startCursor_X and endCursor_X.
-
-        X should be an integer between 0 and 9, increasing with query depth.
-
-        Warning - we recommend to avoid using deep (nested) pagination.
-        """
-
-        resp_json = response.json()
-
-        # Find if results contains "hasNextPage_X" flags and if any are True.
-        # If so, set nextPageCursor_X to endCursor_X for X max.
-
-        next_page_results = nested_lookup(
-            key="hasNextPage_",
-            document=resp_json,
-            wild=True,
-            with_keys=True,
-        )
-
-        has_next_page_indices: list[int] = []
-        # Iterate over all the items and filter items with hasNextPage = True.
-        for key, value in next_page_results.items():
-            # Check if key is even then add pair to new dictionary
-            if any(value):
-                pagination_index = int(str(key).split("_")[1])
-                has_next_page_indices.append(pagination_index)
-
-        # Check if any "hasNextPage" is True. Otherwise, exit early.
-        if not len(has_next_page_indices) > 0:
-            return None
-
-        # Get deepest pagination item
-        max_pagination_index = max(has_next_page_indices)
-
-        # We leverage previous_token to remember the pagination cursors
-        # for indices below max_pagination_index.
-        next_page_cursors: dict[str, str] = {}
-        for key, value in (previous_token or {}).items():
-            # Only keep pagination info for indices below max_pagination_index.
-            pagination_index = int(str(key).split("_")[1])
-            if pagination_index < max_pagination_index:
-                next_page_cursors[key] = value
-
-        # Get the pagination cursor to update and increment it.
-        next_page_end_cursor_results = nested_lookup(
-            key=f"endCursor_{max_pagination_index}",
-            document=resp_json,
-        )
-
-        next_page_key = f"nextPageCursor_{max_pagination_index}"
-        next_page_cursor = next(
-            cursor for cursor in next_page_end_cursor_results if cursor is not None
-        )
-        next_page_cursors[next_page_key] = next_page_cursor
-
-        return next_page_cursors
+    def get_new_paginator(self) -> BaseAPIPaginator | None:
+        """Get a new paginator for this stream."""
+        return GitHubGraphQLPaginator(self)
 
     def get_url_params(
         self,
