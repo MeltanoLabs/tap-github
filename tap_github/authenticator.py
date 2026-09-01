@@ -45,6 +45,7 @@ class TokenManager:
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
         self.rate_limit_reset: datetime | None = None
         self.rate_limit_used = 0
+        self.rate_limit_resource: str | None = None
         self.rate_limit_buffer = (
             rate_limit_buffer
             if rate_limit_buffer is not None
@@ -67,6 +68,10 @@ class TokenManager:
             tz=timezone.utc,
         )
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
+        self.rate_limit_resource = response_headers.get(
+            "X-RateLimit-Resource",
+            "unknown resource",
+        )
 
     def is_valid_token(self) -> bool:
         """Try making a request with the current token. If the request succeeds return True, else False."""  # noqa: E501
@@ -107,11 +112,12 @@ class TokenManager:
         if self._logged_rate_limit_reset != self.rate_limit_reset:
             self._logged_rate_limit_reset = self.rate_limit_reset
             logger.warning(
-                "Token %s has hit its rate limit (%d/%d used). "
+                "Token %s has hit its rate limit (%d/%d used) for %s. "
                 "Expected to reset at %s.",
                 self.masked_token,
                 self.rate_limit_used,
                 self.rate_limit,
+                self.rate_limit_resource or "unknown resource",
                 self.rate_limit_reset.isoformat(),
             )
         return False
