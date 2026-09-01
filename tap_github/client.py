@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import email.utils
-import inspect
 import random
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -19,7 +18,6 @@ from tap_github.authenticator import GitHubTokenAuthenticator
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from types import FrameType
 
     import requests
     from backoff.types import Details
@@ -330,13 +328,10 @@ class GitHubRestStream(RESTStream):
     def backoff_handler(self, details: Details) -> None:
         """Handle retriable error by swapping auth token."""
         self.logger.info("Retrying request with different token")
-        # use python introspection to obtain the error object
-        # FIXME: replace this once https://github.com/litl/backoff/issues/158
-        # is fixed
-        exc = cast(
-            "FrameType",
-            cast("FrameType", cast("FrameType", inspect.currentframe()).f_back).f_back,
-        ).f_locals["e"]
+        # backoff now passes the exception directly in `details`, so we no
+        # longer need to rely on frame introspection to retrieve it.
+        # See https://github.com/litl/backoff/issues/158.
+        exc = cast("RetriableAPIError", details.get("exception"))
         if (
             exc.response is not None
             and exc.response.status_code == 403
