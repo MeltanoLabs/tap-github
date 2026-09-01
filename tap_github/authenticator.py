@@ -393,9 +393,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     )
                     if app_token_manager.is_valid_token():
                         token_managers[org].append(app_token_manager)
-                except ValueError as e:  # noqa: PERF203
+                except ValueError:  # noqa: PERF203
                     logger.warning(
-                        f"An error was thrown while preparing an app token: {e}"
+                        "An error was thrown while preparing an app token",
+                        exc_info=True,
                     )
 
         return token_managers
@@ -473,7 +474,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             org_keys = [k for k in self.token_managers if k is not None]
             initial_org = min(org_keys) if org_keys else None
             self.logger.info(
-                f"Setting initial organization for authenticator: {initial_org}"
+                "Setting initial organization for authenticator: %s",
+                initial_org,
             )
             self.active_token = choice(self.token_managers[initial_org])
         else:
@@ -500,7 +502,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         if self.current_organization == org:
             return
 
-        logger.info(f"Switching authentication context to organization: {org}")
+        logger.info("Switching authentication context to organization: %s", org)
         self.current_organization = org
 
         # Get tokens for this org (check both org-specific and None keys)
@@ -509,7 +511,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             # Fall back to org-agnostic tokens (personal tokens or env var app keys)
             available_tokens = self.token_managers[None]
             logger.info(
-                f"No org-specific tokens found for '{org}', using org-agnostic tokens"
+                "No org-specific tokens found for '%s', using org-agnostic tokens",
+                org,
             )
 
         # If still no tokens, try tokens from other orgs (for public data access)
@@ -518,13 +521,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 if other_org is not None and tokens:
                     available_tokens = tokens
                     logger.info(
-                        f"No tokens for '{org}', using tokens from '{other_org}' "
-                        f"for public data access"
+                        "No tokens for '%s', using tokens from '%s' for public data access",  # noqa: E501
+                        org,
+                        other_org,
                     )
                     break
             else:
                 logger.warning(
-                    f"No authentication tokens available for organization: {org}"
+                    "No authentication tokens available for organization: %s",
+                    org,
                 )
                 self.active_token = None
                 return
@@ -533,14 +538,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         for token_manager in available_tokens:
             if token_manager.has_calls_remaining():
                 self.active_token = token_manager
-                logger.info(f"Selected token for organization: {org}")
+                logger.info("Selected token for organization: %s", org)
                 return
 
         # If no tokens have calls remaining, just pick the first one
         # (it might refresh or we'll rotate later)
         self.active_token = available_tokens[0]
         logger.info(
-            f"Selected token for organization: {org} (may need rate limit refresh)"
+            "Selected token for organization: %s (may need rate limit refresh)",
+            org,
         )
 
     def get_next_auth_token(self) -> None:
