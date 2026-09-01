@@ -1032,8 +1032,8 @@ class TestGitHubTokenAuthenticator:
 
                 # Verify fallback info message was logged
                 mock_logger.info.assert_any_call(
-                    "No org-specific tokens found for 'some-org', "
-                    "using org-agnostic tokens"
+                    "No org-specific tokens found for '%s', using org-agnostic tokens",
+                    "some-org",
                 )
 
     def test_initialization_prefers_org_specific_over_org_agnostic(self, mock_stream):

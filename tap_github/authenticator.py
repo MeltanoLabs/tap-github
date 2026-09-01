@@ -393,10 +393,10 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                     )
                     if app_token_manager.is_valid_token():
                         token_managers[org].append(app_token_manager)
-                except ValueError:  # noqa: PERF203
+                except ValueError as e:  # noqa: PERF203
                     logger.warning(
-                        "An error was thrown while preparing an app token",
-                        exc_info=True,
+                        "An error was thrown while preparing an app token: %s",
+                        str(e),
                     )
 
         return token_managers
