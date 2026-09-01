@@ -45,11 +45,20 @@ class TokenManager:
         self.rate_limit_remaining = self.DEFAULT_RATE_LIMIT
         self.rate_limit_reset: datetime | None = None
         self.rate_limit_used = 0
+        self.rate_limit_resource: str | None = None
         self.rate_limit_buffer = (
             rate_limit_buffer
             if rate_limit_buffer is not None
             else self.DEFAULT_RATE_LIMIT_BUFFER
         )
+        # Avoid logging the same rate-limit warning on every check while we
+        # wait for this reset to pass.
+        self._logged_rate_limit_reset: datetime | None = None
+
+    @property
+    def masked_token(self) -> str:
+        """A short, non-secret identifier for this token, safe to log."""
+        return f"...{self.token[-4:]}" if self.token else "<none>"
 
     def update_rate_limit(self, response_headers: Any) -> None:  # noqa: ANN401
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
@@ -59,6 +68,10 @@ class TokenManager:
             tz=timezone.utc,
         )
         self.rate_limit_used = int(response_headers["X-RateLimit-Used"])
+        self.rate_limit_resource = response_headers.get(
+            "X-RateLimit-Resource",
+            "unknown resource",
+        )
 
     def is_valid_token(self) -> bool:
         """Try making a request with the current token. If the request succeeds return True, else False."""  # noqa: E501
@@ -91,9 +104,23 @@ class TokenManager:
         """
         if self.rate_limit_reset is None:
             return True
-        return self.rate_limit_used <= (
-            self.rate_limit - self.rate_limit_buffer
-        ) or self.rate_limit_reset <= datetime.now(tz=timezone.utc)
+        if self.rate_limit_used <= (self.rate_limit - self.rate_limit_buffer):
+            return True
+        if self.rate_limit_reset <= datetime.now(tz=timezone.utc):
+            return True
+
+        if self._logged_rate_limit_reset != self.rate_limit_reset:
+            self._logged_rate_limit_reset = self.rate_limit_reset
+            logger.warning(
+                "Token %s has hit its rate limit (%d/%d used) for %s. "
+                "Expected to reset at %s.",
+                self.masked_token,
+                self.rate_limit_used,
+                self.rate_limit,
+                self.rate_limit_resource or "unknown resource",
+                self.rate_limit_reset.isoformat(),
+            )
+        return False
 
 
 class PersonalTokenManager(TokenManager):
@@ -374,7 +401,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                         token_managers[org].append(app_token_manager)
                 except ValueError as e:  # noqa: PERF203
                     logger.warning(
-                        f"An error was thrown while preparing an app token: {e}"
+                        "An error was thrown while preparing an app token: %s",
+                        str(e),
                     )
 
         return token_managers
@@ -452,7 +480,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             org_keys = [k for k in self.token_managers if k is not None]
             initial_org = min(org_keys) if org_keys else None
             self.logger.info(
-                f"Setting initial organization for authenticator: {initial_org}"
+                "Setting initial organization for authenticator: %s",
+                initial_org,
             )
             self.active_token = choice(self.token_managers[initial_org])
         else:
@@ -479,7 +508,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         if self.current_organization == org:
             return
 
-        logger.info(f"Switching authentication context to organization: {org}")
+        logger.info("Switching authentication context to organization: %s", org)
         self.current_organization = org
 
         # Get tokens for this org (check both org-specific and None keys)
@@ -488,7 +517,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             # Fall back to org-agnostic tokens (personal tokens or env var app keys)
             available_tokens = self.token_managers[None]
             logger.info(
-                f"No org-specific tokens found for '{org}', using org-agnostic tokens"
+                "No org-specific tokens found for '%s', using org-agnostic tokens",
+                org,
             )
 
         # If still no tokens, try tokens from other orgs (for public data access)
@@ -497,13 +527,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 if other_org is not None and tokens:
                     available_tokens = tokens
                     logger.info(
-                        f"No tokens for '{org}', using tokens from '{other_org}' "
-                        f"for public data access"
+                        "No tokens for '%s', using tokens from '%s' for public data access",  # noqa: E501
+                        org,
+                        other_org,
                     )
                     break
             else:
                 logger.warning(
-                    f"No authentication tokens available for organization: {org}"
+                    "No authentication tokens available for organization: %s",
+                    org,
                 )
                 self.active_token = None
                 return
@@ -512,14 +544,15 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         for token_manager in available_tokens:
             if token_manager.has_calls_remaining():
                 self.active_token = token_manager
-                logger.info(f"Selected token for organization: {org}")
+                logger.info("Selected token for organization: %s", org)
                 return
 
         # If no tokens have calls remaining, just pick the first one
         # (it might refresh or we'll rotate later)
         self.active_token = available_tokens[0]
         logger.info(
-            f"Selected token for organization: {org} (may need rate limit refresh)"
+            "Selected token for organization: %s (may need rate limit refresh)",
+            org,
         )
 
     def get_next_auth_token(self) -> None:
