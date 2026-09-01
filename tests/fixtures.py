@@ -13,8 +13,10 @@ from tap_github.utils.filter_stdout import FilterStdOutput
 if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
 
-# Filter out singer output during tests
-sys.stdout = FilterStdOutput(sys.stdout, r'{"type": ')
+# Filter out singer output during tests.
+# singer-sdk serializes messages with compact separators (no space after
+# the colon), e.g. {"type":"RECORD",...} -- match that exactly.
+sys.stdout = FilterStdOutput(sys.stdout, r'{"type":"')
 
 
 @pytest.fixture
