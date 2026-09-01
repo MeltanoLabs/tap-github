@@ -331,9 +331,10 @@ class GitHubRestStream(RESTStream):
         # backoff now passes the exception directly in `details`, so we no
         # longer need to rely on frame introspection to retrieve it.
         # See https://github.com/litl/backoff/issues/158.
-        exc = cast("RetriableAPIError", details.get("exception"))
+        exc = details.get("exception")
         if (
-            exc.response is not None
+            isinstance(exc, RetriableAPIError)
+            and exc.response is not None
             and exc.response.status_code == 403
             and "rate limit exceeded" in str(exc.response.content)
         ):
