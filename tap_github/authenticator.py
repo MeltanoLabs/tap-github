@@ -50,6 +50,14 @@ class TokenManager:
             if rate_limit_buffer is not None
             else self.DEFAULT_RATE_LIMIT_BUFFER
         )
+        # Avoid logging the same rate-limit warning on every check while we
+        # wait for this reset to pass.
+        self._logged_rate_limit_reset: datetime | None = None
+
+    @property
+    def masked_token(self) -> str:
+        """A short, non-secret identifier for this token, safe to log."""
+        return f"...{self.token[-4:]}" if self.token else "<none>"
 
     def update_rate_limit(self, response_headers: Any) -> None:  # noqa: ANN401
         self.rate_limit = int(response_headers["X-RateLimit-Limit"])
@@ -91,9 +99,22 @@ class TokenManager:
         """
         if self.rate_limit_reset is None:
             return True
-        return self.rate_limit_used <= (
-            self.rate_limit - self.rate_limit_buffer
-        ) or self.rate_limit_reset <= datetime.now(tz=timezone.utc)
+        if self.rate_limit_used <= (self.rate_limit - self.rate_limit_buffer):
+            return True
+        if self.rate_limit_reset <= datetime.now(tz=timezone.utc):
+            return True
+
+        if self._logged_rate_limit_reset != self.rate_limit_reset:
+            self._logged_rate_limit_reset = self.rate_limit_reset
+            logger.warning(
+                "Token %s has hit its rate limit (%d/%d used). "
+                "Expected to reset at %s.",
+                self.masked_token,
+                self.rate_limit_used,
+                self.rate_limit,
+                self.rate_limit_reset.isoformat(),
+            )
+        return False
 
 
 class PersonalTokenManager(TokenManager):
