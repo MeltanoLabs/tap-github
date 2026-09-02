@@ -30,7 +30,6 @@ from tap_github.scraping import scrape_dependents, scrape_metrics
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from datetime import datetime
 
     import requests
     from singer_sdk import Tap
@@ -46,6 +45,11 @@ class RepositoryStream(GitHubRestStream):
     # updated_at will be updated any time the repository object is updated,
     # e.g. when the description or the primary language of the repository is updated.
     replication_key = "updated_at"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        super().__init__(*args, **kwargs)
+        if "searches" in self.config:
+            self.MAX_RESULTS_LIMIT = 1000
 
     def get_url_params(
         self,
@@ -66,8 +70,6 @@ class RepositoryStream(GitHubRestStream):
         """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
-            # Search API max: 1,000 total.
-            self.MAX_RESULTS_LIMIT = 1000
             return "/search/repositories"
         if "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
@@ -2069,12 +2071,12 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         row["user_id"] = row["user"]["id"]
         return row
 
-    def get_new_paginator(self):  # noqa: ANN201
+    def get_new_paginator(self) -> GitHubGraphQLPaginator:
         """Get a new paginator for this stream."""
-        stream = self
+        query_jsonpath = self.query_jsonpath
 
         class StargazersPaginator(GitHubGraphQLPaginator):
-            def has_more(self, response) -> bool:  # noqa: ANN001
+            def has_more(self, response: requests.Response) -> bool:
                 request_parameters = parse_qs(str(urlparse(response.request.url).query))
                 try:
                     since = (
@@ -2086,7 +2088,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
                     since = ""
                 if since:
                     results = list(
-                        extract_jsonpath(stream.query_jsonpath, input=response.json())
+                        extract_jsonpath(query_jsonpath, input=response.json())
                     )
                     if len(results) == 0:
                         return False
@@ -2095,7 +2097,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
                         return False
                 return super().has_more(response)
 
-        return StargazersPaginator(stream)
+        return StargazersPaginator()
 
     @property
     def query(self) -> str:
@@ -2266,41 +2268,34 @@ class DiscussionsStream(GitHubGraphqlStream):
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
     is_sorted = False  # Singer recognizes as unsorted.
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff: datetime | None = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_new_paginator(self):  # noqa: ANN201
+    def get_new_paginator(self) -> GitHubGraphQLPaginator:
         """Get a new paginator for this stream."""
-        stream = self
+        logger = self.logger
+        query_jsonpath = self.query_jsonpath
+        replication_key = self.replication_key
 
         class DiscussionsPaginator(GitHubGraphQLPaginator):
-            def has_more(self, response) -> bool:  # noqa: ANN001
-                stream.logger.debug("Cutoff: %s", stream.cutoff)
-                if stream.cutoff:
+            def has_more(self, response: requests.Response) -> bool:
+                request_parameters = parse_qs(str(urlparse(response.request.url).query))
+                cutoff_str = request_parameters.get("since", [None])[0]
+                cutoff = parse(cutoff_str) if cutoff_str else None
+                logger.debug("Cutoff: %s", cutoff)
+                if cutoff:
                     results = list(
-                        extract_jsonpath(stream.query_jsonpath, input=response.json())
+                        extract_jsonpath(query_jsonpath, input=response.json())
                     )
                     if results:
-                        oldest_updated_at = parse(results[-1][stream.replication_key])
-                        if oldest_updated_at < stream.cutoff:
-                            stream.logger.info(
+                        oldest_updated_at = parse(results[-1][replication_key])
+                        if oldest_updated_at < cutoff:
+                            logger.info(
                                 "Early exit: oldest=%s, cutoff=%s",
                                 oldest_updated_at,
-                                stream.cutoff,
+                                cutoff,
                             )
                             return False
                 return super().has_more(response)
 
-        return DiscussionsPaginator(stream)
+        return DiscussionsPaginator()
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -2588,41 +2583,34 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
     is_sorted = False  # Set as False to avoid data loss.
     # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff: datetime | None = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_new_paginator(self):  # noqa: ANN201
+    def get_new_paginator(self) -> GitHubGraphQLPaginator:
         """Get a new paginator for this stream."""
-        stream = self
+        logger = self.logger
+        query_jsonpath = self.query_jsonpath
+        replication_key = self.replication_key
 
         class DiscussionCommentsPaginator(GitHubGraphQLPaginator):
-            def has_more(self, response) -> bool:  # noqa: ANN001
-                stream.logger.debug("Cutoff: %s", stream.cutoff)
-                if stream.cutoff:
+            def has_more(self, response: requests.Response) -> bool:
+                request_parameters = parse_qs(str(urlparse(response.request.url).query))
+                cutoff_str = request_parameters.get("since", [None])[0]
+                cutoff = parse(cutoff_str) if cutoff_str else None
+                logger.debug("Cutoff: %s", cutoff)
+                if cutoff:
                     results = list(
-                        extract_jsonpath(stream.query_jsonpath, input=response.json())
+                        extract_jsonpath(query_jsonpath, input=response.json())
                     )
                     if results:
-                        oldest_created_at = parse(results[0][stream.replication_key])
-                        if oldest_created_at < stream.cutoff:
-                            stream.logger.info(
+                        oldest_created_at = parse(results[0][replication_key])
+                        if oldest_created_at < cutoff:
+                            logger.info(
                                 "Early exit: oldest=%s, cutoff=%s",
                                 oldest_created_at,
-                                stream.cutoff,
+                                cutoff,
                             )
                             return False
                 return super().has_more(response)
 
-        return DiscussionCommentsPaginator(stream)
+        return DiscussionCommentsPaginator()
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -2849,42 +2837,36 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                 reply["comment_id"] = comment_id
                 yield reply
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff: datetime | None = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_new_paginator(self):  # noqa: ANN201
+    def get_new_paginator(self) -> GitHubGraphQLPaginator:
         """Get a new paginator for this stream."""
-        stream = self
+        logger = self.logger
+        replication_key = self.replication_key
+        replies_jsonpath = (
+            "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
+        )
 
         class DiscussionRepliesPaginator(GitHubGraphQLPaginator):
-            def has_more(self, response) -> bool:  # noqa: ANN001
-                stream.logger.debug("Cutoff: %s", stream.cutoff)
-                if stream.cutoff:
-                    replies_jsonpath = "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"  # noqa: E501
+            def has_more(self, response: requests.Response) -> bool:
+                request_parameters = parse_qs(str(urlparse(response.request.url).query))
+                cutoff_str = request_parameters.get("since", [None])[0]
+                cutoff = parse(cutoff_str) if cutoff_str else None
+                logger.debug("Cutoff: %s", cutoff)
+                if cutoff:
                     results = list(
                         extract_jsonpath(replies_jsonpath, input=response.json())
                     )
                     if results:
-                        oldest_created_at = parse(results[0][stream.replication_key])
-                        if oldest_created_at < stream.cutoff:
-                            stream.logger.info(
+                        oldest_created_at = parse(results[0][replication_key])
+                        if oldest_created_at < cutoff:
+                            logger.info(
                                 "Early exit: oldest=%s, cutoff=%s",
                                 oldest_created_at,
-                                stream.cutoff,
+                                cutoff,
                             )
                             return False
                 return super().has_more(response)
 
-        return DiscussionRepliesPaginator(stream)
+        return DiscussionRepliesPaginator()
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.

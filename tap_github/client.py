@@ -32,19 +32,33 @@ EMPTY_REPO_ERROR_STATUS = 409
 class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
     """Paginator for GitHub REST API streams."""
 
-    def __init__(self, stream: GitHubRestStream, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-        super().__init__(None, *args, **kwargs)
-        self.stream = stream
+    def __init__(
+        self,
+        *,
+        max_results_limit: int | None,
+        max_per_page: int,
+        use_cursor_pagination: bool,
+        replication_key: str | None,
+        use_fake_since_parameter: bool,
+        records_jsonpath: str,
+    ) -> None:
+        super().__init__(None)
+        self._max_results_limit = max_results_limit
+        self._max_per_page = max_per_page
+        self._use_cursor_pagination = use_cursor_pagination
+        self._replication_key = replication_key
+        self._use_fake_since_parameter = use_fake_since_parameter
+        self._records_jsonpath = records_jsonpath
 
     def has_more(self, response: requests.Response) -> bool:
         """Check if there are more pages."""
         if (
             self.current_value
-            and self.stream.MAX_RESULTS_LIMIT
-            and not self.stream.use_cursor_pagination
+            and self._max_results_limit
+            and not self._use_cursor_pagination
             and (
-                cast("int", self.current_value) * self.stream.MAX_PER_PAGE
-                >= self.stream.MAX_RESULTS_LIMIT
+                cast("int", self.current_value) * self._max_per_page
+                >= self._max_results_limit
             )
         ):
             return False
@@ -56,13 +70,13 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
         results = (
             resp_json
             if isinstance(resp_json, list)
-            else list(extract_jsonpath(self.stream.records_jsonpath, input=resp_json))
+            else list(extract_jsonpath(self._records_jsonpath, input=resp_json))
         )
 
         if not results:
             return False
 
-        if self.stream.replication_key and self.stream.use_fake_since_parameter:
+        if self._replication_key and self._use_fake_since_parameter:
             request_parameters = parse_qs(str(urlparse(response.request.url).query))
             try:
                 since = (
@@ -80,8 +94,8 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
             )
 
             replication_date = (
-                results[-1][self.stream.replication_key]
-                if self.stream.replication_key != "commit_timestamp"
+                results[-1][self._replication_key]
+                if self._replication_key != "commit_timestamp"
                 else results[-1]["commit"]["committer"]["date"]
             )
             if (
@@ -95,7 +109,7 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
 
     def get_next(self, response: requests.Response) -> int | str | None:
         """Get the next pagination token."""
-        if self.stream.use_cursor_pagination:
+        if self._use_cursor_pagination:
             parsed_url = urlparse(response.links["next"]["url"])
             captured_after_value_list = parse_qs(parsed_url.query).get("after")
             return captured_after_value_list[0] if captured_after_value_list else None
@@ -117,9 +131,8 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
 class GitHubGraphQLPaginator(BaseAPIPaginator[dict[str, str] | None]):
     """Paginator for GitHub GraphQL API streams."""
 
-    def __init__(self, stream: GitHubGraphqlStream, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-        super().__init__(None, *args, **kwargs)
-        self.stream = stream
+    def __init__(self) -> None:
+        super().__init__(None)
 
     def has_more(self, response: requests.Response) -> bool:
         """Check if there are more pages."""
@@ -228,7 +241,17 @@ class GitHubRestStream(RESTStream):
 
     def get_new_paginator(self) -> BaseAPIPaginator | None:
         """Get a new paginator for this stream."""
-        return GitHubRestPaginator(self)
+        return GitHubRestPaginator(
+            max_results_limit=self.MAX_RESULTS_LIMIT,
+            max_per_page=self.MAX_PER_PAGE,
+            use_cursor_pagination=self.use_cursor_pagination,
+            replication_key=cast(  # type: ignore[redundant-cast]
+                "str | None",
+                self.replication_key,
+            ),
+            use_fake_since_parameter=self.use_fake_since_parameter,
+            records_jsonpath=self.records_jsonpath,
+        )
 
     def get_url_params(
         self,
@@ -505,7 +528,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
     def get_new_paginator(self) -> BaseAPIPaginator | None:
         """Get a new paginator for this stream."""
-        return GitHubGraphQLPaginator(self)
+        return GitHubGraphQLPaginator()
 
     def get_url_params(
         self,
