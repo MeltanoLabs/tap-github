@@ -289,7 +289,10 @@ def test_request_records_uses_new_paginator_without_legacy_warning():
             _graphql_page(
                 ("stargazers",),
                 "edges",
-                [{"starred_at": "2024-01-01T00:00:00Z"}],
+                [
+                    {"starred_at": "2026-01-01T00:00:00Z"},
+                    {"starred_at": "2024-01-01T00:00:00Z"},
+                ],
             ),
         ),
         (
@@ -297,7 +300,10 @@ def test_request_records_uses_new_paginator_without_legacy_warning():
             _graphql_page(
                 ("discussions",),
                 "nodes",
-                [{"updated_at": "2024-01-01T00:00:00Z"}],
+                [
+                    {"updated_at": "2026-01-01T00:00:00Z"},
+                    {"updated_at": "2024-01-01T00:00:00Z"},
+                ],
             ),
         ),
         (
@@ -305,7 +311,10 @@ def test_request_records_uses_new_paginator_without_legacy_warning():
             _graphql_page(
                 ("discussion", "comments"),
                 "nodes",
-                [{"created_at": "2024-01-01T00:00:00Z"}],
+                [
+                    {"created_at": "2024-01-01T00:00:00Z"},
+                    {"created_at": "2026-01-01T00:00:00Z"},
+                ],
             ),
         ),
         (
@@ -313,7 +322,16 @@ def test_request_records_uses_new_paginator_without_legacy_warning():
             _graphql_page(
                 ("discussion", "comments"),
                 "nodes",
-                [{"replies": {"nodes": [{"created_at": "2024-01-01T00:00:00Z"}]}}],
+                [
+                    {
+                        "replies": {
+                            "nodes": [
+                                {"created_at": "2024-01-01T00:00:00Z"},
+                                {"created_at": "2026-01-01T00:00:00Z"},
+                            ]
+                        }
+                    }
+                ],
             ),
         ),
     ],

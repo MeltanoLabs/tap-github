@@ -266,14 +266,15 @@ class GitHubRestStream(RESTStream):
 
     def get_new_paginator(self) -> BaseAPIPaginator | None:
         """Get a new paginator for this stream."""
+        replication_key = self.replication_key
+        if not isinstance(replication_key, str):
+            replication_key = None
+
         return GitHubRestPaginator(
             max_results_limit=self.MAX_RESULTS_LIMIT,
             max_per_page=self.MAX_PER_PAGE,
             use_cursor_pagination=self.use_cursor_pagination,
-            replication_key=cast(  # type: ignore[redundant-cast]
-                "str | None",
-                self.replication_key,
-            ),
+            replication_key=replication_key,
             use_fake_since_parameter=self.use_fake_since_parameter,
             records_jsonpath=self.records_jsonpath,
         )
