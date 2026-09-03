@@ -325,8 +325,13 @@ def test_graphql_stream_paginators_preserve_incremental_early_exit(
     paginator = stream_type(_tap()).get_new_paginator()
     response = _response(
         response_json,
-        request_url="https://api.github.com/graphql?since=2025-01-01T00:00:00Z",
+        request_url=(
+            "https://api.github.com/graphql?since=2025-01-01T00%3A00%3A00%2B00%3A00"
+        ),
     )
 
-    assert paginator.has_more(response) is False
+    paginator.advance(response)
+
+    assert paginator.finished is True
+    assert type(paginator) is GitHubGraphQLPaginator
     assert not hasattr(paginator, "stream")

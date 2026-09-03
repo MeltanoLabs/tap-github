@@ -19,12 +19,27 @@ from tap_github.authenticator import GitHubTokenAuthenticator
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from logging import Logger
 
     import requests
     from backoff.types import Details
     from singer_sdk.helpers.types import Context
 
 EMPTY_REPO_ERROR_STATUS = 409
+
+
+def _get_request_query_parameter(
+    response: requests.Response,
+    parameter: str,
+) -> str | None:
+    """Return a query parameter from the URL used for a response."""
+    values = parse_qs(urlparse(response.request.url or "").query).get(parameter)
+    if not values:
+        return None
+
+    # parse_qs interprets a literal "+" as a space. Restore it so timestamps
+    # remain timezone-aware whether the URL contains "+" or "%2B".
+    return values[0].replace(" ", "+")
 
 
 class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
@@ -75,21 +90,8 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
             return False
 
         if self._replication_key and self._use_fake_since_parameter:
-            request_parameters = parse_qs(str(urlparse(response.request.url).query))
-            try:
-                since = (
-                    request_parameters["fake_since"][0].replace(" ", "+")
-                    if "fake_since" in request_parameters
-                    else ""
-                )
-            except IndexError:
-                return False
-
-            direction = (
-                request_parameters["direction"][0]
-                if "direction" in request_parameters
-                else None
-            )
+            since = _get_request_query_parameter(response, "fake_since")
+            direction = _get_request_query_parameter(response, "direction")
 
             replication_date = (
                 results[-1][self._replication_key]
@@ -129,12 +131,53 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
 class GitHubGraphQLPaginator(BaseAPIPaginator[dict[str, str] | None]):
     """Paginator for GitHub GraphQL API streams."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        cutoff_jsonpath: str | None = None,
+        replication_key: str | None = None,
+        records_are_ascending: bool = False,
+        logger: Logger | None = None,
+    ) -> None:
         super().__init__(None)
+        self._cutoff_jsonpath = cutoff_jsonpath
+        self._replication_key = replication_key
+        self._records_are_ascending = records_are_ascending
+        self._logger = logger
+
+    def _reached_cutoff(
+        self,
+        response: requests.Response,
+        response_json: dict[str, Any],
+    ) -> bool:
+        """Return whether the current page has reached the replication cutoff."""
+        since = _get_request_query_parameter(response, "since")
+        if not since or not self._cutoff_jsonpath or not self._replication_key:
+            return False
+
+        cutoff = parse(since)
+        if self._logger:
+            self._logger.debug("Cutoff: %s", cutoff)
+
+        records = list(extract_jsonpath(self._cutoff_jsonpath, input=response_json))
+        if not records:
+            return False
+
+        oldest_record = records[0] if self._records_are_ascending else records[-1]
+        oldest = parse(oldest_record[self._replication_key])
+        if oldest >= cutoff:
+            return False
+
+        if self._logger:
+            self._logger.info("Early exit: oldest=%s, cutoff=%s", oldest, cutoff)
+        return True
 
     def get_next(self, response: requests.Response) -> dict[str, str] | None:
         """Get the next pagination token."""
         resp_json = response.json()
+        if self._reached_cutoff(response, resp_json):
+            return None
+
         next_page_results = nested_lookup(
             key="hasNextPage_",
             document=resp_json,
@@ -482,6 +525,9 @@ class GitHubDiffStream(GitHubRestStream):
 class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
     """GitHub Graphql stream class."""
 
+    pagination_cutoff_jsonpath: str | None = None
+    pagination_records_are_ascending = False
+
     @property
     def url_base(self) -> str:
         return f"{self.config.get('api_url_base', self.DEFAULT_API_BASE_URL)}/graphql"
@@ -508,7 +554,16 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
 
     def get_new_paginator(self) -> BaseAPIPaginator | None:
         """Get a new paginator for this stream."""
-        return GitHubGraphQLPaginator()
+        replication_key = self.replication_key
+        if not isinstance(replication_key, str):
+            replication_key = None
+
+        return GitHubGraphQLPaginator(
+            cutoff_jsonpath=self.pagination_cutoff_jsonpath,
+            replication_key=replication_key,
+            records_are_ascending=self.pagination_records_are_ascending,
+            logger=self.logger,
+        )
 
     def get_url_params(
         self,
