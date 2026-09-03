@@ -5,14 +5,17 @@ from __future__ import annotations
 import http
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
-from dateutil.parser import parse
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 
-from tap_github.client import GitHubDiffStream, GitHubGraphqlStream, GitHubRestStream
+from tap_github.client import (
+    GitHubDiffStream,
+    GitHubGraphqlStream,
+    GitHubRestStream,
+)
 from tap_github.schema_objects import (
     files_object,
     label_object,
@@ -25,7 +28,6 @@ from tap_github.scraping import scrape_dependents, scrape_metrics
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-    from datetime import datetime
 
     import requests
     from singer_sdk import Tap
@@ -41,6 +43,11 @@ class RepositoryStream(GitHubRestStream):
     # updated_at will be updated any time the repository object is updated,
     # e.g. when the description or the primary language of the repository is updated.
     replication_key = "updated_at"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+        super().__init__(*args, **kwargs)
+        if "searches" in self.config:
+            self.MAX_RESULTS_LIMIT = 1000
 
     def get_url_params(
         self,
@@ -61,8 +68,6 @@ class RepositoryStream(GitHubRestStream):
         """Return the API endpoint path. Path options are mutually exclusive."""
 
         if "searches" in self.config:
-            # Search API max: 1,000 total.
-            self.MAX_RESULTS_LIMIT = 1000
             return "/search/repositories"
         if "repositories" in self.config:
             # the `repo` and `org` args will be parsed from the partition's `context`
@@ -2043,6 +2048,7 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
     query_jsonpath = "$.data.repository.stargazers.edges.[*]"
     primary_keys: ClassVar[list[str]] = ["user_id", "repo_id"]
     replication_key = "starred_at"
+    pagination_cutoff_jsonpath = query_jsonpath
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     # The parent repository object changes if the number of stargazers changes.
@@ -2063,38 +2069,6 @@ class StargazersGraphqlStream(GitHubGraphqlStream):
         row = super().post_process(row, context)
         row["user_id"] = row["user"]["id"]
         return row
-
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """
-        Exit early if a since parameter is provided.
-        """
-        request_parameters = parse_qs(str(urlparse(response.request.url).query))
-
-        # parse_qs interprets "+" as a space, revert this to keep an aware datetime
-        try:
-            since = (
-                request_parameters["since"][0].replace(" ", "+")
-                if "since" in request_parameters
-                else ""
-            )
-        except IndexError:
-            since = ""
-
-        # If since parameter is present, try to exit early by looking at the last "starred_at".  # noqa: E501
-        # Noting that we are traversing in DESCENDING order by STARRED_AT.
-        if since:
-            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
-            # If no results, return None to exit early.
-            if len(results) == 0:
-                return None
-            last = results[-1]
-            if parse(last["starred_at"]) < parse(since):
-                return None
-        return super().get_next_page_token(response, previous_token)
 
     @property
     def query(self) -> str:
@@ -2260,44 +2234,11 @@ class DiscussionsStream(GitHubGraphqlStream):
         "id"
     ]  # databaseId renamed to id to keep tap consistent with REST streams.
     replication_key = "updated_at"
+    pagination_cutoff_jsonpath = query_jsonpath
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
     is_sorted = False  # Singer recognizes as unsorted.
-
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff: datetime | None = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """
-        Exit early if oldest updated_at is older than the replication bookmark.
-        """
-        self.logger.debug("Cutoff: %s", self.cutoff)
-        if self.cutoff:
-            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
-            if results:
-                oldest_updated_at = parse(results[-1][self.replication_key])
-                if oldest_updated_at < self.cutoff:
-                    self.logger.info(
-                        "Early exit: oldest=%s, cutoff=%s",
-                        oldest_updated_at,
-                        self.cutoff,
-                    )
-                    return None  # early exit
-        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -2580,46 +2521,12 @@ class DiscussionCommentsStream(GitHubGraphqlStream):
         "id"
     ]  # databaseId renamed to id to keep tap consistent with REST streams.
     replication_key = "created_at"  # API's default record ordering field.
+    pagination_cutoff_jsonpath = query_jsonpath
+    pagination_records_are_ascending = True
     parent_stream_type = DiscussionsStream
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
     is_sorted = False  # Set as False to avoid data loss.
     # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
-
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff: datetime | None = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """
-        Exit early if first (oldest) record in the page is older than the replication
-        bookmark. With github's default record ordering, each page contains records
-        in ascending order.
-        """
-        self.logger.debug("Cutoff: %s", self.cutoff)
-        if self.cutoff:
-            results = list(extract_jsonpath(self.query_jsonpath, input=response.json()))
-            if results:
-                oldest_created_at = parse(results[0][self.replication_key])
-                if oldest_created_at < self.cutoff:
-                    self.logger.info(
-                        "Early exit: oldest=%s, cutoff=%s",
-                        oldest_created_at,
-                        self.cutoff,
-                    )
-                    return None  # early exit
-        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """
@@ -2827,6 +2734,10 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         "id"
     ]  # databaseId renamed to id to keep tap consistent with REST streams.
     replication_key = "created_at"  # API's default record ordering field.
+    pagination_cutoff_jsonpath = (
+        "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
+    )
+    pagination_records_are_ascending = True
     parent_stream_type = DiscussionsStream  # Only Discussion's timestamp is affected by replies. # noqa: E501
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
     is_sorted = False  # Set as False to avoid data loss.
@@ -2845,45 +2756,6 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
                 # Add comment_id to each reply, so we can link it back
                 reply["comment_id"] = comment_id
                 yield reply
-
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
-        super().__init__(*args, **kwargs)
-        self.cutoff: datetime | None = None
-
-    def get_url_params(
-        self,
-        context: Context | None,
-        next_page_token: Any | None,  # noqa: ANN401
-    ) -> dict[str, Any]:
-        self.cutoff = self.get_starting_timestamp(context)
-        return super().get_url_params(context, next_page_token)
-
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: Any | None,  # noqa: ANN401
-    ) -> Any | None:  # noqa: ANN401
-        """
-        Exit early if first (oldest) record in the page is older than the replication
-        bookmark. With github's default record ordering, each page contains records
-        in ascending order.
-        """
-        self.logger.debug("Cutoff: %s", self.cutoff)
-        if self.cutoff:
-            replies_jsonpath = (
-                "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
-            )
-            results = list(extract_jsonpath(replies_jsonpath, input=response.json()))
-            if results:
-                oldest_created_at = parse(results[0][self.replication_key])
-                if oldest_created_at < self.cutoff:
-                    self.logger.info(
-                        "Early exit: oldest=%s, cutoff=%s",
-                        oldest_created_at,
-                        self.cutoff,
-                    )
-                    return None  # early exit
-        return super().get_next_page_token(response, previous_token)
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
         """Return a generator of row-type dictionary objects.
