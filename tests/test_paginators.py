@@ -218,19 +218,22 @@ def test_graphql_paginator_advances_deepest_cursor():
         }
     )
 
-    assert paginator.has_more(response) is True
-    assert paginator.get_next(response) == {
+    paginator.advance(response)
+
+    assert paginator.current_value == {
         "nextPageCursor_0": "outer",
         "nextPageCursor_1": "new-inner",
     }
+    assert paginator.finished is False
 
 
 def test_graphql_paginator_finishes_without_next_page():
     paginator = GitHubGraphQLPaginator()
     response = _response({"pageInfo": {"hasNextPage_0": False}})
 
-    assert paginator.has_more(response) is False
-    assert paginator.get_next(response) is None
+    paginator.advance(response)
+
+    assert paginator.finished is True
 
 
 def test_rest_stream_passes_explicit_attributes_to_paginator():

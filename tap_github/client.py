@@ -132,22 +132,6 @@ class GitHubGraphQLPaginator(BaseAPIPaginator[dict[str, str] | None]):
     def __init__(self) -> None:
         super().__init__(None)
 
-    def has_more(self, response: requests.Response) -> bool:
-        """Check if there are more pages."""
-        resp_json = response.json()
-        next_page_results = nested_lookup(
-            key="hasNextPage_",
-            document=resp_json,
-            wild=True,
-            with_keys=True,
-        )
-        has_next_page_indices: list[int] = []
-        for key, value in next_page_results.items():
-            if any(value):
-                pagination_index = int(str(key).split("_")[1])
-                has_next_page_indices.append(pagination_index)
-        return len(has_next_page_indices) > 0
-
     def get_next(self, response: requests.Response) -> dict[str, str] | None:
         """Get the next pagination token."""
         resp_json = response.json()
