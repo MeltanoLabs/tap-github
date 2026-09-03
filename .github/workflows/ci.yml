@@ -20,12 +20,11 @@ on:
     - tests/**
   workflow_dispatch:
   schedule:
-  # Every 6 hours
-  - cron: "0 */6 * * *"
+  # Every 8 hours
+  - cron: "0 */8 * * *"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
 
 permissions: {}
 
@@ -35,7 +34,6 @@ env:
 jobs:
   tests:
     name: CI
-
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
