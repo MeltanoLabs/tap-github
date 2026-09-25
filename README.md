@@ -140,6 +140,7 @@ A fine-grained token can only see the private repositories of its one resource o
 
 - For the `traffic_*` streams, [you will need write access to the repository](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28). You can enable extraction for these streams by [selecting them in the catalog](https://hub.meltano.com/singer/spec/#metadata).
 - GitHub is [limiting the stargazer endpoints](https://docs.github.com/en/rest/activity/starring#list-stargazers) to repository admins and collaborators.
+- The `dependabot_alerts` stream requires a token with read access to Dependabot alerts. For classic PATs, use the `security_events` scope (or `public_repo` when extracting only public repositories). For fine-grained PATs and GitHub Apps, grant the repository's **Dependabot alerts: Read** permission.
 
 ### Executing the Tap Directly
 
