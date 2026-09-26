@@ -14,6 +14,7 @@ def test_dependabot_alerts_stream_is_incremental_and_cursor_paginated(repo_list_
     assert stream.replication_key == "updated_at"
     assert stream.use_fake_since_parameter is True
     assert stream.use_cursor_pagination is True
+    assert stream.selected_by_default is False
     assert stream.parent_stream_type is not None
     assert stream.parent_stream_type.__name__ == "RepositoryStream"
     assert "dependency" in stream.schema["properties"]

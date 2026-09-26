@@ -536,6 +536,9 @@ class DependabotAlertsStream(GitHubRestStream):
     use_fake_since_parameter = True
     # Dependabot alerts use Link-header cursors instead of page numbers.
     use_cursor_pagination = True
+    # Dependabot alerts require an explicit repository permission, so users
+    # must select this stream after supplying a suitably scoped token.
+    selected_by_default = False
 
     schema = th.PropertiesList(
         # Parent keys
