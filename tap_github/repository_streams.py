@@ -2133,7 +2133,9 @@ class DiscussionCategoriesStream(GitHubGraphqlStream):
         "node_id"
     ]  # Renamed id to node_id to keep tap consistent with REST streams. databaseId is not available for this object. # noqa: E501
     replication_method = "full_table"
-    parent_stream_type = RepositoryStream  # Github allows a maximum of 25 categories per repository. # noqa: E501
+    parent_stream_type = (
+        RepositoryStream  # Github allows a maximum of 25 categories per repository.
+    )
     ignore_parent_replication_key = True  # Repository's updated_at does not change when a discussion category is added/modified  # noqa: E501
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
@@ -2237,7 +2239,9 @@ class DiscussionsStream(GitHubGraphqlStream):
     pagination_cutoff_jsonpath = query_jsonpath
     parent_stream_type = RepositoryStream
     state_partitioning_keys: ClassVar[list[str]] = ["repo_id"]
-    ignore_parent_replication_key = True  # Repository's updated_at does not change when a new discussion is added  # noqa: E501
+    ignore_parent_replication_key = (
+        True  # Repository's updated_at does not change when a new discussion is added
+    )
     is_sorted = False  # Singer recognizes as unsorted.
 
     def get_records(self, context: Context | None = None) -> Iterable[dict[str, Any]]:
@@ -2738,7 +2742,9 @@ class DiscussionCommentRepliesStream(GitHubGraphqlStream):
         "$.data.repository.discussion.comments.nodes.[*].replies.nodes.[*]"
     )
     pagination_records_are_ascending = True
-    parent_stream_type = DiscussionsStream  # Only Discussion's timestamp is affected by replies. # noqa: E501
+    parent_stream_type = (
+        DiscussionsStream  # Only Discussion's timestamp is affected by replies.
+    )
     state_partitioning_keys: ClassVar[list[str]] = ["discussion_id"]
     is_sorted = False  # Set as False to avoid data loss.
     # If treated as sorted, Singer will bookmark state as page-1's first record and skip older pages on incremental runs (data loss).  # noqa: E501
