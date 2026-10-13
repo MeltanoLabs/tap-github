@@ -514,6 +514,175 @@ class CommunityProfileStream(GitHubRestStream):
     ).to_dict()
 
 
+class DependabotAlertsStream(GitHubRestStream):
+    """Extract Dependabot vulnerability alerts for a repository.
+
+    https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository
+    """
+
+    name = "dependabot_alerts"
+    path = "/repos/{org}/{repo}/dependabot/alerts"
+    primary_keys: ClassVar[list[str]] = ["number", "repo", "org"]
+    replication_key = "updated_at"
+    parent_stream_type = RepositoryStream
+    ignore_parent_replication_key = True
+    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    # The endpoint supports sorting by `updated`, but no `since` parameter.
+    # Fetch newest alerts first so the paginator can stop at the bookmark.
+    use_fake_since_parameter = True
+    # Dependabot alerts use Link-header cursors instead of page numbers.
+    use_cursor_pagination = True
+    # Dependabot alerts require an explicit repository permission, so users
+    # must select this stream after supplying a suitably scoped token.
+    selected_by_default = False
+
+    schema = th.PropertiesList(
+        # Parent keys
+        th.Property("repo", th.StringType),
+        th.Property("org", th.StringType),
+        th.Property("repo_id", th.IntegerType),
+        # Alert keys
+        th.Property("number", th.IntegerType),
+        th.Property("state", th.StringType),
+        th.Property("url", th.StringType),
+        th.Property("html_url", th.StringType),
+        th.Property("created_at", th.DateTimeType),
+        th.Property("updated_at", th.DateTimeType),
+        th.Property("dismissed_at", th.DateTimeType),
+        th.Property("dismissed_by", user_object),
+        th.Property("dismissed_reason", th.StringType),
+        th.Property("dismissed_comment", th.StringType),
+        th.Property("fixed_at", th.DateTimeType),
+        th.Property("auto_dismissed_at", th.DateTimeType),
+        th.Property("assignees", th.ArrayType(user_object)),
+        th.Property(
+            "dependency",
+            th.ObjectType(
+                th.Property(
+                    "package",
+                    th.ObjectType(
+                        th.Property("ecosystem", th.StringType),
+                        th.Property("name", th.StringType),
+                    ),
+                ),
+                th.Property("manifest_path", th.StringType),
+                th.Property("scope", th.StringType),
+                th.Property("relationship", th.StringType),
+            ),
+        ),
+        th.Property(
+            "security_vulnerability",
+            th.ObjectType(
+                th.Property(
+                    "package",
+                    th.ObjectType(
+                        th.Property("ecosystem", th.StringType),
+                        th.Property("name", th.StringType),
+                    ),
+                ),
+                th.Property("severity", th.StringType),
+                th.Property("vulnerable_version_range", th.StringType),
+                th.Property(
+                    "first_patched_version",
+                    th.ObjectType(th.Property("identifier", th.StringType)),
+                ),
+            ),
+        ),
+        th.Property(
+            "security_advisory",
+            th.ObjectType(
+                th.Property("ghsa_id", th.StringType),
+                th.Property("cve_id", th.StringType),
+                th.Property("url", th.StringType),
+                th.Property("html_url", th.StringType),
+                th.Property("summary", th.StringType),
+                th.Property("description", th.StringType),
+                th.Property("severity", th.StringType),
+                th.Property("published_at", th.DateTimeType),
+                th.Property("updated_at", th.DateTimeType),
+                th.Property("withdrawn_at", th.DateTimeType),
+                th.Property(
+                    "cvss",
+                    th.ObjectType(
+                        th.Property("vector_string", th.StringType),
+                        th.Property("score", th.NumberType),
+                    ),
+                ),
+                th.Property(
+                    "cvss_severities",
+                    th.ObjectType(
+                        th.Property(
+                            "cvss_v3",
+                            th.ObjectType(
+                                th.Property("vector_string", th.StringType),
+                                th.Property("score", th.NumberType),
+                            ),
+                        ),
+                        th.Property(
+                            "cvss_v4",
+                            th.ObjectType(
+                                th.Property("vector_string", th.StringType),
+                                th.Property("score", th.NumberType),
+                            ),
+                        ),
+                    ),
+                ),
+                th.Property(
+                    "epss",
+                    th.ObjectType(
+                        th.Property("percentage", th.NumberType),
+                        th.Property("percentile", th.StringType),
+                    ),
+                ),
+                th.Property(
+                    "identifiers",
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property("type", th.StringType),
+                            th.Property("value", th.StringType),
+                        ),
+                    ),
+                ),
+                th.Property(
+                    "references",
+                    th.ArrayType(th.ObjectType(th.Property("url", th.StringType))),
+                ),
+                th.Property(
+                    "cwes",
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property("cwe_id", th.StringType),
+                            th.Property("name", th.StringType),
+                        ),
+                    ),
+                ),
+                th.Property(
+                    "vulnerabilities",
+                    th.ArrayType(
+                        th.ObjectType(
+                            th.Property(
+                                "package",
+                                th.ObjectType(
+                                    th.Property("ecosystem", th.StringType),
+                                    th.Property("name", th.StringType),
+                                ),
+                            ),
+                            th.Property("severity", th.StringType),
+                            th.Property("vulnerable_version_range", th.StringType),
+                            th.Property(
+                                "first_patched_version",
+                                th.ObjectType(
+                                    th.Property("identifier", th.StringType),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ).to_dict()
+
+
 class EventsStream(GitHubRestStream):
     """
     Defines 'Events' stream.
