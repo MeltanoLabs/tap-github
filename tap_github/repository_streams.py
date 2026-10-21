@@ -79,8 +79,10 @@ class RepositoryStream(GitHubRestStream):
     def records_jsonpath(self) -> str:
         if "searches" in self.config:
             return "$.items[*]"
-        else:
-            return "$[*]"
+        if "repositories" in self.config:
+            # /repos/{org}/{repo} returns a single object
+            return "$"
+        return "$[*]"
 
     def get_repo_ids(self, repo_list: list[tuple[str, str]]) -> list[dict[str, str]]:
         """Enrich the list of repos with their numeric ID from github.
@@ -353,6 +355,7 @@ class ReadmeStream(GitHubRestStream):
 
     name = "readme"
     path = "/repos/{org}/{repo}/readme"
+    records_jsonpath = "$"  # The endpoint returns a single object
     primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
@@ -434,6 +437,7 @@ class CommunityProfileStream(GitHubRestStream):
 
     name = "community_profile"
     path = "/repos/{org}/{repo}/community/profile"
+    records_jsonpath = "$"  # The endpoint returns a single object
     primary_keys: ClassVar[list[str]] = ["repo", "org"]
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True

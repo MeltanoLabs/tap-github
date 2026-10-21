@@ -23,6 +23,7 @@ class UserStream(GitHubRestStream):
 
     name = "users"
     replication_key = "updated_at"
+    records_jsonpath = "$"  # The endpoint returns a single object
 
     @property
     def path(self) -> str:  # type: ignore[override, return] # ty:ignore[invalid-return-type]

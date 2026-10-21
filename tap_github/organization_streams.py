@@ -52,6 +52,7 @@ class OrganizationStream(GitHubRestStream):
 
     name = "organizations"
     path = "/orgs/{org}"
+    records_jsonpath = "$"  # The endpoint returns a single object
 
     @property
     def partitions(self) -> list[dict] | None:
@@ -227,6 +228,7 @@ class TeamRolesStream(GitHubRestStream):
 
     name = "team_roles"
     path = "/orgs/{org}/teams/{team_slug}/memberships/{username}"
+    records_jsonpath = "$"  # The endpoint returns a single object
     ignore_parent_replication_key = True
     primary_keys: ClassVar[list[str]] = ["url"]
     parent_stream_type = TeamMembersStream
