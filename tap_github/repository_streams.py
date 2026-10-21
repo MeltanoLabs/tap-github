@@ -526,11 +526,11 @@ class DependabotAlertsStream(GitHubRestStream):
 
     name = "dependabot_alerts"
     path = "/repos/{org}/{repo}/dependabot/alerts"
-    primary_keys: ClassVar[list[str]] = ["number", "repo", "org"]
+    primary_keys: Sequence[str] = ["number", "repo", "org"]
     replication_key = "updated_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = True
-    state_partitioning_keys: ClassVar[list[str]] = ["repo", "org"]
+    state_partitioning_keys: Sequence[str] | None = ["repo", "org"]
     # The endpoint supports sorting by `updated`, but no `since` parameter.
     # Fetch newest alerts first so the paginator can stop at the bookmark.
     use_fake_since_parameter = True
