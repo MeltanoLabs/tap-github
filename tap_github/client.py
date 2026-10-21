@@ -18,7 +18,7 @@ from singer_sdk.streams import GraphQLStream, RESTStream
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
     from logging import Logger
 
     import requests
@@ -242,7 +242,7 @@ class GitHubRestStream(RESTStream):
     def url_base(self) -> str:
         return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
 
-    primary_keys: ClassVar[list[str]] = ["id"]
+    primary_keys: Sequence[str] = ("id",)
     replication_key: str | None = None
     tolerated_http_errors: ClassVar[list[int]] = []
 

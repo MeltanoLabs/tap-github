@@ -11,7 +11,7 @@ from singer_sdk.exceptions import FatalAPIError
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     from singer_sdk.helpers.types import Context
 
@@ -107,11 +107,11 @@ class OrganizationMembersStream(GitHubRestStream):
     """
 
     name = "organization_members"
-    primary_keys: ClassVar[list[str]] = ["id"]
+    primary_keys: Sequence[str] = ("id",)
     path = "/orgs/{org}/members"
     ignore_parent_replication_key = True
     parent_stream_type = OrganizationStream
-    state_partitioning_keys: ClassVar[list[str]] = ["org"]
+    state_partitioning_keys: Sequence[str] | None = ("org",)
     schema = th.PropertiesList(
         # Parent keys
         th.Property("org", th.StringType),
@@ -134,11 +134,11 @@ class TeamsStream(GitHubRestStream):
     """
 
     name = "teams"
-    primary_keys: ClassVar[list[str]] = ["id"]
+    primary_keys: Sequence[str] = ("id",)
     path = "/orgs/{org}/teams"
     ignore_parent_replication_key = True
     parent_stream_type = OrganizationStream
-    state_partitioning_keys: ClassVar[list[str]] = ["org"]
+    state_partitioning_keys: Sequence[str] | None = ("org",)
 
     def get_child_context(self, record: dict, context: Context | None) -> dict:
         new_context = {"team_slug": record["slug"]}
@@ -189,11 +189,11 @@ class TeamMembersStream(GitHubRestStream):
     """
 
     name = "team_members"
-    primary_keys: ClassVar[list[str]] = ["id", "team_slug"]
+    primary_keys: Sequence[str] = ("id", "team_slug")
     path = "/orgs/{org}/teams/{team_slug}/members"
     ignore_parent_replication_key = True
     parent_stream_type = TeamsStream
-    state_partitioning_keys: ClassVar[list[str]] = ["team_slug", "org"]
+    state_partitioning_keys: Sequence[str] | None = ("team_slug", "org")
 
     def get_child_context(self, record: dict, context: Context | None) -> dict:
         new_context = {"username": record["login"]}
@@ -230,9 +230,9 @@ class TeamRolesStream(GitHubRestStream):
     path = "/orgs/{org}/teams/{team_slug}/memberships/{username}"
     records_jsonpath = "$"  # The endpoint returns a single object
     ignore_parent_replication_key = True
-    primary_keys: ClassVar[list[str]] = ["url"]
+    primary_keys: Sequence[str] = ("url",)
     parent_stream_type = TeamMembersStream
-    state_partitioning_keys: ClassVar[list[str]] = ["username", "team_slug", "org"]
+    state_partitioning_keys: Sequence[str] | None = ("username", "team_slug", "org")
 
     schema = th.PropertiesList(
         # Parent keys
@@ -253,10 +253,10 @@ class ProjectsStream(GitHubGraphqlStream):
     """
 
     name = "projects"
-    primary_keys: ClassVar[list[str]] = ["org", "id"]
+    primary_keys: Sequence[str] = ("org", "id")
     parent_stream_type = OrganizationStream
     ignore_parent_replication_key = True
-    state_partitioning_keys: ClassVar[list[str]] = ["org"]
+    state_partitioning_keys: Sequence[str] | None = ("org",)
     query_jsonpath = "$.data.organization.projectsV2.nodes[*]"
 
     @property
@@ -385,10 +385,10 @@ class ProjectFieldConfigurationsStream(GitHubGraphqlStream):
     """
 
     name = "project_field_configurations"
-    primary_keys: ClassVar[list[str]] = ["org", "project_number"]
+    primary_keys: Sequence[str] = ("org", "project_number")
     parent_stream_type = ProjectsStream
     ignore_parent_replication_key = True
-    state_partitioning_keys: ClassVar[list[str]] = ["org", "project_number"]
+    state_partitioning_keys: Sequence[str] | None = ("org", "project_number")
     query_jsonpath = "$.data.organization.projectV2.fields.nodes[*]"
 
     @property
@@ -601,10 +601,10 @@ class ProjectItemsStream(GitHubGraphqlStream):
     """
 
     name = "project_items"
-    primary_keys: ClassVar[list[str]] = ["org", "project_number", "node_id"]
+    primary_keys: Sequence[str] = ("org", "project_number", "node_id")
     parent_stream_type = ProjectFieldConfigurationsStream
     ignore_parent_replication_key = True
-    state_partitioning_keys: ClassVar[list[str]] = ["org", "project_number"]
+    state_partitioning_keys: Sequence[str] | None = ("org", "project_number")
     tolerated_http_errors: ClassVar[list[int]] = [414]
     query_jsonpath = "$.data.organization.projectV2.items.nodes[*]"
 

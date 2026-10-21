@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
@@ -12,7 +12,7 @@ from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import user_object
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     from singer_sdk.helpers.types import Context
     from singer_sdk.tap_base import Tap
@@ -207,10 +207,10 @@ class StarredStream(GitHubRestStream):
     name = "starred"
     path = "/users/{username}/starred"
     # "repo_id" is the starred repo's id.
-    primary_keys: ClassVar[list[str]] = ["repo_id", "username"]
+    primary_keys: Sequence[str] = ("repo_id", "username")
     parent_stream_type = UserStream
     # TODO - change partitioning key to user_id?
-    state_partitioning_keys: ClassVar[list[str]] = ["username"]
+    state_partitioning_keys: Sequence[str] | None = ("username",)
     replication_key = "starred_at"
     ignore_parent_replication_key = True
     # GitHub is missing the "since" parameter on this endpoint.
@@ -285,12 +285,12 @@ class UserContributedToStream(GitHubGraphqlStream):
 
     name = "user_contributed_to"
     query_jsonpath = "$.data.user.repositoriesContributedTo.nodes.[*]"
-    primary_keys: ClassVar[list[str]] = ["username", "name_with_owner"]
+    primary_keys: Sequence[str] = ("username", "name_with_owner")
     replication_key = None
     parent_stream_type = UserStream
     # TODO - add user_id to schema
     # TODO - change partitioning key to user_id?
-    state_partitioning_keys: ClassVar[list[str]] = ["username"]
+    state_partitioning_keys: Sequence[str] | None = ("username",)
     ignore_parent_replication_key = True
 
     @property
