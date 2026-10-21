@@ -18,7 +18,7 @@ from singer_sdk.streams import GraphQLStream, RESTStream
 from tap_github.authenticator import GitHubTokenAuthenticator
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
     from logging import Logger
 
     import requests
@@ -242,7 +242,7 @@ class GitHubRestStream(RESTStream):
     def url_base(self) -> str:
         return self.config.get("api_url_base", self.DEFAULT_API_BASE_URL)
 
-    primary_keys: ClassVar[list[str]] = ["id"]
+    primary_keys: Sequence[str] = ("id",)
     replication_key: str | None = None
     tolerated_http_errors: ClassVar[list[int]] = []
 
@@ -534,7 +534,7 @@ class GitHubGraphqlStream(GraphQLStream, GitHubRestStream):
         return f"{self.config.get('api_url_base', self.DEFAULT_API_BASE_URL)}/graphql"
 
     # the jsonpath under which to fetch the list of records from the graphql response
-    query_jsonpath: str = "$.data.[*]"
+    query_jsonpath: str = "$.data"
 
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows.
