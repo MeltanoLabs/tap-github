@@ -1,0 +1,42 @@
+name: Refresh uv.lock
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  refresh:
+    name: Refresh uv.lock
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the branch
+      pull-requests: write # open the PR
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+
+      - name: Upgrade all locked dependencies
+        run: uv lock --upgrade --exclude-newer "7 days ago"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        # zizmor: ignore[superfluous-actions]
+        with:
+          branch: chore/refresh-uv-lock
+          commit-message: "chore(deps): Refresh uv.lock"
+          title: "chore(deps): Refresh uv.lock"
+          body: Automated full refresh of `uv.lock` via `uv lock --upgrade`.
+          add-paths: uv.lock
+          delete-branch: true
