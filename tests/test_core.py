@@ -11,7 +11,7 @@ from tap_github.tap import TapGitHub
 from tap_github.utils.filter_stdout import nostdout
 
 from .fixtures import (  # noqa: F401
-    alternative_sync_chidren,
+    alternative_sync_children,
     organization_list_config,
     repo_list_config,
     search_config,
@@ -25,7 +25,7 @@ def test_standard_tap_tests_for_search_mode(search_config):  # noqa: F811
     tests = get_standard_tap_tests(TapGitHub, config=search_config)
     with (
         patch(
-            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_children
         ),
         nostdout(),
     ):
@@ -38,7 +38,7 @@ def test_standard_tap_tests_for_repo_list_mode(repo_list_config):  # noqa: F811
     tests = get_standard_tap_tests(TapGitHub, config=repo_list_config)
     with (
         patch(
-            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+            "singer_sdk.streams.core.Stream._sync_children", alternative_sync_children
         ),
         nostdout(),
     ):
