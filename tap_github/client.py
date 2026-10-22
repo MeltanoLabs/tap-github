@@ -339,12 +339,19 @@ class GitHubRestStream(RESTStream):
             https://docs.python-requests.org/en/latest/api/#requests.Response
         """
         full_path = urlparse(response.url).path
+        response_content = str(response.content).lower()
+        is_primary_rate_limit = (
+            response.status_code == 403 and "rate limit exceeded" in response_content
+        )
+        is_secondary_rate_limit = (
+            response.status_code == 403 and "secondary rate limit" in response_content
+        )
         if response.status_code in (
             [
                 *self.tolerated_http_errors,
                 EMPTY_REPO_ERROR_STATUS,
             ]
-        ):
+        ) and not (is_primary_rate_limit or is_secondary_rate_limit):
             msg = (
                 f"{response.status_code} Tolerated Status Code "
                 f"(Reason: {response.reason}) for path: {full_path}"
@@ -362,20 +369,14 @@ class GitHubRestStream(RESTStream):
                 f"[GitHub-Request-Id: {github_request_id}]"
             )
             # Retry on rate limiting
-            if (
-                response.status_code == 403
-                and "rate limit exceeded" in str(response.content).lower()
-            ):
+            if is_primary_rate_limit:
                 # Update token
                 self.authenticator.get_next_auth_token()
                 # Raise an error to force a retry with the new token.
                 raise RetriableAPIError(msg, response)
 
             # Retry on secondary rate limit
-            if (
-                response.status_code == 403
-                and "secondary rate limit" in str(response.content).lower()
-            ):
+            if is_secondary_rate_limit:
                 # Wait about a minute and retry
                 time.sleep(60 + 30 * random.random())
                 raise RetriableAPIError(msg, response)
