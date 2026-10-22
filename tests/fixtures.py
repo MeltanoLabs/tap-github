@@ -105,7 +105,7 @@ def organization_list_config(request):
     }
 
 
-def alternative_sync_chidren(
+def alternative_sync_children(
     self,
     child_context: Context,
     no_sync: bool = True,
@@ -125,10 +125,10 @@ def alternative_sync_chidren(
                     'No "ORG_LEVEL_TOKEN" found. Skipping collaborators stream sync.'
                 )
                 continue
-            SAVED_GTHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # noqa: N806
+            SAVED_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # noqa: N806
             os.environ["GITHUB_TOKEN"] = ORG_LEVEL_TOKEN
             child_stream.sync(context=child_context)
-            os.environ["GITHUB_TOKEN"] = SAVED_GTHUB_TOKEN or ""
+            os.environ["GITHUB_TOKEN"] = SAVED_GITHUB_TOKEN or ""
             continue
 
         # default behavior:

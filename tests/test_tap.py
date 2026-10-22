@@ -18,7 +18,7 @@ from tap_github.scraping import parse_counter
 from tap_github.tap import TapGitHub
 
 from .fixtures import (  # noqa: F401
-    alternative_sync_chidren,
+    alternative_sync_children,
     organization_list_config,
     repo_list_config,
     username_list_config,
@@ -115,7 +115,7 @@ def run_tap_with_config(
     # discard previous output to stdout (potentially from other tests)
     capsys.readouterr()
     with patch(
-        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_chidren
+        "singer_sdk.streams.core.Stream._sync_children", alternative_sync_children
     ):
         tap2 = TapGitHub(config=config_obj, catalog=catalog.to_dict())
         tap2.sync_all()

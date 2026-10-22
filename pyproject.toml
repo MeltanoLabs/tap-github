@@ -36,7 +36,7 @@ dependencies = [
     "cryptography>=47.0,<50.1",
     "nested-lookup~=0.2.25",
     "PyJWT~=2.15",
-    "python-dateutil~=2.9",
+    "python-dateutil~=3.0",
     "requests~=2.34.0",
     "singer-sdk~=0.54.9",
 ]
