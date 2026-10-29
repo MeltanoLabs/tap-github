@@ -1258,3 +1258,94 @@ class TestGitHubTokenAuthenticator:
                     auth.set_organization("other-org")
                     assert auth.active_token == fallback_token
                     assert auth.current_organization == "other-org"
+
+    def test_org_auth_tokens_stores_by_org(self, mock_stream):
+        """Test that org_auth_tokens stores personal tokens by organization."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "auth_token": "personal_token",
+                    "org_auth_tokens": [
+                        {"org": "org1", "token": "org1_token"},
+                        {"org": "org2", "token": "org2_token_a"},
+                        {"org": "org2", "token": "org2_token_b"},
+                    ],
+                }
+            )
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+            token_managers = auth.prepare_tokens()
+
+            assert [tm.token for tm in token_managers["org1"]] == ["org1_token"]
+            assert sorted(tm.token for tm in token_managers["org2"]) == [
+                "org2_token_a",
+                "org2_token_b",
+            ]
+            assert [tm.token for tm in token_managers[None]] == ["personal_token"]
+
+    def test_set_organization_switches_to_org_auth_token(self, mock_stream):
+        """Test that each organization uses its own personal token."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "org_auth_tokens": [
+                        {"org": "org1", "token": "org1_token"},
+                        {"org": "org2", "token": "org2_token"},
+                    ],
+                }
+            )
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+
+            auth.set_organization("org2")
+            assert auth.active_token.token == "org2_token"
+            auth.set_organization("org1")
+            assert auth.active_token.token == "org1_token"
+
+    def test_get_next_auth_token_keeps_org_auth_tokens_isolated(self, mock_stream):
+        """Test an org's personal tokens are not used for another org."""
+        with (
+            patch.object(
+                GitHubTokenAuthenticator,
+                "get_env",
+                return_value={},
+            ),
+            patch.object(PersonalTokenManager, "is_valid_token", return_value=True),
+        ):
+            stream = mock_stream
+            stream.config.update(
+                {
+                    "org_auth_tokens": [
+                        {"org": "org1", "token": "org1_token"},
+                        {"org": "org2", "token": "org2_token"},
+                    ],
+                }
+            )
+            auth = GitHubTokenAuthenticator.from_stream(stream=stream)
+            auth.set_organization("org1")
+            org1_token = auth.token_managers["org1"][0]
+            org2_token = auth.token_managers["org2"][0]
+
+            with (
+                patch.object(org1_token, "has_calls_remaining", return_value=False),
+                patch.object(org2_token, "has_calls_remaining", return_value=True),
+                pytest.raises(
+                    RuntimeError,
+                    match="All GitHub tokens have hit their rate limit",
+                ),
+            ):
+                auth.get_next_auth_token()
