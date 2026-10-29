@@ -45,16 +45,19 @@ class TapGitHub(Tap):
         th.Property(
             "auth_token",
             th.StringType,
+            secret=True,
             description="GitHub token to authenticate with.",
         ),
         th.Property(
             "additional_auth_tokens",
             th.ArrayType(th.StringType),
+            secret=True,
             description="List of GitHub tokens to authenticate with. Streams will loop through them when hitting rate limits.",  # noqa: E501
         ),
         th.Property(
             "auth_app_keys",
             th.ArrayType(th.StringType),
+            secret=True,
             description=(
                 "List of GitHub App credentials to authenticate with. "
                 "These are organization-agnostic and will be used as "
@@ -68,6 +71,7 @@ class TapGitHub(Tap):
             th.ObjectType(
                 additional_properties=th.ArrayType(th.StringType),
             ),
+            secret=True,
             description=(
                 "Organization-specific GitHub App credentials. "
                 "Maps organization names to lists of app credentials. "
@@ -76,6 +80,33 @@ class TapGitHub(Tap):
                 "Each credential should be formatted as "
                 "`:app_id:;;-----BEGIN RSA PRIVATE KEY-----"
                 "\\n_YOUR_P_KEY_\\n-----END RSA PRIVATE KEY-----`."
+            ),
+        ),
+        th.Property(
+            "org_auth_tokens",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property(
+                        "org",
+                        th.StringType,
+                        required=True,
+                        description="The organization the token is for.",
+                    ),
+                    th.Property(
+                        "token",
+                        th.StringType,
+                        required=True,
+                        secret=True,
+                        description="A personal access token for the organization.",
+                    ),
+                ),
+            ),
+            secret=True,
+            description=(
+                "Organization-specific personal access tokens, such as fine-grained "
+                "tokens owned by an organization. A list of objects with `org` and "
+                "`token`. When processing repositories from an organization, the "
+                "tap uses that organization's tokens."
             ),
         ),
         th.Property(

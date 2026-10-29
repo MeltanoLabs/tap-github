@@ -374,6 +374,27 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
 
         return org_app_keys
 
+    def _collect_org_auth_tokens(self) -> dict[str, set[str]]:
+        """Collect organization-specific personal tokens from config.
+
+        Returns:
+            Dictionary mapping organization names to sets of personal tokens.
+        """
+        org_tokens: dict[str, set[str]] = defaultdict(set)
+
+        for org_token in self.org_auth_tokens or []:
+            org_tokens[org_token["org"]].add(org_token["token"])
+
+        for org, tokens in org_tokens.items():
+            logger.info(
+                "Provided %d personal tokens via config for authentication "
+                "for organization: %s",
+                len(tokens),
+                org,
+            )
+
+        return org_tokens
+
     def _create_app_token_managers(
         self,
         app_keys: dict[str | None, list[str]],
@@ -434,6 +455,12 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             sum(len(token_managers[org]) for org in token_managers),
         )
 
+        # Org-specific personal tokens go in their organization's pool.
+        for org, tokens in self._collect_org_auth_tokens().items():
+            org_personal_token_managers = self._create_personal_token_managers(tokens)
+            if org_personal_token_managers:
+                token_managers[org].extend(org_personal_token_managers)
+
         # Merge personal tokens into org-agnostic tokens (None key).
         if personal_token_managers:
             token_managers[None].extend(personal_token_managers)
@@ -449,6 +476,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         additional_auth_tokens: list[str] | None = None,
         auth_app_keys: list[str] | None = None,
         org_auth_app_keys: dict[str, list[str]] | None = None,
+        org_auth_tokens: list[dict[str, str]] | None = None,
     ) -> None:
         """Init authenticator.
 
@@ -463,6 +491,8 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
                 for all organizations.
             org_auth_app_keys: Organization-specific GitHub App keys. Dict mapping
                 organization names to lists of app keys.
+            org_auth_tokens: Organization-specific personal access tokens. List of
+                objects with `org` and `token`.
         """
         super().__init__()
         self.rate_limit_buffer = rate_limit_buffer
@@ -471,6 +501,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
         self.additional_auth_tokens = additional_auth_tokens
         self.auth_app_keys = auth_app_keys
         self.org_auth_app_keys = org_auth_app_keys
+        self.org_auth_tokens = org_auth_tokens
 
         self.token_managers = self.prepare_tokens()
         self.current_organization: str | None = None
@@ -496,6 +527,7 @@ class GitHubTokenAuthenticator(APIAuthenticatorBase):
             additional_auth_tokens=stream.config.get("additional_auth_tokens"),
             auth_app_keys=stream.config.get("auth_app_keys"),
             org_auth_app_keys=stream.config.get("org_auth_app_keys"),
+            org_auth_tokens=stream.config.get("org_auth_tokens"),
         )
 
     def set_organization(self, org: str) -> None:

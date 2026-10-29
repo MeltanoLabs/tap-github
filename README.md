@@ -38,6 +38,14 @@ This tap accepts the following configuration options:
     - `auth_token` - Takes a single token.
     - `additional_auth_tokens` - Takes a list of tokens. Can be used together with `auth_token` or as the sole source of PATs.
     - Any environment variables beginning with `GITHUB_TOKEN` will be assumed to be PATs. These tokens will be used in addition to `auth_token` (if provided), but will not be used if `additional_auth_tokens` is provided.
+    - `org_auth_tokens` - Takes a list of objects with `org` and `token`, for tokens that belong to one organization (such as fine-grained tokens owned by it). When processing repositories from an organization, the tap uses that organization's tokens. Example:
+      ```yaml
+      org_auth_tokens:
+        - org: my-org
+          token: github_pat_...
+        - org: another-org
+          token: github_pat_...
+      ```
   - GitHub App keys are another option for authentication, and can be used in combination with PATs if desired. App IDs and keys should be assembled into the format `:app_id:;;-----BEGIN RSA PRIVATE KEY-----\n_YOUR_P_KEY_\n-----END RSA PRIVATE KEY-----` (replace `:app_id:` with your actual GitHub App ID and `_YOUR_P_KEY_` with your private key content) where the key can be generated from the `Private keys` section on https://github.com/organizations/:organization_name/settings/apps/:app_name. Read more about GitHub App quotas [here](https://docs.github.com/en/enterprise-server@3.3/developers/apps/building-github-apps/rate-limits-for-github-apps#server-to-server-requests). Formatted app keys can be provided in 3 ways:
     - `auth_app_keys` - List of GitHub App keys in the prescribed format. These keys are organization-agnostic and will be used as fallback for all organizations.
     - `org_auth_app_keys` - Object/dictionary mapping organization names to lists of GitHub App keys. This allows you to specify different app credentials for different organizations, enabling better rate limit management across multiple organizations. Example:
@@ -105,7 +113,33 @@ You can easily run `tap-github` by itself or in a pipeline using [Meltano](www.m
 
 ### Notes regarding permissions
 
+#### Fine-grained personal access tokens
+
+**Public repositories only.** Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with your own account as the resource owner and **Repository access** set to **Public repositories**. It needs no permissions: it can read the public repositories, issues and pull requests of any organization or user.
+
+**Private repositories.** Set the resource owner to the organization (the organization may need to [allow or approve fine-grained tokens](https://docs.github.com/en/organizations/managing-programmatic-access-to-your-organization/setting-a-personal-access-token-policy-for-your-organization)), give it access to the repositories, and grant read-only access to the permissions for the streams you select:
+
+| Permission | Streams |
+|---|---|
+| Repository: Metadata (always granted) | `repositories`, `events`, `languages`, `collaborators`, `commit_comments`, `contributors`, `anonymous_contributors`, `stats_contributors`, `tags`, `custom_properties` |
+| Repository: Contents | `readme`, `readme_html`, `community_profile`, `releases`, `commits`, `commit_diffs`, `pull_request_commit_diffs`, `branches` |
+| Repository: Issues | `issues`, `issue_events`, and with Pull requests: `milestones`, `assignees`, `issue_comments`, `labels` |
+| Repository: Pull requests | `pull_requests`, `pull_request_commits`, `pull_request_diffs`, `reviews`, `review_comments`, `review_comment_reactions` |
+| Repository: Actions | `workflows`, `workflow_runs`, `workflow_run_jobs` |
+| Repository: Deployments | `deployments`, `deployment_statuses` |
+| Repository: Discussions | `discussion_categories`, `discussions`, `discussion_comments`, `discussion_comment_replies` |
+| Repository: Administration | `traffic_*` |
+| Organization: Members | `organization_members`, `teams`, `team_members`, `team_roles` |
+| Organization: Projects | `projects`, `project_field_configurations`, `project_items` |
+
+The REST permissions are from GitHub's [permissions required for fine-grained personal access tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+
+A fine-grained token can only see the private repositories of its one resource owner. To extract private repositories from several organizations, give each organization its own token with `org_auth_tokens`. Tokens in `auth_token` and `additional_auth_tokens` are used for any organization.
+
+#### Other notes
+
 - For the `traffic_*` streams, [you will need write access to the repository](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28). You can enable extraction for these streams by [selecting them in the catalog](https://hub.meltano.com/singer/spec/#metadata).
+- GitHub is [limiting the stargazer endpoints](https://docs.github.com/en/rest/activity/starring#list-stargazers) to repository admins and collaborators.
 
 ### Executing the Tap Directly
 
