@@ -93,14 +93,17 @@ class GitHubRestPaginator(BaseAPIPaginator[int | str | None]):
             since = _get_request_query_parameter(response, "fake_since")
             direction = _get_request_query_parameter(response, "direction")
 
-            replication_date = (
-                results[-1][self._replication_key]
-                if self._replication_key != "commit_timestamp"
-                else results[-1]["commit"]["committer"]["date"]
-            )
+            last_record = results[-1]
+            if self._replication_key == "commit_timestamp":
+                commit = last_record.get("commit") or {}
+                committer = commit.get("committer") or {}
+                replication_date = committer.get("date")
+            else:
+                replication_date = last_record.get(self._replication_key)
             if (
                 since
                 and direction == "desc"
+                and replication_date is not None
                 and (parse(replication_date) < parse(since))
             ):
                 return False

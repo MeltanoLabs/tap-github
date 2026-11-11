@@ -189,6 +189,36 @@ def test_rest_fake_since_supports_commit_timestamp():
     assert paginator.has_more(response) is False
 
 
+def test_rest_fake_since_missing_replication_key_continues():
+    # Records without the replication key must not crash pagination;
+    # keep fetching instead of raising KeyError.
+    paginator = _rest_paginator(
+        replication_key="starred_at",
+        use_fake_since_parameter=True,
+    )
+    response = _response(
+        [{"id": 1}],
+        next_url="next",
+        request_url="https://api.github.com/test?fake_since=2025-01-01T00:00:00Z&direction=desc",
+    )
+
+    assert paginator.has_more(response) is True
+
+
+def test_rest_fake_since_missing_commit_date_continues():
+    paginator = _rest_paginator(
+        replication_key="commit_timestamp",
+        use_fake_since_parameter=True,
+    )
+    response = _response(
+        [{"id": 1}],
+        next_url="next",
+        request_url="https://api.github.com/test?fake_since=2025-01-01T00:00:00Z&direction=desc",
+    )
+
+    assert paginator.has_more(response) is True
+
+
 def test_rest_has_more_uses_records_jsonpath():
     paginator = _rest_paginator(records_jsonpath="$.items[*]")
 
